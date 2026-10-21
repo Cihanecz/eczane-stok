@@ -655,8 +655,8 @@ async function anaEkran(){
     <div class="kpi">
       <div class="kart ana"><h3>Raftaki malın maliyeti</h3><div class="deger">${para(o.stok_maliyet)}</div>
         <div class="not">${sayi(o.kalem)} ürün · ${sayi(o.kutu)} kutu</div></div>
-      <div class="kart"><h3>Raftaki malın satış değeri</h3><div class="deger">${tl(o.stok_psf)}</div>
-        <div class="not">${kilitli()?"PSF toplamı":`maliyetin ${o.stok_maliyet?(o.stok_psf/o.stok_maliyet).toFixed(1).replace(".",","):"—"} katı (PSF)`}</div></div>
+      <div class="kart"><h3>Raftaki malın satış değeri</h3><div class="deger">${para(o.stok_psf)}</div>
+        <div class="not">${kilitli()?"tutar şifresiyle açılır":`maliyetin ${o.stok_maliyet?(o.stok_psf/o.stok_maliyet).toFixed(1).replace(".",","):"—"} katı (PSF)`}</div></div>
       <div class="kart"><h3>Bu ay ciro</h3><div class="deger">${para(o.bu_ay_ciro)}</div>
         <div class="not">${kilitli()?"tutar şifresiyle açılır":`ay sonu tahmini ${tlKisa(tahmin)} · geçen ay ${tlKisa(o.gecen_ay_ciro)}`}</div></div>
       <div class="kart"><h3>Bu ay kâr</h3><div class="deger yukari">${para(o.bu_ay_kar)}</div>
