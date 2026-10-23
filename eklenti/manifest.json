@@ -1,17 +1,51 @@
 {
   "manifest_version": 3,
   "name": "Eczane Stok - Depo Köprüsü",
-  "version": "1.0.0",
-  "description": "Açık depo sekmesinden (Sancak) fiyat ve MF bilgisini okuyup Eczane Stok toplayıcısına verir. Sadece okur: sepet/sipariş yok.",
-  "permissions": ["alarms", "tabs", "scripting"],
+  "version": "1.1.0",
+  "description": "Açık depo sekmelerinden (Sancak, BEK) fiyat ve MF bilgisini okuyup Eczane Stok toplayıcısına verir. Sadece okur: sepet/sipariş yok.",
+  "permissions": [
+    "alarms",
+    "tabs",
+    "scripting"
+  ],
   "host_permissions": [
     "https://eticaret.sancakecza.com.tr/*",
+    "https://esube.bek.org.tr/*",
     "http://127.0.0.1:47811/*"
   ],
-  "background": { "service_worker": "arka.js" },
-  "content_scripts": [{
-    "matches": ["https://eticaret.sancakecza.com.tr/*"],
-    "js": ["sancak.js"],
-    "run_at": "document_idle"
-  }]
+  "background": {
+    "service_worker": "arka.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://eticaret.sancakecza.com.tr/*"
+      ],
+      "js": [
+        "sancak.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://esube.bek.org.tr/*"
+      ],
+      "js": [
+        "bek-ana.js"
+      ],
+      "world": "MAIN",
+      "all_frames": true,
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://esube.bek.org.tr/*"
+      ],
+      "js": [
+        "bek.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ]
 }

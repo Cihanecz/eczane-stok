@@ -63,7 +63,7 @@
   }
 
   chrome.runtime.onMessage.addListener((m, _s, cevap) => {
-    if (m.tip === "ara") { ara(m.barkodlar).then(cevap, e => cevap({ durum: "hata", mesaj: String(e) })); return true; }
+    if (m.tip === "ara" && (m.depo || "sn") === "sn") { ara(m.barkodlar).then(cevap, e => cevap({ durum: "hata", mesaj: String(e) })); return true; }
     if (m.tip === "giris") { cevap({ tamam: giris(m.giris) }); return false; }
   });
 })();

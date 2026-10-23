@@ -1,6 +1,6 @@
 // Eczane Stok - Depo Köprüsü (arka plan)
 // Toplayıcı (toplayici.ps1 -Asama depo) bilgisayarda 127.0.0.1:47811'de iş açar.
-// Eklenti 30 sn'de bir sorar; iş varsa açık Sancak sekmesinde arama yaptırıp sonucu geri verir.
+// Eklenti 30 sn'de bir sorar; iş varsa ilgili depo sekmesinde (Sancak / BEK) arama yaptırıp sonucu geri verir.
 // Toplayıcı çalışmıyorsa hiçbir şey yapmaz. Hata olursa sessizce bir sonraki turu bekler.
 const KOK = "http://127.0.0.1:47811";
 const SANCAK = "https://eticaret.sancakecza.com.tr/";
@@ -24,11 +24,17 @@ async function bildir(govde) {
   try { await fetch(KOK + "/sonuc", { method: "POST", body: JSON.stringify(govde) }); } catch { }
 }
 
-async function sancakSekmesi(adres) {
-  let t = await chrome.tabs.query({ url: "https://eticaret.sancakecza.com.tr/*" });
+const DEPO = {
+  sn:  { desen: "https://eticaret.sancakecza.com.tr/*", adres: "https://eticaret.sancakecza.com.tr/" },
+  bek: { desen: "https://esube.bek.org.tr/*",           adres: "https://esube.bek.org.tr/irj/portal/" },
+};
+async function depoSekmesi(depo, adres) {
+  const d = DEPO[depo] || DEPO.sn;
+  let t = await chrome.tabs.query({ url: d.desen });
   if (t.length) return t[0];
-  const yeni = await chrome.tabs.create({ url: adres || SANCAK, active: false, pinned: true });
+  const yeni = await chrome.tabs.create({ url: adres || d.adres, active: false, pinned: true });
   await yuklenmesiniBekle(yeni.id);
+  if (depo === "bek") await bekle(6000);           // BEK uygulaması çerçevede geç açılır
   return await chrome.tabs.get(yeni.id);
 }
 async function yuklenmesiniBekle(id, sn = 40) {
@@ -41,7 +47,7 @@ async function sekmeyeSor(id, mesaj) {
   try { return await chrome.tabs.sendMessage(id, mesaj); }
   catch {
     // sekme eklentiden önce açılmışsa içerik betiği yoktur: ekle ve tekrar dene
-    await chrome.scripting.executeScript({ target: { tabId: id }, files: ["sancak.js"] });
+    await chrome.scripting.executeScript({ target: { tabId: id, allFrames: mesaj.depo === "bek" }, files: [mesaj.depo === "bek" ? "bek.js" : "sancak.js"] });
     await bekle(300);
     return await chrome.tabs.sendMessage(id, mesaj);
   }
@@ -51,19 +57,25 @@ async function yokla() {
   if (calisiyor) return;
   calisiyor = true;
   try {
-    let girisDenendi = false;
-    for (let tur = 0; tur < 60; tur++) {
+    let girisDenendi = false, yenilendi = false;
+    for (let tur = 0; tur < 80; tur++) {
       const is = await isAl();
       if (!is || !is.barkodlar || !is.barkodlar.length) return;
+      const depo = is.depo || "sn";
       let sekme, c;
       try {
-        sekme = await sancakSekmesi(is.adres);
-        c = await sekmeyeSor(sekme.id, { tip: "ara", barkodlar: is.barkodlar });
-      } catch (e) { await bildir({ durum: "hata", mesaj: "sekme: " + (e.message || e) }); return; }
+        sekme = await depoSekmesi(depo, is.adres);
+        c = await sekmeyeSor(sekme.id, { tip: "ara", depo, barkodlar: is.barkodlar });
+      } catch (e) {
+        // BEK: oturum anahtarı henüz yakalanmadı (sekme eklentiden önce açılmış) → sekmeyi bir kez yenile
+        if (depo === "bek" && !yenilendi && sekme) { yenilendi = true; await chrome.tabs.reload(sekme.id); await yuklenmesiniBekle(sekme.id); await bekle(8000); continue; }
+        await bildir({ durum: depo === "bek" ? "giris" : "hata", mesaj: "sekme: " + (e.message || e) }); return;
+      }
       if (!c) { await bildir({ durum: "hata", mesaj: "sekmeden cevap yok" }); return; }
       if (c.durum === "giris") {
-        // oturum düşmüş: kayıtlı bilgiyle bir kez giriş dene
-        if (is.giris && !girisDenendi) {
+        if (depo === "bek" && !yenilendi) { yenilendi = true; await chrome.tabs.reload(sekme.id); await yuklenmesiniBekle(sekme.id); await bekle(8000); continue; }
+        // Sancak oturumu düşmüş: kayıtlı bilgiyle bir kez giriş dene
+        if (depo === "sn" && is.giris && !girisDenendi) {
           girisDenendi = true;
           try { await sekmeyeSor(sekme.id, { tip: "giris", giris: is.giris }); } catch { }
           await bekle(1500); await yuklenmesiniBekle(sekme.id);
