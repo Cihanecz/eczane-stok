@@ -868,6 +868,7 @@ function DepoPost($ses, [string]$url, $govde, [string]$tur = "form") {
   $r.Content | ConvertFrom-Json
 }
 function DepoAS($ses, [string]$barkod) {
+  $barkod = $barkod -replace '^0(\d{13})$', '$1'
   $u = DepoPost $ses "https://webdepo.asecza.com.tr/Siparis/hizlisiparis-ajax.aspx" @{ action = "GetUrunler"; searchText = $barkod; isInculude = "false"; isStoktakiler = "false"; siralama = "ilacASC"; marka = ""; baslangicSayfasi = "0"; topRowNum = "0"; sayfaMaxRowAdet = "10"; s = "s" }
   $l = @($u.obj.urunler); if (-not $l.Count) { return $null }
   $e = $l[0]
@@ -882,6 +883,7 @@ function DepoAS($ses, [string]$barkod) {
               atc = $d.atc.value; atca = $d.atc.display; end = $d.endikasyon.display; etk = $d.etkenMadde.display }
 }
 function DepoSN($ses, [string]$barkod, [string]$adres) {
+  $barkod = $barkod -replace '^0(\d{13})$', '$1'
   $r = DepoPost $ses $adres @{ Key = $barkod; SearchType = 0; StockType = 0; Page = 1; CacheForCampaign = $false; ItemScope = "0" } "json"
   $l = @($r.Value); if (-not $l.Count) { return $null }
   $e = $l[0]
@@ -892,7 +894,7 @@ function AsamaDepo {
   $ay = DepoAyarOku; if (-not $ay.Count) { Log "Depo bilgisi kayıtlı değil, atlandı (toplayici.ps1 -DepoKur)."; return }
   $j = Jeton
   # sorgulanacak ürünler: son 90 günde satılan ilaçlar (en çok satan 350) + stokta az kalan çok satanlar
-  $u = @(BulutOku "urun_ozet?select=barkod,ad,stok,adet_90&adet_90=gt.0&order=adet_90.desc&limit=350" $j)
+  $u = @(BulutOku "urun_ozet?select=barkod,ad,stok,adet_90&adet_90=gt.0&order=adet_90.desc&limit=350" $j | ForEach-Object { $_ })
   $barkodlar = @($u | Where-Object { $_.barkod -match '^\d{8,14}$' } | ForEach-Object { $_.barkod })
   $bilgi = @{}; foreach ($x in $u) { $bilgi[$x.barkod] = $x }
   Log ("Depo: {0} ürün sorgulanacak" -f $barkodlar.Count)
@@ -900,7 +902,7 @@ function AsamaDepo {
   foreach ($k in @($ay.Keys)) { try { $sesler[$k] = DepoGiris $k; Log ("  {0}: giriş tamam" -f $DEPOLAR[$k].ad) } catch { Log ("  {0}: GİRİŞ HATASI — {1}" -f $DEPOLAR[$k].ad, $_.Exception.Message) } }
   if (-not $sesler.Count) { throw "Hiçbir depoya girilemedi." }
   $onceki = @{}; try { $o = BulutOku "ayar?anahtar=eq.depo_fiyat&select=deger" $j; if ($o) { foreach ($x in (($o[0].deger | ConvertFrom-Json).u)) { $onceki[$x.b] = $x } } } catch { }
-  $kat = @{}; try { $o = BulutOku "ayar?anahtar=eq.ilac_kategori&select=deger" $j; if ($o) { foreach ($p in ($o[0].deger | ConvertFrom-Json).PSObject.Properties) { $kat[$p.Name] = $p.Value } } } catch { }
+  $kat = @{}; try { $o = BulutOku "ayar?anahtar=eq.ilac_kategori&select=deger" $j; if ($o) { foreach ($p in ($o[0].deger | ConvertFrom-Json).PSObject.Properties) { $y = $p.Value.yok; if ($y -and ($y -isnot [string] -or ((Get-Date) - [datetime]$y).TotalDays -gt 30)) { continue }; $kat[$p.Name] = $p.Value } } } catch { }
   $simdi = (Get-Date).ToString("o"); $sonuc = New-Object System.Collections.ArrayList; $hata = @{}
   foreach ($b in $barkodlar) {
     $s = [ordered]@{ b = $b; ad = $bilgi[$b].ad; st = $bilgi[$b].stok; a90 = $bilgi[$b].adet_90 }
@@ -919,7 +921,7 @@ function AsamaDepo {
   # kategori (etken madde / tedavi grubu) her çalışmada stoktaki 150 ürün daha tamamlanır — arama için
   if ($sesler["as"]) {
     $stoklu = @(BulutOku "urun_ozet?select=barkod&stok=gt.0&limit=10000" $j | ForEach-Object { $_.barkod } | Where-Object { $_ -match '^\d{8,14}$' -and -not $kat.ContainsKey($_) } | Select-Object -First 150)
-    foreach ($b in $stoklu) { try { $v = DepoAS $sesler["as"] $b; $kat[$b] = if ($v -and $v.atc) { [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk } } else { [ordered]@{ yok = 1 } } } catch { } }
+    foreach ($b in $stoklu) { try { $v = DepoAS $sesler["as"] $b; $kat[$b] = if ($v -and $v.atc) { [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk } } else { [ordered]@{ yok = (Get-Date).ToString("yyyy-MM-dd") } } } catch { } }
   }
   $veri = [ordered]@{ zaman = $simdi; depolar = @($sesler.Keys | ForEach-Object { $DEPOLAR[$_].ad }); u = $sonuc.ToArray() }
   BulutEkle "ayar" @([ordered]@{ anahtar = "depo_fiyat"; deger = (ConvertTo-Json $veri -Depth 6 -Compress); guncelleme = $simdi }) $j "anahtar"
