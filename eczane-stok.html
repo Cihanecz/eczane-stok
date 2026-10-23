@@ -1146,7 +1146,9 @@ async function kategoriBul(t){
 }
 async function kategoriSonucu(q, t){
   const bar = await kategoriBul(t); if(!bar.length) return "";
-  const { data } = await db.from("urun_ozet").select("barkod,ad,stok,en_yakin_miad,adet_90,psf").in("barkod", bar.slice(0,400)).gt("stok",0);
+  const parcalar = []; for(let i=0;i<bar.length && i<3000;i+=250) parcalar.push(bar.slice(i,i+250));
+  const sonuclar = await Promise.all(parcalar.map(p=>db.from("urun_ozet").select("barkod,ad,stok,en_yakin_miad,adet_90,psf").in("barkod", p).gt("stok",0)));
+  const data = sonuclar.flatMap(r=>r.data||[]);
   const l = (data||[]).sort((a,b)=>(a.en_yakin_miad||"9999").localeCompare(b.en_yakin_miad||"9999"));
   if(!l.length) return "";
   return `<div class="liste-ust" style="margin-top:22px"><div><h2 style="margin:0">Etken madde / tedavi grubu: ${l.length} ürün stokta</h2><p>Miadı en yakın olan en üstte. Kırmızı: 4 aydan az kaldı.</p></div></div>

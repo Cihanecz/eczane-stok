@@ -1088,6 +1088,53 @@ function AsamaSepet {
   BulutEkle "ayar" @([ordered]@{ anahtar = "sepet_istek"; deger = (ConvertTo-Json ([ordered]@{ liste = $liste }) -Depth 5 -Compress); guncelleme = $simdi }) $j "anahtar"
   Log ("Sepet: {0} tamam, {1} hata" -f @($sonuclar.Values | Where-Object { $_.tamam }).Count, @($sonuclar.Values | Where-Object { -not $_.tamam }).Count)
 }
+# ======================= KOLAY ASİSTAN İLAÇ LİSTESİ =======================
+# Kolay Asistan programının kendi klasöründeki ilaç listesi (barkod, ad, ATC). Sadece ilaç listesi okunur;
+# programın hasta / etiket geçmişine dokunulmaz.
+function KolayListe {
+  $f = Get-ChildItem "${env:ProgramFiles(x86)}\Kolay Asistan\Assets\Medicine\MedicineList_v*.json", "$env:ProgramFiles\Kolay Asistan\Assets\Medicine\MedicineList_v*.json" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if (-not $f) { return $null }
+  $L = @([IO.File]::ReadAllText($f.FullName, [Text.Encoding]::UTF8) | ConvertFrom-Json | ForEach-Object { $_ })
+  @{ dosya = $f; liste = $L }
+}
+# Stokta / ürün listesinde olup tedavi grubu (ATC) bilinmeyen ürünleri Kolay Asistan listesinden tamamlar
+function KolayKategori($kat, [string]$j, $kl) {
+  if (-not $kl) { $kl = KolayListe }; if (-not $kl) { return 0 }
+  $m = @{}; foreach ($x in $kl.liste) { if ($x.b -and $x.c) { $m["$($x.b)" -replace '^0+(\d{13})$', '$1'] = "$($x.c)" } }
+  $n = 0
+  foreach ($b in @(BulutOku "urun_ozet?select=barkod&limit=20000" $j | ForEach-Object { $_.barkod })) {
+    if ($b -notmatch '^\d{8,14}$') { continue }
+    $v = $kat[$b]; if ($v -and $v.atc) { continue }
+    $k13 = $b -replace '^0(\d{13})$', '$1'
+    if ($m.ContainsKey($k13)) { $kat[$b] = [ordered]@{ atc = $m[$k13]; k = 1 }; $n++ }
+  }
+  $n
+}
+# Listenin kendisini buluta koyar (Excel'e çevirmek / başka programda kullanmak için). Dosya değişmediyse tekrar yüklemez.
+function KolayYukle([string]$j, $kl, [switch]$Zorla) {
+  if (-not $kl) { $kl = KolayListe }; if (-not $kl) { Log "Kolay Asistan ilaç listesi bulunamadı"; return }
+  $imza = $kl.dosya.Name + "|" + $kl.dosya.LastWriteTime.ToString("o")
+  if (-not $Zorla) { try { $o = BulutOku "ayar?anahtar=eq.kolay_ilac_imza&select=deger" $j; if ($o -and "$($o[0].deger)" -eq $imza) { return } } catch { } }
+  Add-Type -AssemblyName System.Web
+  $js = { param($t) [Web.HttpUtility]::JavaScriptStringEncode("$t", $true) }
+  $sb = New-Object Text.StringBuilder; [void]$sb.Append('{"dosya":' + (& $js $kl.dosya.Name) + ',"tarih":"' + $kl.dosya.LastWriteTime.ToString("yyyy-MM-dd") + '","l":[')
+  $ilk = $true
+  foreach ($x in $kl.liste) { if (-not $x.b) { continue }; if (-not $ilk) { [void]$sb.Append(',') }; $ilk = $false; [void]$sb.Append('[' + (& $js $x.b) + ',' + (& $js $x.n) + ',' + (& $js $x.c) + ',' + [int]$x.t + ',' + [int]$x.a + ']') }
+  [void]$sb.Append(']}')
+  $simdi = (Get-Date).ToString("o")
+  BulutEkle "ayar" @([ordered]@{ anahtar = "kolay_ilac_listesi"; deger = $sb.ToString(); guncelleme = $simdi }) $j "anahtar"
+  BulutEkle "ayar" @([ordered]@{ anahtar = "kolay_ilac_imza"; deger = $imza; guncelleme = $simdi }) $j "anahtar"
+  Log ("Kolay Asistan ilaç listesi buluta yüklendi: {0} ürün" -f @($kl.liste).Count)
+}
+function AsamaKolay {
+  $j = Jeton; $kl = KolayListe; if (-not $kl) { Log "Kolay Asistan ilaç listesi bulunamadı"; return }
+  Log ("Kolay Asistan listesi: {0} ürün ({1})" -f @($kl.liste).Count, $kl.dosya.Name)
+  $kat = @{}; try { $o = BulutOku "ayar?anahtar=eq.ilac_kategori&select=deger" $j; if ($o) { foreach ($p in ($o[0].deger | ConvertFrom-Json).PSObject.Properties) { $kat[$p.Name] = $p.Value } } } catch { }
+  $n = KolayKategori $kat $j $kl
+  BulutEkle "ayar" @([ordered]@{ anahtar = "ilac_kategori"; deger = (ConvertTo-Json $kat -Depth 4 -Compress); guncelleme = (Get-Date).ToString("o") }) $j "anahtar"
+  Log ("Tedavi grubu tamamlandı: {0} ürün eklendi, toplam {1}" -f $n, $kat.Count)
+  KolayYukle $j $kl -Zorla
+}
 function AsamaDepo {
   $ay = DepoAyarOku; if (-not $ay.Count) { Log "Depo bilgisi kayıtlı değil, atlandı (toplayici.ps1 -DepoKur)."; return }
   $j = Jeton
@@ -1130,10 +1177,14 @@ function AsamaDepo {
     if ($o -and ($o.as -or $o.sn -or $o.bek) -and $o.k -ne $mfi -and ($mfi -match '\d\+\d')) { $s["y"] = $simdi } elseif ($Bas -ne "mfsifirla" -and $o -and $o.y -and ((Get-Date) - [datetime]$o.y).TotalHours -lt 48) { $s["y"] = $o.y }
     [void]$sonuc.Add($s)
   }
-  # kategori (etken madde / tedavi grubu) her çalışmada stoktaki 150 ürün daha tamamlanır — arama için
+  # kategori (etken madde / tedavi grubu): önce Kolay Asistan listesinden tamamlanır (günde bir), sonra AS ürün kartıyla zenginleşir
+  if (-not (Test-Path (Join-Path $KOK "kolay-$((Get-Date).ToString('yyyy-MM-dd')).txt"))) {
+    try { $kl = KolayListe; if ($kl) { $n = KolayKategori $kat $j $kl; KolayYukle $j $kl; Log ("  Kolay Asistan: {0} ürünün tedavi grubu eklendi" -f $n) }; Set-Content (Join-Path $KOK "kolay-$((Get-Date).ToString('yyyy-MM-dd')).txt") "ok" } catch { Log ("  Kolay Asistan listesi okunamadı: " + $_.Exception.Message) }
+  }
   if ($sesler["as"]) {
-    $stoklu = @(BulutOku "urun_ozet?select=barkod&stok=gt.0&limit=10000" $j | ForEach-Object { $_.barkod } | Where-Object { $_ -match '^\d{8,14}$' -and -not $kat.ContainsKey($_) } | Select-Object -First 150)
-    foreach ($b in $stoklu) { try { $v = DepoAS $sesler["as"] $b; $kat[$b] = if ($v -and $v.atc) { [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk } } else { [ordered]@{ yok = (Get-Date).ToString("yyyy-MM-dd") } } } catch { } }
+    $stoklu = @(BulutOku "urun_ozet?select=barkod&stok=gt.0&limit=10000" $j | ForEach-Object { $_.barkod } | Where-Object { $_ -match '^\d{8,14}$' -and (-not $kat.ContainsKey($_) -or ($kat[$_].k -and -not $kat[$_].a)) } | Select-Object -First 150)
+    foreach ($b in $stoklu) { try { $v = DepoAS $sesler["as"] $b; $eski = $kat[$b]
+        $kat[$b] = if ($v -and $v.atc) { [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk } } elseif ($eski -and $eski.atc) { [ordered]@{ atc = $eski.atc; k = 1; a = "-" } } else { [ordered]@{ yok = (Get-Date).ToString("yyyy-MM-dd") } } } catch { } }
   }
   # ilk çekimde ya da toplu değişimde ürünlerin çoğu "yeni" görünür → bu bir başlangıçtır, işaretleri sil
   foreach ($g in ($sonuc | Where-Object { $_.y } | Group-Object { $_.y })) { if ($g.Count -gt [math]::Max(20, $sonuc.Count * 0.3)) { foreach ($x in $g.Group) { $x.Remove("y") } } }
@@ -1154,6 +1205,7 @@ try {
   if ($DepoKur) { DepoKur; return }
   if ($Asama -eq "depo") { AsamaDepo; Log "Bitti."; $script:KOD = 0; return }
   if ($Asama -eq "sepet") { AsamaSepet; $script:KOD = 0; return }
+  if ($Asama -eq "kolay") { AsamaKolay; Log "Bitti."; $script:KOD = 0; return }
   if ($Asama -eq "yukle") { StokYukle; Log "Bitti."; return }
   if ($Asama -eq "kkyukle") { KarekodYukle; Log "Bitti."; return }
   if ($Asama -eq "gunluk") { Gunluk; Log "Bitti."; $script:KOD = 0; return }
