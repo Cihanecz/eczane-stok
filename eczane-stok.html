@@ -74,6 +74,8 @@ a{color:inherit}
 .izgara.cift{grid-template-columns:1fr 1fr}
 @media (max-width:760px){.izgara.cift{grid-template-columns:1fr}}
 @media (max-width:520px){.ek-yazi{display:none}}
+.ad-duzenle{background:none;border:0;color:var(--soluk);cursor:pointer;padding:0 4px;font-size:13px}
+.ad-duzenle:hover{color:var(--murekkep)}
 .metin-dugme{background:none;border:0;color:var(--soluk);text-decoration:underline;cursor:pointer;padding:8px 0 0;font-size:14px}
 
 /* ---------- kartlar ---------- */
@@ -254,6 +256,34 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
   .cubuk-g rect{animation:cub .5s ease-out both;transform-box:fill-box;transform-origin:bottom}
   @keyframes cub{from{transform:scaleY(0)}}
 }
+/* ---------- hasta takibi ---------- */
+.ust-dugme.hasta{display:inline-flex;align-items:center;gap:6px;position:relative}
+.ust-dugme.hasta.aktif{border-color:var(--yesil);color:var(--yesil)}
+.hrozet{background:var(--kirmizi);color:#fff;font-size:11px;font-weight:700;border-radius:999px;padding:1px 6px;min-width:18px;text-align:center}
+.hcipler{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.hcip{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:14px}
+.hcip.secili{background:var(--yesil-acik);border-color:var(--yesil);color:var(--yesil)}
+.hbolum{margin:0 0 18px}
+.hbolum>h2{font-size:16px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.hbolum>h2 .say{font-size:12px;color:var(--soluk);font-weight:500}
+.hkart{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:start}
+.hkart.gonderildi{opacity:.62}
+.hkart .ad{font-weight:600}
+.hkart .ilaclar{grid-column:1/-1;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.hilac{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hilac .n{flex:1;min-width:160px}
+.hkucuk{font-size:12.5px;color:var(--soluk)}
+.hetk{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--yuzey2);color:var(--soluk)}
+.hetk.yesil{background:var(--yesil-acik);color:var(--yesil)} .hetk.kirmizi{background:var(--kirmizi-acik);color:var(--kirmizi)} .hetk.amber{background:var(--amber-acik);color:var(--amber)}
+.hdugmeler{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.wa{background:#1F7A4D;border:0;color:#fff;border-radius:10px;padding:8px 12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.wa:hover{background:#25935C}
+.htel{display:flex;gap:6px}
+.htel input{width:140px;padding:7px 10px;border:1px solid var(--cizgi);border-radius:8px;background:var(--giris)}
+.huyari{border-color:var(--kirmizi);background:linear-gradient(0deg,var(--kirmizi-acik),var(--yuzey))}
+.huyari li{margin:3px 0}
+.hsablon textarea{width:100%;min-height:90px;padding:10px;border:1px solid var(--cizgi);border-radius:10px;background:var(--giris);color:inherit;font:inherit}
+@media (max-width:520px){.hkart{grid-template-columns:1fr}.hdugmeler{justify-content:flex-start}}
 </style>
 </head>
 <body>
@@ -283,11 +313,24 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
         <input id="ara" type="search" placeholder="İlaç adı ya da barkod" aria-label="Ürün ara" autocomplete="off">
       </div>
+      <button class="ust-dugme hasta" id="hastaDugme" type="button" aria-label="Hasta takibi"><span>👥</span><span class="ek-yazi">Hastalar</span><b class="hrozet gizli" id="hastaRozet"></b></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button">Çıkış</button>
     </div>
   </header>
   <main class="sayfa" id="icerik" tabindex="-1"></main>
+</div>
+
+<!-- ECZANE ADI -->
+<div class="perde gizli" id="adPerde">
+  <form id="adFormu" autocomplete="off">
+    <h2>Eczanenin adı</h2>
+    <p>Ana ekranda görünecek. Sonradan adın yanındaki ✎ ile değiştirebilirsin.</p>
+    <label class="alan"><span>Eczane adı</span><input id="adGiris" type="text" maxlength="60" style="letter-spacing:0;font-size:16px" placeholder="Örn. Yıldız Eczanesi"></label>
+    <div class="hata" id="adHata" role="alert"></div>
+    <button class="ana-dugme" id="adDugme" type="submit">Kaydet</button>
+    <div class="yan"><button class="ikincil" type="button" id="adVazgec">Vazgeç</button></div>
+  </form>
 </div>
 
 <!-- TUTAR ŞİFRESİ -->
@@ -310,6 +353,8 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 const SUPABASE_URL = "https://crgfvsfncazexynzhwmo.supabase.co";
 const SUPABASE_KEY = "sb_publishable_WqWzwvumk9pMhBoV6LeMMA_tEgvzbPw";
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// aynı adreste birden çok eczane olabilir: tarayıcı anahtarlarını projeye göre ayır
+const ANAHTAR = k => k + "_" + new URL(SUPABASE_URL).hostname.split(".")[0];
 
 /* ---------- yardımcılar ---------- */
 const $ = s => document.querySelector(s);
@@ -345,7 +390,7 @@ function yukleniyor(){ $("#icerik").innerHTML = `<div class="yukleniyor">Yüklen
    Şifrenin kendisi saklanmaz; "tuz:sha256" özeti ayar tablosunda tutulur. */
 const KILIT_SURE = 20*60*1000;   // 20 dk hareketsizlikte kendiliğinden kilitlenir
 let ACIK = false;
-try { const z = Number(sessionStorage.getItem("tutarAcik")||0); ACIK = z > Date.now(); } catch(e){}
+try { const z = Number(sessionStorage.getItem(ANAHTAR("tutarAcik"))||0); ACIK = z > Date.now(); } catch(e){}
 const kilitli = () => !ACIK;
 const KILITLI_HTML = `<span class="kilitli" title="Tutar şifresiyle açılır">••••</span>`;
 const para = v => kilitli() ? KILITLI_HTML : tl(v);
@@ -357,13 +402,13 @@ function kilitDugmesi(){
   $("#kilit").setAttribute("aria-label", ACIK ? "Tutarlar açık — kilitle" : "Tutarları aç");
 }
 function kilidiAc(){ ACIK = true; sonHareket(); kilitDugmesi(); yonlendir(); }
-function kilitle(){ ACIK = false; try{ sessionStorage.removeItem("tutarAcik"); }catch(e){} kilitDugmesi(); }
-function sonHareket(){ if(!ACIK) return; try{ sessionStorage.setItem("tutarAcik", String(Date.now()+KILIT_SURE)); }catch(e){} }
+function kilitle(){ ACIK = false; try{ sessionStorage.removeItem(ANAHTAR("tutarAcik")); }catch(e){} kilitDugmesi(); }
+function sonHareket(){ if(!ACIK) return; try{ sessionStorage.setItem(ANAHTAR("tutarAcik"), String(Date.now()+KILIT_SURE)); }catch(e){} }
 let hareketZaman = Date.now();
 ["pointerdown","keydown","scroll"].forEach(o=>window.addEventListener(o, ()=>{ if(ACIK && Date.now()-hareketZaman>15000){ hareketZaman=Date.now(); sonHareket(); } }, {passive:true}));
 setInterval(()=>{
   if(!ACIK) return;
-  let z = 0; try{ z = Number(sessionStorage.getItem("tutarAcik")||0); }catch(e){ z = hareketZaman+KILIT_SURE; }
+  let z = 0; try{ z = Number(sessionStorage.getItem(ANAHTAR("tutarAcik"))||0); }catch(e){ z = hareketZaman+KILIT_SURE; }
   if(z < Date.now()){ kilitle(); yonlendir(); }
 }, 30000);
 
@@ -382,6 +427,38 @@ async function pinKaydet(pin){
   const { error } = await db.from("ayar").upsert({ anahtar:"tutar_pin", deger: tuz+":"+await ozet(tuz,pin), guncelleme:new Date().toISOString() });
   if(error) throw error;
 }
+
+/* ---------- eczane adı (ayar tablosunda "eczane_adi") ---------- */
+let ECZANE_ADI = null;
+try { ECZANE_ADI = localStorage.getItem(ANAHTAR("eczaneAdi")); } catch(e){}
+async function eczaneAdiYukle(){
+  const { data, error } = await db.from("ayar").select("deger").eq("anahtar","eczane_adi").maybeSingle();
+  if(error) return ECZANE_ADI;               // ayar tablosu yoksa eski davranış
+  ECZANE_ADI = data ? data.deger : null;
+  try { ECZANE_ADI ? localStorage.setItem(ANAHTAR("eczaneAdi"), ECZANE_ADI) : localStorage.removeItem(ANAHTAR("eczaneAdi")); } catch(e){}
+  return ECZANE_ADI;
+}
+function adPerdeAc(){
+  $("#adGiris").value = ECZANE_ADI || ""; $("#adHata").textContent = "";
+  $("#adVazgec").classList.toggle("gizli", !ECZANE_ADI);
+  $("#adPerde").classList.remove("gizli"); setTimeout(()=>$("#adGiris").focus(), 30);
+}
+$("#adVazgec").addEventListener("click", () => $("#adPerde").classList.add("gizli"));
+$("#adFormu").addEventListener("submit", async e => {
+  e.preventDefault();
+  const ad = $("#adGiris").value.trim().replace(/\s+/g," ");
+  if(ad.length < 2){ $("#adHata").textContent = "Eczane adını yaz."; return; }
+  const d = $("#adDugme"); d.disabled = true;
+  const { error } = await db.from("ayar").upsert({ anahtar:"eczane_adi", deger: ad, guncelleme: new Date().toISOString() });
+  d.disabled = false;
+  if(error){ $("#adHata").textContent = hataMetni(error); return; }
+  ECZANE_ADI = ad; try{ localStorage.setItem(ANAHTAR("eczaneAdi"), ad); }catch(e){}
+  $("#adPerde").classList.add("gizli"); yonlendir();
+});
+document.addEventListener("click", e => {
+  if(!e.target.closest || !e.target.closest("[data-ad-duzenle]")) return;
+  if(ECZANE_ADI && kilitli()) perdeAc("ac"); else adPerdeAc();   // ad varsa değiştirmek tutar şifresi ister
+});
 
 let kilitKip = "ac", kilitKayit = null;
 function perdeKur(kip){
@@ -457,7 +534,7 @@ async function basla(){
   if(session){ programiAc(); } else { girisiAc(); }
 }
 function girisiAc(){ $("#program").classList.add("gizli"); $("#girisEkrani").classList.remove("gizli"); $("#eposta").focus(); }
-function programiAc(){ $("#girisEkrani").classList.add("gizli"); $("#program").classList.remove("gizli"); kilitDugmesi(); yonlendir(); }
+function programiAc(){ $("#girisEkrani").classList.add("gizli"); $("#program").classList.remove("gizli"); kilitDugmesi(); yonlendir(); setTimeout(()=>{ if(typeof hRozetArkaPlan==="function") hRozetArkaPlan(); }, 0); }
 
 $("#girisFormu").addEventListener("submit", async e => {
   e.preventDefault();
@@ -470,7 +547,7 @@ $("#girisFormu").addEventListener("submit", async e => {
   }
   $("#sifre").value = ""; location.hash = ""; programiAc();
 });
-$("#cikis").addEventListener("click", async () => { kilitle(); await db.auth.signOut(); location.hash=""; girisiAc(); });
+$("#cikis").addEventListener("click", async () => { kilitle(); hUnut(); await db.auth.signOut(); location.hash=""; girisiAc(); });
 $("#eveDon").addEventListener("click", () => { $("#ara").value=""; location.hash = ""; });
 
 /* ---------- yönlendirme ---------- */
@@ -481,6 +558,8 @@ function yonlendir(){
   if(h.startsWith("urun/")) return urunKarti(h.slice(5));
   if(h.startsWith("liste/")) return liste(h.slice(6));
   if(h.startsWith("ara/")) return aramaSonucu(h.slice(4));
+  $("#hastaDugme").classList.remove("aktif");
+  if(h==="hastalar") return hastaSayfasi();
   return anaEkran();
 }
 
@@ -557,7 +636,7 @@ function gunlukGrafik(g){
 /* ---------- ana ekran ---------- */
 async function anaEkran(){
   yukleniyor();
-  const [a, pn] = await Promise.all([db.rpc("ana_ekran"), db.rpc("panel")]);
+  const [a, pn] = await Promise.all([db.rpc("ana_ekran"), db.rpc("panel"), eczaneAdiYukle()]);
   if(a.error) return hataGoster(a.error);
   const o = a.data, P = pn.error ? null : pn.data;
   if(!o.stok_tarihi){
@@ -651,7 +730,7 @@ async function anaEkran(){
 
   $("#icerik").innerHTML = `
     <div class="selam"><div><h1>${["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"][bugun.getDay()]}, ${bugun.toLocaleDateString("tr-TR",{day:"numeric",month:"long"})}</h1>
-      <p>Cihan Eczanesi</p></div><span class="rozet ${rozetS}">${kacis(rozetM)}</span></div>
+      <p>${ECZANE_ADI ? kacis(ECZANE_ADI) : "Eczane adı girilmedi"}<button class="ad-duzenle" type="button" data-ad-duzenle title="Eczane adını değiştir" aria-label="Eczane adını değiştir">✎</button></p></div><span class="rozet ${rozetS}">${kacis(rozetM)}</span></div>
     <div class="kpi">
       <div class="kart ana"><h3>Raftaki malın maliyeti</h3><div class="deger">${para(o.stok_maliyet)}</div>
         <div class="not">${sayi(o.kalem)} ürün · ${sayi(o.kutu)} kutu</div></div>
@@ -675,6 +754,7 @@ async function anaEkran(){
       <div class="kart"><div class="kart-bas"><h2>Son 30 günün yıldızları</h2><small>${kilitli()?"en çok satılanlar arasından":"en çok kâr"}</small></div>${yildizlar}</div>
     </div>`;
 
+  if(!ECZANE_ADI && $("#adPerde").classList.contains("gizli")) adPerdeAc();
   document.querySelectorAll("[data-liste]").forEach(b=>b.addEventListener("click",()=>location.hash="liste/"+b.dataset.liste));
   document.querySelectorAll("[data-git]").forEach(b=>b.addEventListener("click",()=>location.hash="liste/"+b.dataset.git));
   document.querySelectorAll(".yildiz[data-barkod]").forEach(b=>b.addEventListener("click",()=>location.hash="urun/"+b.dataset.barkod));
@@ -839,6 +919,269 @@ async function urunKarti(barkod){
       <h2 class="baslik" style="margin:0">Son 12 ayda satış</h2>
       <div class="grafik">${(ay.data||[]).map(a=>{ const d=new Date(a.ay); return `<div><em>${Number(a.adet)?sayi(a.adet):""}</em><span class="cubuk" style="height:${Math.round(Number(a.adet)/enYuksek*100)}%"></span><small>${AYLAR[d.getMonth()]}</small></div>`; }).join("")}</div>
     </div>`;
+}
+
+/* =====================================================================
+   HASTA TAKİBİ — İlacı biten / raporu biten hastalar
+   Hasta adı ve telefon şifreli saklanır: anahtar "hasta şifresi"nden
+   türetilir (PBKDF2-SHA256), veri AES-CBC + HMAC-SHA256 ile şifrelidir.
+   Sunucuda sadece okunamaz metin durur.
+   ===================================================================== */
+const H = { anahtar:null, veri:null, durum:{}, sablon:null, filtre:"hepsi", sadeceAtilmayan:false };
+const HKONTROL = "ECZANE-STOK-HASTA";
+const HSABLON_VARSAYILAN = {
+  ilac: "Merhaba {ad}, {eczane}'nden yazıyoruz. {ilac} için reçete zamanınız geldi, {tarih} tarihinden itibaren yazdırabilirsiniz. Doktorunuza reçetenizi yazdırıp eczanemize uğrayabilirsiniz. İyi günler dileriz 😊",
+  rapor: "Merhaba {ad}, {eczane}'nden yazıyoruz. {ilac} için kullandığınız raporun bitiş tarihi {tarih}. İlacınızı aksatmamak için raporunuzu doktorunuza yeniletmenizi rica ederiz. İyi günler dileriz 😊"
+};
+const b64 = u8 => { let s=""; for(let i=0;i<u8.length;i+=0x8000) s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c=>c.charCodeAt(0));
+async function hAnahtarTuret(sifre, tuzB64){
+  const ham = await crypto.subtle.importKey("raw", new TextEncoder().encode(sifre), "PBKDF2", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2", salt:unb64(tuzB64), iterations:200000, hash:"SHA-256"}, ham, 512));
+}
+async function hAnahtarlar(k){
+  return { aes: await crypto.subtle.importKey("raw", k.slice(0,32), {name:"AES-CBC"}, false, ["encrypt","decrypt"]),
+           mac: await crypto.subtle.importKey("raw", k.slice(32,64), {name:"HMAC", hash:"SHA-256"}, false, ["sign","verify"]) };
+}
+async function gz(u8, yon){
+  const akis = new Blob([u8]).stream().pipeThrough(yon ? new CompressionStream("gzip") : new DecompressionStream("gzip"));
+  return new Uint8Array(await new Response(akis).arrayBuffer());
+}
+async function hSifrele(k, metin){
+  const { aes, mac } = await hAnahtarlar(k);
+  const iv = crypto.getRandomValues(new Uint8Array(16));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({name:"AES-CBC", iv}, aes, await gz(new TextEncoder().encode(metin), true)));
+  const ivct = new Uint8Array(16+ct.length); ivct.set(iv); ivct.set(ct,16);
+  const m = new Uint8Array(await crypto.subtle.sign("HMAC", mac, ivct));
+  const t = new Uint8Array(ivct.length+32); t.set(ivct); t.set(m, ivct.length); return b64(t);
+}
+async function hCoz(k, s){
+  const { aes, mac } = await hAnahtarlar(k); const t = unb64(s);
+  const ivct = t.slice(0, t.length-32), m = t.slice(t.length-32);
+  if(!await crypto.subtle.verify("HMAC", mac, m, ivct)) throw new Error("SIFRE");
+  const duz = new Uint8Array(await crypto.subtle.decrypt({name:"AES-CBC", iv:ivct.slice(0,16)}, aes, ivct.slice(16)));
+  return new TextDecoder().decode(await gz(duz, false));
+}
+async function ayarOku(anahtar){ const { data, error } = await db.from("ayar").select("deger,guncelleme").eq("anahtar",anahtar).maybeSingle(); if(error) throw error; return data; }
+async function ayarYaz(anahtar, deger){ const { error } = await db.from("ayar").upsert({ anahtar, deger, guncelleme:new Date().toISOString() }); if(error) throw error; }
+function hAnahtarSakla(k){ H.anahtar = k; try{ sessionStorage.setItem(ANAHTAR("hastaKey"), b64(k)); }catch(e){} }
+function hAnahtarYukle(){ if(H.anahtar) return H.anahtar; try{ const s = sessionStorage.getItem(ANAHTAR("hastaKey")); if(s) H.anahtar = unb64(s); }catch(e){} return H.anahtar; }
+function hUnut(){ H.anahtar = null; H.veri = null; H.durum = {}; try{ sessionStorage.removeItem(ANAHTAR("hastaKey")); }catch(e){} $("#hastaRozet").classList.add("gizli"); }
+
+function gunStr(d){ const x=new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); }
+function gunGoreli(d){ const g = gunFarki(d); if(g===null) return "—"; if(g===0) return "bugün"; if(g===1) return "yarın"; if(g===-1) return "dün"; return g>0 ? g+" gün sonra" : (-g)+" gün geçti"; }
+function telNo(t){ let s = String(t||"").replace(/\D/g,""); if(!s) return ""; if(s.startsWith("0090")) s=s.slice(2); if(s.startsWith("0")) s=s.slice(1); if(s.length===10 && s[0]==="5") s="90"+s; return /^905\d{9}$/.test(s) ? s : ""; }
+function hTel(kayit){ const d = H.durum[kayit.p]||{}; return telNo(d.tel) || telNo(kayit.gsm) || telNo(kayit.tel); }
+function hMesajTarihi(p, tip){ const d = H.durum[p]; return d && d["m_"+tip] ? d["m_"+tip] : null; }
+function hYakinMesaj(p, tip){ const t = hMesajTarihi(p, tip); return t && (Date.now()-new Date(t).getTime()) < 10*864e5; }
+
+async function hDurumKaydet(p, degisim){
+  // en güncel durumu oku, birleştir, şifreleyip yaz (başka bilgisayardaki işaretler kaybolmasın)
+  try { const d = await ayarOku("hasta_durum"); if(d) H.durum = JSON.parse(await hCoz(H.anahtar, d.deger)); } catch(e){}
+  H.durum[p] = Object.assign({}, H.durum[p]||{}, degisim);
+  await ayarYaz("hasta_durum", await hSifrele(H.anahtar, JSON.stringify(H.durum)));
+}
+
+async function hastaSayfasi(){
+  $("#hastaDugme").classList.add("aktif");
+  yukleniyor();
+  let tuz, kont;
+  try { tuz = await ayarOku("hasta_tuz"); kont = await ayarOku("hasta_kontrol"); }
+  catch(e){ return hataGoster(e); }
+  if(!tuz || !kont) return hSifreBelirle();
+  if(!hAnahtarYukle()) return hSifreSor(tuz.deger, kont.deger);
+  try { await hCoz(H.anahtar, kont.deger); } catch(e){ hUnut(); return hSifreSor(tuz.deger, kont.deger); }
+  try {
+    const [l, d, s] = await Promise.all([ayarOku("hasta_liste"), ayarOku("hasta_durum"), ayarOku("hasta_mesaj")]);
+    H.veri = l ? JSON.parse(await hCoz(H.anahtar, l.deger)) : null;
+    H.durum = d ? JSON.parse(await hCoz(H.anahtar, d.deger)) : {};
+    H.sablon = Object.assign({}, HSABLON_VARSAYILAN, s ? JSON.parse(s.deger) : {});
+  } catch(e){ return hataGoster(e); }
+  hCiz();
+}
+function hSifreFormu(baslik, aciklama, iki, dugme){
+  return `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
+    <div class="liste-ust"><div><h1>Hastalar</h1><p>Reçete zamanı gelen ve raporu biten hastalar</p></div></div>
+    <form class="kart" id="hSifreForm" style="max-width:420px" autocomplete="off">
+      <div class="kart-bas"><h2>${baslik}</h2></div>
+      <p class="hkucuk" style="margin:0 0 14px">${aciklama}</p>
+      <label class="alan"><span>Hasta şifresi</span><input id="hs1" type="password" autocomplete="${iki?"new-password":"current-password"}"></label>
+      ${iki?`<label class="alan"><span>Hasta şifresi (tekrar)</span><input id="hs2" type="password" autocomplete="new-password"></label>`:""}
+      <div class="hata" id="hsHata" role="alert"></div>
+      <button class="ana-dugme" type="submit">${dugme}</button>
+    </form>`;
+}
+function hSifreBelirle(){
+  $("#icerik").innerHTML = hSifreFormu("Hasta şifresi belirle",
+    "Hasta adları ve telefonları bu şifreyle şifrelenir; şifreyi bilmeyen (sunucu dahil) kimse göremez. En az 6 karakter. <b>Şifreyi unutursanız liste bir sonraki toplamada yeniden oluşur ama gönderilen mesaj işaretleri kaybolur.</b>", true, "Kaydet");
+  $("#hs1").focus();
+  $("#hSifreForm").addEventListener("submit", async e => {
+    e.preventDefault(); const a=$("#hs1").value, b=$("#hs2").value;
+    if(a.length<6) return $("#hsHata").textContent="En az 6 karakter olmalı.";
+    if(a!==b) return $("#hsHata").textContent="İki şifre aynı değil.";
+    $("#hsHata").textContent="Kaydediliyor…";
+    try {
+      const tuz = b64(crypto.getRandomValues(new Uint8Array(16)));
+      const k = await hAnahtarTuret(a, tuz);
+      await ayarYaz("hasta_tuz", tuz); await ayarYaz("hasta_kontrol", await hSifrele(k, HKONTROL));
+      hAnahtarSakla(k); hastaSayfasi();
+    } catch(err){ $("#hsHata").textContent = hataMetni(err); }
+  });
+}
+function hSifreSor(tuz, kont){
+  $("#icerik").innerHTML = hSifreFormu("Hasta şifresi", "Hasta listesini görmek için hasta şifresini gir.", false, "Aç");
+  $("#hs1").focus();
+  $("#hSifreForm").addEventListener("submit", async e => {
+    e.preventDefault(); $("#hsHata").textContent="Kontrol ediliyor…";
+    try { const k = await hAnahtarTuret($("#hs1").value, tuz); await hCoz(k, kont); hAnahtarSakla(k); hastaSayfasi(); }
+    catch(err){ $("#hsHata").textContent = err.message==="SIFRE" ? "Şifre yanlış." : hataMetni(err); }
+  });
+}
+
+function hGruplar(){
+  const V = H.veri || {ilac:[], rapor:[]}; const bugun = gunStr(new Date());
+  const filtre = r => H.filtre==="hepsi" || (H.filtre==="R" ? r.tur==="R" : r.tur==="S");
+  const kisiler = (satirlar, tip) => { const m = new Map();
+    for(const r of satirlar){ if(!m.has(r.p)) m.set(r.p, {p:r.p, h:r.h, gsm:r.gsm, tel:r.tel, tip, satir:[]}); m.get(r.p).satir.push(r); }
+    let l = [...m.values()]; if(H.sadeceAtilmayan) l = l.filter(k=>!hYakinMesaj(k.p, tip)); return l; };
+  const ilac = (V.ilac||[]).filter(r=>r.yaz && filtre(r));
+  const g = d => gunFarki(d);
+  return {
+    bugun:  kisiler(ilac.filter(r=>g(r.yaz)<=0 && g(r.yaz)>=-7).sort((a,b)=>a.yaz<b.yaz?-1:1), "ilac"),
+    hafta:  kisiler(ilac.filter(r=>g(r.yaz)>0 && g(r.yaz)<=7).sort((a,b)=>a.yaz<b.yaz?-1:1), "ilac"),
+    gecen:  kisiler(ilac.filter(r=>g(r.yaz)<-7).sort((a,b)=>a.yaz>b.yaz?-1:1), "ilac"),
+    rapor:  kisiler((V.rapor||[]).filter(r=>r.bit && g(r.bit)>=-7 && g(r.bit)<=30 && !hDevamVar(r)).sort((a,b)=>a.bit<b.bit?-1:1), "rapor"),
+    devam:  new Set((V.rapor||[]).filter(r=>r.bit && g(r.bit)>=-7 && g(r.bit)<=30 && hDevamVar(r)).map(r=>r.p)).size,
+    stok:   hStokUyari(ilac.filter(r=>g(r.yaz)<=7 && g(r.yaz)>=-7))
+  };
+}
+// Rx "Uyarı" sütunu: yeni raporu olmayanlarda "Devam raporu yoktur!" yazar; boşsa devam raporu var demektir
+function hDevamVar(r){ return typeof r.uyari === "string" && !/devam raporu yok/i.test(r.uyari); }
+function hStokUyari(satirlar){
+  const m = new Map();
+  for(const r of satirlar){ const k=r.ilac; if(!m.has(k)) m.set(k,{ilac:k, hasta:new Set(), stok:r.stok}); m.get(k).hasta.add(r.p); }
+  return [...m.values()].map(x=>({ilac:x.ilac, hasta:x.hasta.size, stok:Number(x.stok||0)})).filter(x=>x.stok < x.hasta).sort((a,b)=>(b.hasta-b.stok)-(a.hasta-a.stok));
+}
+function hRozetGuncelle(){
+  if(!H.veri){ $("#hastaRozet").classList.add("gizli"); return; }
+  const save = H.sadeceAtilmayan; H.sadeceAtilmayan = true; const f = H.filtre; H.filtre = "hepsi";
+  const n = hGruplar().bugun.length; H.sadeceAtilmayan = save; H.filtre = f;
+  const r = $("#hastaRozet"); r.textContent = n; r.title = "Bugün sırası gelip mesaj atılmamış hasta"; r.classList.toggle("gizli", !n);
+}
+function hKisiKart(k){
+  const tel = hTel(k), m = hMesajTarihi(k.p, k.tip), yakin = hYakinMesaj(k.p, k.tip);
+  const satirlar = k.satir.map(r => k.tip==="ilac"
+    ? `<div class="hilac"><span class="n">${kacis(r.ilac)}${r.tur==="S"?' <span class="hetk">raporsuz</span>':""}</span>
+        <span class="hetk ${gunFarki(r.yaz)<0?"amber":""}" title="Yazdırılabilir: ${tarih(r.yaz)}">${gunGoreli(r.yaz)}</span>
+        ${r.stok==null?"":`<span class="hetk ${Number(r.stok)>0?"yesil":"kirmizi"}">${Number(r.stok)>0?"stokta "+sayi(r.stok):"stokta yok"}</span>`}
+        ${(String(r.ara||"").toUpperCase().startsWith("E")||/arand/i.test(r.ara||""))?'<span class="hetk">Rx: arandı</span>':""}</div>`
+    : `<div class="hilac"><span class="n">${kacis(r.tani||"Rapor")}${r.no?` <span class="hkucuk">· ${kacis(r.no)}</span>`:""}</span>
+        <span class="hetk ${gunFarki(r.bit)<0?"kirmizi":"amber"}" title="Rapor bitişi: ${tarih(r.bit)}">rapor ${gunFarki(r.bit)<0?"bitti":"bitiyor"} · ${gunGoreli(r.bit)}</span></div>`).join("");
+  return `<div class="hkart ${yakin?"gonderildi":""}" data-p="${k.p}" data-tip="${k.tip}">
+    <div><div class="ad">${kacis(k.h)}</div><div class="hkucuk">${tel?"+"+tel.slice(0,2)+" "+tel.slice(2,5)+" "+tel.slice(5,8)+" "+tel.slice(8):"telefon yok"}${m?` · mesaj ${tarih(m)}`:""}</div></div>
+    <div class="hdugmeler">${tel
+      ? `<button class="wa" type="button" data-wa>${yakin?"Tekrar gönder":"WhatsApp"}</button>`
+      : `<span class="htel"><input type="tel" inputmode="tel" placeholder="05xx xxx xx xx" data-telgir><button class="ikincil" type="button" data-telkaydet>Kaydet</button></span>`}</div>
+    <div class="ilaclar">${satirlar}</div></div>`;
+}
+function hBolum(baslik, aciklama, kisiler, not){
+  return `<section class="hbolum"><h2>${baslik} <span class="say">${kisiler.length} hasta</span></h2>
+    ${kisiler.length ? kisiler.map(hKisiKart).join("") : `<div class="bilgi-not">${aciklama}</div>`}${not?`<div class="bilgi-not" style="margin-top:6px">${not}</div>`:""}</section>`;
+}
+function hCiz(){
+  const G = hGruplar(); hRozetGuncelle();
+  const cip = (k,ad) => `<button class="hcip ${H.filtre===k?"secili":""}" type="button" data-filtre="${k}">${ad}</button>`;
+  const sirada = [...G.bugun, ...G.rapor.filter(k=>gunFarki(k.satir[0].bit)<=14)].filter(k=>!hYakinMesaj(k.p,k.tip) && hTel(k));
+  $("#icerik").innerHTML = `
+    <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
+    <div class="liste-ust">
+      <div><h1>Hastalar</h1><p>${H.veri ? "Rx'ten son alınma: "+tarihSaat(H.veri.zaman) : "Henüz veri gelmedi. Toplayıcı bir sonraki çalışmasında listeyi getirecek."}</p>
+        ${H.veri?(()=>{ const bek = G.bugun.filter(k=>!hYakinMesaj(k.p,k.tip)); const telsiz = bek.filter(k=>!hTel(k)).length;
+          return `<p class="hkucuk" style="margin-top:2px">Bugün sırası gelip mesaj atılmamış: <b>${bek.length}</b> hasta${telsiz?` (${telsiz}'${telsiz===1?"inin":"sinin"} telefonu yok)`:""}. Üstteki 👥 rozeti bu sayıdır.</p>`; })():""}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${sirada.length?`<button class="wa" type="button" id="hSiradaki" title="Telefonu kayıtlı ve henüz mesaj atılmamış hastalar">WhatsApp sırası: ${sirada.length} hasta</button>`:""}
+        <button class="ikincil" type="button" id="hSablon">Mesaj metni</button>
+        <button class="ikincil" type="button" id="hKilitle">🔒 Kilitle</button>
+      </div>
+    </div>
+    <div class="hcipler">${cip("hepsi","Tümü")}${cip("R","Raporlu")}${cip("S","Raporsuz")}
+      <button class="hcip ${H.sadeceAtilmayan?"secili":""}" type="button" id="hAtilmayan">Sadece mesaj atılmayanlar</button></div>
+    ${G.stok.length?`<div class="kart huyari hbolum"><div class="kart-bas"><h2>⚠ Stok uyarısı</h2><small>önümüzdeki 7 gün</small></div><ul style="margin:0;padding-left:18px">
+      ${G.stok.map(s=>`<li><b>${kacis(s.ilac)}</b>: ${s.hasta} hastanın günü geliyor, stokta ${s.stok>0?sayi(s.stok):"yok"}</li>`).join("")}</ul></div>`:""}
+    ${hBolum("Bugün reçetesi yazdırılabilecekler","Bugün reçete zamanı gelen hasta yok.", G.bugun)}
+    ${hBolum("Bu hafta gelecekler","Önümüzdeki 7 günde reçete zamanı gelen hasta yok.", G.hafta)}
+    ${hBolum("Raporu bitecekler","Önümüzdeki 30 günde raporu biten hasta yok.", G.rapor, G.devam?`Raporu bitip <b>yeni raporu zaten çıkmış</b> ${G.devam} hasta listede gösterilmiyor.`:"")}
+    ${hBolum("Günü geçmiş, gelmeyenler","Günü 7 günden fazla geçmiş hasta yok.", G.gecen)}`;
+  document.querySelectorAll("[data-filtre]").forEach(b=>b.addEventListener("click",()=>{ H.filtre=b.dataset.filtre; hCiz(); }));
+  $("#hAtilmayan").addEventListener("click",()=>{ H.sadeceAtilmayan=!H.sadeceAtilmayan; hCiz(); });
+  $("#hKilitle").addEventListener("click",()=>{ hUnut(); location.hash=""; });
+  $("#hSablon").addEventListener("click", hSablonDuzenle);
+  const sd = $("#hSiradaki"); if(sd) sd.addEventListener("click",()=>hMesajAt(sirada[0]));
+  const bul = el => { const kart = el.closest(".hkart"); const tum = [...G.bugun,...G.hafta,...G.gecen,...G.rapor]; return tum.find(k=>k.p===kart.dataset.p && k.tip===kart.dataset.tip); };
+  document.querySelectorAll("[data-wa]").forEach(b=>b.addEventListener("click",()=>hMesajAt(bul(b))));
+  document.querySelectorAll("[data-telkaydet]").forEach(b=>b.addEventListener("click", async ()=>{
+    const k = bul(b), inp = b.parentElement.querySelector("[data-telgir]"), t = telNo(inp.value);
+    if(!t){ inp.focus(); inp.style.borderColor="var(--kirmizi)"; return; }
+    b.disabled = true; try { await hDurumKaydet(k.p, {tel:t}); hCiz(); } catch(e){ b.disabled=false; alert(hataMetni(e)); }
+  }));
+}
+// "DELİX ÇENTİKLİ TABLET 5 mg 28 tablet" → "Delix 5 mg"
+const HFORM = new Set("ÇENTİKLİ CENTIKLI FİLM FILM KAPLI TABLET TB TBL KAPSÜL KAPSUL KAP ŞURUP SURUP DAMLA DAMLASI AMPUL ENJEKSİYON ENJEKSIYON ENJEKSİYONLUK ENJ FLAKON KALEM İĞNESİ SPREY İNHALASYON INHALASYON TOZ TOZU KREM POMAD JEL SÜSPANSİYON SUSPANSIYON ŞASE SASE EFERVESAN DİSPERSE UZATILMIŞ KONTROLLÜ SALIMLI MODİFİYE ORAL GÖZ BURUN SERT YUMUŞAK XL SR CR MR RETARD ÇÖZELTİ ÇÖZELTİSİ ŞIRINGA".split(" "));
+function hIlacKisa(ad){
+  const t = String(ad||"").trim(); if(!t) return "";
+  const parca = t.split(/\s+/); let marka = [];
+  for(const w of parca){ const u = w.toLocaleUpperCase("tr-TR").replace(/[^\p{L}]/gu,""); if(HFORM.has(u) || /^\d/.test(w)) break; marka.push(w.replace(/[,;]+$/,"")); }
+  if(!marka.length) marka = [parca[0]];
+  const doz = (t.match(/\d+(?:[.,]\d+)?(?:\/\d+(?:[.,]\d+)?)?\s*(?:mg|mcg|µg|g|ml|iu|ıu|ü)(?![\p{L}])/iu)||[""])[0].replace(/\s+/," ").toLowerCase();
+  const m = marka.join(" ").toLocaleLowerCase("tr-TR").replace(/(^|[\s/-])\S/g, c=>c.toLocaleUpperCase("tr-TR"));
+  return (m + (doz?" "+doz:"")).trim();
+}
+function hBirlestir(l){ l = [...new Set(l.filter(Boolean))]; return l.length<=1 ? (l[0]||"") : l.slice(0,-1).join(", ")+" ve "+l[l.length-1]; }
+const hAdNorm = s => String(s||"").toLocaleUpperCase("tr-TR").replace(/\s+/g," ").trim();
+function hMesajIlac(k){
+  if(k.tip==="ilac") return hBirlestir(k.satir.map(r=>hIlacKisa(r.ilac))) || "ilacınız";
+  // rapor listesinde ilaç adı yok: aynı hastanın raporlu ilaçlarını ilaç listesinden bul, yoksa tanıyı yaz
+  const ad = hAdNorm(k.h); const il = ((H.veri&&H.veri.ilac)||[]).filter(r=>r.tur==="R" && hAdNorm(r.h)===ad).map(r=>hIlacKisa(r.ilac));
+  if(il.length) return hBirlestir(il);
+  const t = hBirlestir(k.satir.map(r=>String(r.tani||"").replace(/^[\d.\s]+-+>?\s*/,"").replace(/\(.*$/,"").trim()));
+  return t ? t+" ilaçlarınız" : "ilaçlarınız";
+}
+function hMesajTarih(k){
+  const t = k.tip==="ilac" ? k.satir.map(r=>r.yaz).filter(Boolean).sort()[0] : k.satir.map(r=>r.bit).filter(Boolean).sort()[0];
+  if(!t) return "";
+  const d = new Date(t+"T12:00:00"); return d.toLocaleDateString("tr-TR",{day:"numeric",month:"long"});
+}
+async function hMesajAt(k){
+  if(!k) return; const tel = hTel(k); if(!tel) return;
+  const ad = String(k.h||"").toLocaleLowerCase("tr-TR").replace(/(^|\s)\S/g, c=>c.toLocaleUpperCase("tr-TR"));
+  const metin = (H.sablon[k.tip]||HSABLON_VARSAYILAN[k.tip]).replaceAll("{ad}", ad).replaceAll("{eczane}", ECZANE_ADI || "Cihan Eczanesi")
+    .replaceAll("{ilac}", hMesajIlac(k)).replaceAll("{tarih}", hMesajTarih(k));
+  window.open("https://wa.me/"+tel+"?text="+encodeURIComponent(metin), "_blank");
+  try { await hDurumKaydet(k.p, {["m_"+k.tip]: new Date().toISOString()}); } catch(e){}
+  hCiz();
+}
+function hSablonDuzenle(){
+  $("#icerik").innerHTML = `<button class="geri" type="button" id="hGeri">‹ Hastalar</button>
+    <div class="liste-ust"><div><h1>Mesaj metni</h1><p>{ad} hastanın adı, {ilac} ilaç adı (raporda raporlu ilaçlar), {tarih} yazdırma ya da rapor bitiş tarihi olarak yazılır. Mesaj WhatsApp'ta açıldığında göndermeden önce düzeltebilirsiniz.</p></div></div>
+    <div class="kart hsablon">
+      <label class="alan"><span>Reçete zamanı gelenlere</span><textarea id="sIlac">${kacis(H.sablon.ilac)}</textarea></label>
+      <label class="alan"><span>Raporu bitenlere</span><textarea id="sRapor">${kacis(H.sablon.rapor)}</textarea></label>
+      <div style="display:flex;gap:8px"><button class="ana-dugme" style="width:auto;padding:10px 18px" type="button" id="sKaydet">Kaydet</button>
+      <button class="ikincil" type="button" id="sVarsayilan">Varsayılana dön</button></div>
+      <div class="hata" id="sHata"></div></div>`;
+  $("#hGeri").addEventListener("click", hCiz);
+  $("#sVarsayilan").addEventListener("click", ()=>{ $("#sIlac").value=HSABLON_VARSAYILAN.ilac; $("#sRapor").value=HSABLON_VARSAYILAN.rapor; });
+  $("#sKaydet").addEventListener("click", async ()=>{
+    H.sablon = { ilac:$("#sIlac").value.trim()||HSABLON_VARSAYILAN.ilac, rapor:$("#sRapor").value.trim()||HSABLON_VARSAYILAN.rapor };
+    try { await ayarYaz("hasta_mesaj", JSON.stringify(H.sablon)); hCiz(); } catch(e){ $("#sHata").textContent = hataMetni(e); }
+  });
+}
+$("#hastaDugme").addEventListener("click", ()=>{ location.hash = "hastalar"; });
+// program açılınca: şifre bu oturumda girildiyse rozeti arka planda güncelle
+async function hRozetArkaPlan(){
+  if(!hAnahtarYukle()) return;
+  try { const [l,d] = await Promise.all([ayarOku("hasta_liste"), ayarOku("hasta_durum")]);
+    H.veri = l ? JSON.parse(await hCoz(H.anahtar, l.deger)) : null; H.durum = d ? JSON.parse(await hCoz(H.anahtar, d.deger)) : {}; hRozetGuncelle(); } catch(e){}
 }
 
 /* ---------- uygulama olarak yükleme ---------- */
