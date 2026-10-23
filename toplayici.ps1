@@ -61,7 +61,7 @@ $K = @{
   SatisTarihBas   = @(356, 280);  SatisTarihBit  = @(514, 280);  SatisSorgula = @(1059, 348)
   HastaRap        = @(758, 119);  RaporuBiten    = @(854, 170);  IlaciBiten = @(854, 202)
   IlacBitBas      = @(463, 300);  IlacTurOk      = @(1282, 305); IlacRaporlu = @(908, 347);  IlacRaporsuz = @(908, 369);  IlacSorgula = @(790, 422)
-  IlacTumu        = @(251, 468);  IlacSag        = @(1436, 727);  RaporTumu = @(252, 402);  RaporSag = @(1050, 727)
+  IlacTumu        = @(251, 468);  IlacSag        = @(1436, 600);  RaporTumu = @(252, 402);  RaporSag = @(1050, 600)
   RaporSorgula    = @(1166, 362)
   EnvanterRap     = @(258, 127);  GenelEnvanter  = @(332, 174);  UrunDokum = @(332, 203);  StokDokum = @(332, 233);  GenelKarekod = @(332, 352)
 }
@@ -648,7 +648,7 @@ function HastaKur {
     Write-Host "Şifre yanlış, tekrar deneyin." -ForegroundColor Red
   }
 }
-function IzgaradanCsv($p, $rx, [string]$dosya, [string]$tumu, [string]$sag, [int]$mdx = 43, [int]$mdy = 227, [string]$menu = "Dışa Aktar") {
+function IzgaradanCsv($p, $rx, [string]$dosya, [string]$tumu, [string]$sag, [int]$mdx = 43, [int]$mdy = 230, [string]$menu = "Dışa Aktar") {
   # ızgaradaki tüm satırları işaretle → sağ tık → "Dışa Aktar" → önizleme → CSV
   K $tumu; Start-Sleep -Milliseconds 600; Log "Tüm satırlar işaretlendi"
   $ac = { OneAl; [W2]::SagTik([int]($K[$sag][0]*$EO), [int]($K[$sag][1]*$EO)); Start-Sleep -Milliseconds 1200
