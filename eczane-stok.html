@@ -39,6 +39,17 @@ a{color:inherit}
   background:var(--yuzey);color:var(--murekkep)}
 .ara-kutu input::placeholder{color:var(--soluk)}
 .ara-kutu svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--soluk)}
+.ara-kutu input{padding-right:48px}
+.tara-dugme{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:var(--yesil-acik);border:1px solid var(--yesil-koyu);color:var(--yesil);border-radius:9px;width:38px;height:32px;font-size:17px;cursor:pointer;display:grid;place-items:center}
+.tarayici{position:fixed;inset:0;z-index:60;background:#000;display:flex;flex-direction:column}
+.tarayici video{flex:1;width:100%;object-fit:cover;min-height:0}
+.tarayici .cerceve{position:absolute;left:50%;top:45%;width:min(64vw,300px);aspect-ratio:1;transform:translate(-50%,-50%);border:3px solid var(--yesil);border-radius:18px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
+.tarayici .t-ust{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;color:#fff;font-weight:600}
+.tarayici .t-ust button{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:8px 14px;font-size:15px}
+.tarayici .t-alt{position:absolute;bottom:0;left:0;right:0;padding:16px 16px 26px;text-align:center;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.75));font-size:15px}
+.okutma{border:1px solid var(--yesil-koyu);background:var(--yesil-acik);border-radius:14px;padding:10px 14px;margin:6px 0 12px;font-size:14px}
+.okutma.yakin{border-color:var(--kirmizi);background:var(--kirmizi-acik)}
+.okutma.orta{border-color:var(--amber);background:var(--amber-acik)}
 .ust-dugme{background:var(--yuzey);border:1px solid var(--cizgi);color:var(--murekkep);border-radius:12px;padding:9px 13px;
   cursor:pointer;white-space:nowrap}
 .ust-dugme:hover{background:var(--hover)}
@@ -312,6 +323,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       <div class="ara-kutu">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
         <input id="ara" type="search" placeholder="İlaç adı ya da barkod" aria-label="Ürün ara" autocomplete="off">
+        <button class="tara-dugme" id="taraDugme" type="button" aria-label="Karekod okut" title="Karekod / barkod okut">📷</button>
       </div>
       <button class="ust-dugme hasta" id="hastaDugme" type="button" aria-label="Hasta takibi"><span>👥</span><span class="ek-yazi">Hastalar</span><b class="hrozet gizli" id="hastaRozet"></b></button>
       <button class="ust-dugme hasta" id="depoDugme" type="button" aria-label="Depolar"><span>🏷️</span><span class="ek-yazi">Depolar</span><b class="hrozet gizli" id="depoRozet"></b></button>
@@ -943,7 +955,7 @@ async function urunKarti(barkod){
 
   $("#icerik").innerHTML = `
     <button class="geri" type="button" onclick="history.length>1?history.back():location.hash=''">‹ Geri</button>
-    <div class="urun-bas"><h1>${kacis(r.ad||barkod)}</h1><p>${kacis(barkod)}${r.uretici?" · "+kacis(r.uretici):""}</p></div>
+    ${okutmaBandi(barkod)}<div class="urun-bas"><h1>${kacis(r.ad||barkod)}</h1><p>${kacis(barkod)}${r.uretici?" · "+kacis(r.uretici):""}</p></div>
     <div class="bilgiler">
       <div class="bilgi"><span>Stok</span><b>${sayi(r.stok)} kutu</b><small>${kilitli()?"&nbsp;":tl(r.stok_maliyet)+" maliyet"}</small></div>
       <div class="bilgi"><span>Ayda ortalama satış</span><b>${sayi(aylik)}</b><small>son 3 aya göre</small></div>
@@ -1366,6 +1378,88 @@ function hSablonDuzenle(){
 }
 $("#hastaDugme").addEventListener("click", ()=>{ location.hash = "hastalar"; });
 $("#depoDugme").addEventListener("click", ()=>{ location.hash = "depolar"; });
+/* ---------- karekod / barkod okutma (telefon kamerası) ---------- */
+let SON_OKUTMA = null;
+// GS1 karekod: (01) GTIN 14 · (21) seri · (17) SKT YYMMDD · (10) parti
+function karekodCoz(ham){
+  let t = String(ham||"").replace(/^\]d2|^\]C1|^\]Q3/,"").replace(/\u001d/g,"\x1d").trim().replace(/^\x1d+/,"");
+  if(/^\d{8}$|^\d{12,13}$/.test(t)) return { gtin: t.padStart(14,"0") };          // düz barkod
+  if(/^\d{14}$/.test(t)) return { gtin: t };
+  const o = {}; let i = 0;
+  const degisken = (max) => { let j = t.indexOf("\x1d", i); let son = j<0 ? t.length : j;
+    if(j<0){ const m = t.slice(i).search(/(?:17\d{6}(?:10|21)|10[^\x1d]{1,20}$|21[^\x1d]{1,20}$)/); if(m>0 && m<=max) son = i+m; }
+    const v = t.slice(i, Math.min(son, i+max)); i = Math.min(son, i+max); if(t[i]==="\x1d") i++; return v; };
+  for(let g=0; g<8 && i<t.length; g++){
+    const ai = t.slice(i,i+2); i+=2;
+    if(ai==="01"){ o.gtin = t.slice(i,i+14); i+=14; }
+    else if(ai==="17"){ o.skt = t.slice(i,i+6); i+=6; }
+    else if(ai==="21"){ o.seri = degisken(20); }
+    else if(ai==="10"){ o.parti = degisken(20); }
+    else break;
+  }
+  if(o.skt){ const [y,m,d] = [o.skt.slice(0,2),o.skt.slice(2,4),o.skt.slice(4,6)]; const gun = d==="00" ? new Date(2000+ +y, +m, 0).getDate() : +d;
+    o.miad = `20${y}-${m}-${String(gun).padStart(2,"0")}`; }
+  return o.gtin ? o : null;
+}
+function okutmaBandi(barkod){
+  const o = SON_OKUTMA; if(!o || o.barkod!==barkod || Date.now()-o.zaman>10*60e3) return "";
+  if(!o.miad && !o.parti) return "";
+  const g = o.miad ? gunFarki(o.miad) : null;
+  return `<div class="okutma ${o.miad?miadSinifi(o.miad):""}">📷 <b>Okutulan kutu</b> · ${o.miad?`Miad <b>${tarih(o.miad)}</b>${g!=null?` (${g<0?"GEÇMİŞ":g<60?g+" gün":Math.round(g/30)+" ay"})`:""}`:""}${o.parti?` · Parti ${kacis(o.parti)}`:""}</div>`;
+}
+let ZX_YUK = null;
+function zxingYukle(){
+  if(window.ZXing) return Promise.resolve();
+  return ZX_YUK ||= new Promise((ok,no)=>{ const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"; s.onload=ok; s.onerror=()=>{ZX_YUK=null;no(new Error("Okuyucu yüklenemedi"));}; document.head.appendChild(s); });
+}
+async function okuyucuHazirla(){
+  if("BarcodeDetector" in window){
+    try { const var_ = await BarcodeDetector.getSupportedFormats(); const f = ["data_matrix","ean_13","ean_8","code_128"].filter(x=>var_.includes(x));
+      if(f.includes("data_matrix")){ const d = new BarcodeDetector({formats:f}); return async c => { const r = await d.detect(c); return r[0] && r[0].rawValue; }; } } catch(e){}
+  }
+  await zxingYukle(); const Z = window.ZXing;
+  const ip = new Map(); ip.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.DATA_MATRIX,Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.CODE_128]); ip.set(Z.DecodeHintType.TRY_HARDER,true);
+  const okuyucu = new Z.MultiFormatReader(); okuyucu.setHints(ip);
+  return async c => { try { const b = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(c))); return okuyucu.decode(b).getText(); } catch(e){ return null; } finally { okuyucu.reset(); } };
+}
+async function taramaAc(){
+  const kap = document.createElement("div"); kap.className = "tarayici";
+  kap.innerHTML = `<video playsinline muted autoplay></video><div class="cerceve"></div>
+    <div class="t-ust"><span>Karekodu çerçeveye getir</span><button type="button">Kapat</button></div><div class="t-alt">Kamera açılıyor…</div>`;
+  document.body.appendChild(kap);
+  const video = kap.querySelector("video"), alt = kap.querySelector(".t-alt");
+  let akis = null, bitti = false, son = "";
+  const kapat = () => { bitti = true; if(akis) akis.getTracks().forEach(t=>t.stop()); kap.remove(); };
+  kap.querySelector("button").onclick = kapat;
+  try {
+    akis = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    video.srcObject = akis; await video.play();
+    try { const iz = akis.getVideoTracks()[0]; const yet = iz.getCapabilities ? iz.getCapabilities() : {}; if(yet.focusMode && yet.focusMode.includes("continuous")) await iz.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch(e){}
+  } catch(e){ alt.textContent = "Kamera açılamadı. Tarayıcıya kamera izni verin (adres çubuğundaki kilit/ayarlar)."; return; }
+  let oku; try { oku = await okuyucuHazirla(); } catch(e){ alt.textContent = e.message; return; }
+  alt.textContent = "Karekodu ya da barkodu çerçevenin içine tut";
+  const tuval = document.createElement("canvas"), cx = tuval.getContext("2d", { willReadFrequently: true });
+  while(!bitti){
+    await new Promise(r=>setTimeout(r,120));
+    const w = video.videoWidth, h = video.videoHeight; if(!w) continue;
+    const k = Math.min(w,h)*0.7, x = (w-k)/2, y = (h-k)/2*0.9, olcu = Math.min(800, Math.round(k));
+    tuval.width = tuval.height = olcu; cx.drawImage(video, x, y, k, k, 0, 0, olcu, olcu);
+    let ham; try { ham = await oku(tuval); } catch(e){ ham = null; }
+    if(!ham || ham===son) continue;
+    son = ham;
+    const o = karekodCoz(ham); if(!o){ alt.textContent = "Okunamadı, tekrar dene"; continue; }
+    const adaylar = [...new Set([o.gtin, o.gtin.replace(/^0/,""), "0"+o.gtin.replace(/^0+/,"")])];
+    const { data } = await db.from("urun_ozet").select("barkod").in("barkod", adaylar).limit(1);
+    if(!data || !data.length){ alt.innerHTML = `Bu ürün stok listesinde yok <small>(${kacis(o.gtin)})</small>`; continue; }
+    if(navigator.vibrate) navigator.vibrate(60);
+    SON_OKUTMA = { ...o, barkod: data[0].barkod, zaman: Date.now() };
+    kapat(); const hedef = "urun/" + data[0].barkod;
+    if(decodeURIComponent(location.hash.slice(1))===hedef) yonlendir(); else location.hash = hedef;
+    return;
+  }
+}
+$("#taraDugme").addEventListener("click", taramaAc);
+
 // program açılınca: şifre bu oturumda girildiyse rozeti arka planda güncelle
 async function hRozetArkaPlan(){
   if(!hAnahtarYukle()) return;
