@@ -1022,12 +1022,24 @@ function depoOncelik(u){
   const aciliyet = gun < 7 ? 3 : gun < 15 ? 2 : gun < 30 ? 1.4 : gun < 60 ? 1 : 0.3;
   return { ...en, gun, aylik, puan: aylik * aciliyet * (1 + en.kazanc*2) * (depoYeni(u)?1.5:1) };
 }
+// fiyatlar depolardan KDV hariç gelir; ekranda KDV dahil "tanesi kaça geliyor" gösterilir
+const depoKdv = u => (u && u.sn && u.sn.k != null) ? Number(u.sn.k) : 10;
+const kdvli = (n, u) => n * (1 + depoKdv(u)/100);
+// her MF seçeneği (a+m) için en ucuz birim fiyat
+function depoSecenekler(d){
+  const m = new Map();
+  for(const o of (d && d.mf) || []){ if(!(o.n>0)) continue; const k = o.a+"+"+(o.m||0); const v = m.get(k); if(!v || o.n < v.n) m.set(k, o); }
+  if(!m.size && d && d.d) m.set("1+0", {a:1,m:0,n:d.d,v:d.v});
+  return [...m.values()].sort((x,y)=>(x.a+x.m)-(y.a+y.m));
+}
+const secenekAd = o => o.m ? `${o.a}+${o.m}` : (o.a>1 ? `${o.a} adet` : "1 adet");
 function depoMfMetin(d){ if(!d) return "—"; const m = (d.mf||[]).filter(o=>o.m>0); const u = [...new Set(m.map(o=>o.a+"+"+o.m))]; return u.length ? u.join(" ") : "MF yok"; }
-function depoHucre(d, enIyi, k){
+function depoHucre(d, enIyi, k, u){
   if(!d) return `<span class="s ek" style="color:var(--soluk)">bulunamadı</span>`;
-  const iyi = enIyi && enIyi.k===k;
-  const min = (d.mf||[]).filter(o=>o.n>0).reduce((a,o)=>!a||o.n<a.n?o:a, null);
-  return `<span class="s">${para(d.d)}<small style="display:block;color:${iyi?"var(--yesil)":"var(--soluk)"}">${kacis(depoMfMetin(d))}${min?` · net ${para(min.n)}${min.v!=null?` (${min.v} gün)`:""}`:""}</small>${d.s===0?`<small style="display:block;color:var(--kirmizi)">stok yok</small>`:""}</span>`;
+  const sec = depoSecenekler(d).slice(0,4);
+  return `<span class="s">${sec.map(o=>{ const iyi = enIyi && enIyi.k===k && enIyi.a===o.a && (enIyi.m||0)===(o.m||0);
+      return `<small style="display:block;white-space:nowrap;color:${iyi?"var(--yesil)":o.m?"var(--murekkep)":"var(--soluk)"}">${secenekAd(o)} → <b>${para(kdvli(o.n,u))}</b></small>`; }).join("")
+    || `<small style="color:var(--soluk)">fiyat yok</small>`}${d.s===0?`<small style="display:block;color:var(--kirmizi)">stok yok</small>`:""}</span>`;
 }
 function depoSnNot(v){
   return [["sn","Sancak"],["bek","BEK"]].map(([k,ad])=>{
@@ -1061,11 +1073,11 @@ async function depoSayfasi(){
     <div class="hcipler">${Object.entries(filtreler).map(([k,a])=>`<button class="hcip ${DEPO_FILTRE===k?"secili":""}" type="button" data-df="${k}">${a}</button>`).join("")}</div>
     <div class="tablo">
       ${l.length ? `<div class="satir bas"><span>Ürün</span><span class="s ek">Stok / ayda</span>${aktif.map(k=>`<span class="s">${DEPO_AD[k]}</span>`).join("")}</div>`
-        + l.map(u=>{ const en = depoEnIyi(u); return `<button class="satir" type="button" data-barkod="${kacis(u.b)}"><span class="ad">${depoYeni(u)?'<span class="etiket yakin" style="margin-right:6px">YENİ MF</span>':""}${kacis(u.ad||u.b)}${(()=>{ const o = depoOncelik(u); return o ? `<small style="display:block;color:${o.gun<15?"var(--kirmizi)":"var(--amber)"}">Ayda ${sayi(o.aylik)} satıyor · stok ${o.gun<999?o.gun+" gün":"—"} yeter · ${DEPO_AD[o.k]}'ta ${o.a}+${o.m} (%${Math.round(o.kazanc*100)} bedava)</small>` : ""; })()}${en?`<small style="display:block;color:var(--soluk)">en ucuz net: ${DEPO_AD[en.k]} ${en.m?en.a+"+"+en.m+" ile ":""}${para(en.n)}</small>`:""}</span>
-            <span class="s ek">${sayi(u.st||0)} / ${sayi((u.a90||0)/3)}</span>${aktif.map(k=>depoHucre(u[k],en,k)).join("")}</button>`; }).join("")
+        + l.map(u=>{ const en = depoEnIyi(u); return `<button class="satir" type="button" data-barkod="${kacis(u.b)}"><span class="ad">${depoYeni(u)?'<span class="etiket yakin" style="margin-right:6px">YENİ MF</span>':""}${kacis(u.ad||u.b)}${(()=>{ const o = depoOncelik(u); return o ? `<small style="display:block;color:${o.gun<15?"var(--kirmizi)":"var(--amber)"}">Ayda ${sayi(o.aylik)} satıyor · stok ${o.gun<999?o.gun+" gün":"—"} yeter · ${DEPO_AD[o.k]}'ta ${o.a}+${o.m} (%${Math.round(o.kazanc*100)} bedava)</small>` : ""; })()}${en?`<small style="display:block;color:var(--soluk)">en ucuz: ${DEPO_AD[en.k]} ${en.m?en.a+"+"+en.m+" ile ":""}tanesi ${para(kdvli(en.n,u))} (KDV dahil)</small>`:""}</span>
+            <span class="s ek">${sayi(u.st||0)} / ${sayi((u.a90||0)/3)}</span>${aktif.map(k=>depoHucre(u[k],en,k,u)).join("")}</button>`; }).join("")
         : `<div class="bos">Bu filtrede ürün yok.</div>`}
     </div>
-    <p class="alt-not" style="margin-top:10px">Net fiyatlar depoların kendi ekranındaki MF ve iskontolu birim fiyattır; vade (gün) farklı olabilir. Sipariş vermeden önce depo ekranından teyit edin.</p>`;
+    <p class="alt-not" style="margin-top:10px">Fiyatlar kutu başı geliş fiyatıdır (MF ve iskonto dahil, KDV dahil). Vade (gün) depoya göre değişir; sipariş vermeden önce depo ekranından teyit edin.</p>`;
   document.querySelectorAll("[data-df]").forEach(b=>b.addEventListener("click",()=>{ DEPO_FILTRE=b.dataset.df; depoSayfasi(); }));
   document.querySelectorAll("[data-barkod]").forEach(b=>b.addEventListener("click",()=>location.hash="urun/"+b.dataset.barkod));
 }
@@ -1076,12 +1088,16 @@ async function depoRozet(){
 async function depoUrunSatiri(barkod){
   try { const v = await depoYukle(); const u = v && v.u.find(x=>x.b===barkod); if(!u) return "";
     const en = depoEnIyi(u);
+    const satirlar = ["as","sn","bek"].filter(k=>v.u.some(x=>x[k])).map(k=>{ const d=u[k];
+      if(!d) return `<tr><td>${DEPO_AD[k]}</td><td colspan="2" style="color:var(--soluk)">bulunamadı</td></tr>`;
+      const sec = depoSecenekler(d);
+      return `<tr><td>${DEPO_AD[k]}${en&&en.k===k?' <span class="etiket uzak">en ucuz</span>':""}${d.s===0?'<small style="display:block;color:var(--kirmizi)">stok yok</small>':""}</td>
+        <td class="s">${para(d.d)}</td>
+        <td>${sec.map(o=>{ const iyi = en && en.k===k && en.a===o.a && (en.m||0)===(o.m||0);
+          return `<div style="padding:2px 0;white-space:nowrap${iyi?";color:var(--yesil)":""}">${secenekAd(o)} → tanesi <b>${para(kdvli(o.n,u))}</b>${o.v!=null?` <small style="color:var(--soluk)">${o.v} gün</small>`:""}</div>`; }).join("") || "—"}</td></tr>`; }).join("");
     return `<div class="kutu-blok"><h2 class="baslik" style="margin:0">Depolarda <small style="font-weight:400;color:var(--soluk)">· ${tarihSaat(v.zaman)}</small></h2>
-      <table class="miad-tablo"><thead><tr><th>Depo</th><th class="s">Depocu</th><th>MF</th><th class="s">En düşük net</th></tr></thead><tbody>
-      ${["as","sn","bek"].filter(k=>v.u.some(x=>x[k])).map(k=>{ const d=u[k]; if(!d) return `<tr><td>${DEPO_AD[k]}</td><td colspan="3" style="color:var(--soluk)">bulunamadı</td></tr>`;
-        const min=(d.mf||[]).filter(o=>o.n>0).reduce((a,o)=>!a||o.n<a.n?o:a,null);
-        return `<tr><td>${DEPO_AD[k]}${en&&en.k===k?' <span class="etiket uzak">en iyi</span>':""}</td><td class="s">${para(d.d)}</td><td>${kacis(depoMfMetin(d))}</td><td class="s">${min?para(min.n)+(min.v!=null?` <small>(${min.v} gün)</small>`:""):"—"}</td></tr>`; }).join("")}
-      </tbody></table></div>`;
+      <table class="miad-tablo"><thead><tr><th>Depo</th><th class="s">Depocu<br><small>KDV hariç</small></th><th>Kutu başı geliş <small>(KDV dahil)</small></th></tr></thead><tbody>${satirlar}</tbody></table>
+      <p class="alt-not" style="margin-top:6px">KDV %${depoKdv(u)} ile hesaplandı. Depo ekranındaki iskonto ve vadeye göre küçük farklar olabilir.</p></div>`;
   } catch(e){ return ""; }
 }
 

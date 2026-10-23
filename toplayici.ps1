@@ -960,9 +960,9 @@ function SnCoz($liste, [string]$barkod) {
   # barkodla arayınca Sancak tek ürün döndürür (Barcode alanı boş geliyor)
   $e = $l | Where-Object { "$($_.Barcode)" -and "$($_.Barcode)" -match [regex]::Escape($barkod) } | Select-Object -First 1
   if (-not $e) { $e = $l[0] }
-  $tek = @(); foreach ($o in @($e.EQOffers)) { if ($o -and $o.Quantity -gt 0) { $np = if ($o.NetPriceWithTaxes) { $o.NetPriceWithTaxes } else { $o.NetPrice }; $tek += [ordered]@{ a = $o.Quantity; m = $o.ExtraQuantity; n = [math]::Round([double]$np, 2); v = $o.DaysDue } } }
+  $tek = @(); foreach ($o in @($e.EQOffers)) { if ($o -and $o.Quantity -gt 0) { $np = if ($o.NetPrice) { $o.NetPrice } else { [double]$o.NetPriceWithTaxes / (1 + [double]$e.TaxRate / 100) }; $tek += [ordered]@{ a = $o.Quantity; m = $o.ExtraQuantity; n = [math]::Round([double]$np, 2); v = $o.DaysDue } } }
   $fiyat = foreach ($a in "SalesPrice","ListPrice") { if ($e.$a) { [double]$e.$a; break } }
-  [ordered]@{ d = [double]$fiyat; s = [int]([bool]$e.HasStock -or [bool]$e.IsAvailableForSales); mf = $tek }
+  [ordered]@{ d = [double]$fiyat; s = [int]([bool]$e.HasStock -or [bool]$e.IsAvailableForSales); k = $e.TaxRate; mf = $tek }
 }
 function JsonNesneler($o, [string]$alan) {
   # iç içe JSON içinde belirtilen alanı taşıyan nesneleri bulur
