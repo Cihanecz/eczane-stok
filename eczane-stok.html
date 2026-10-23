@@ -994,7 +994,7 @@ async function urunKarti(barkod){
    DEPOLAR — AS / Sancak fiyat ve MF karşılaştırması (toplayıcı saatte bir yazar)
    ayar.depo_fiyat = {zaman, depolar[], u:[{b,ad,st,a90,as:{d,s,v,mf:[{a,m,n,v}]},sn:{...},y}]}
    ===================================================================== */
-const DEPO_AD = { as:"AS", sn:"Sancak" };
+const DEPO_AD = { as:"AS", sn:"Sancak", bek:"BEK" };
 let DEPO = null, DEPO_ZAMAN = 0, DEPO_FILTRE = "oncelik";
 async function depoYukle(zorla){
   if(DEPO && !zorla && Date.now()-DEPO_ZAMAN < 120000) return DEPO;
@@ -1005,7 +1005,7 @@ async function depoYukle(zorla){
 const depoYeni = u => u.y && (Date.now() - new Date(u.y)) < 48*3600e3;
 function depoEnIyi(u){
   let en = null;
-  for(const k of ["as","sn"]){ const d = u[k]; if(!d) continue;
+  for(const k of ["as","sn","bek"]){ const d = u[k]; if(!d) continue;
     const secenek = (d.mf||[]).filter(o=>o.n>0).length ? d.mf.filter(o=>o.n>0) : (d.d ? [{a:1,m:0,n:d.d,v:d.v}] : []);
     for(const o of secenek){ if(!en || o.n < en.n) en = {...o, k}; } }
   return en;
@@ -1014,7 +1014,7 @@ function depoEnIyi(u){
 function depoOncelik(u){
   const aylik = (u.a90||0)/3; if(aylik < 1) return null;
   let en = null;
-  for(const k of ["as","sn"]){ const d = u[k]; if(!d) continue;
+  for(const k of ["as","sn","bek"]){ const d = u[k]; if(!d) continue;
     for(const o of (d.mf||[])){ if(!(o.m>0)) continue; if(o.a + o.m > aylik*3.5) continue;
       const kazanc = o.m/(o.a+o.m); if(!en || kazanc > en.kazanc) en = {...o, k, kazanc}; } }
   if(!en) return null;
@@ -1030,16 +1030,18 @@ function depoHucre(d, enIyi, k){
   return `<span class="s">${para(d.d)}<small style="display:block;color:${iyi?"var(--yesil)":"var(--soluk)"}">${kacis(depoMfMetin(d))}${min?` · net ${para(min.n)}${min.v!=null?` (${min.v} gün)`:""}`:""}</small>${d.s===0?`<small style="display:block;color:var(--kirmizi)">stok yok</small>`:""}</span>`;
 }
 function depoSnNot(v){
-  const d = v && v.sn; if(!d) return "";
-  const saat = d.zaman ? (Date.now()-new Date(d.zaman))/36e5 : 1e9;
-  if(d.durum==="ok" && saat<3) return "";
-  const neden = { giris:"Sancak oturumu kapanmış — eczane bilgisayarındaki Chrome'da Sancak'a bir kez giriş yapın.",
-    dogrulama:"Sancak robot doğrulaması istiyor — eczane bilgisayarındaki Chrome'da Sancak sekmesini açıp kutuyu işaretleyin.",
-    eklenti_yok:"Sancak'a ulaşılamadı — eczane bilgisayarında Chrome açık değil ya da Depo Köprüsü eklentisi kapalı.",
-    yarim:"Sancak verisinin bir kısmı alınabildi.", hata:"Sancak'ta geçici hata, bir sonraki saatte yeniden denenecek." }[d.durum] || "";
-  const yas = d.zaman ? `Sancak verisi ${saat<1?"1 saatten yeni":Math.round(saat)+" saat önceki"}. ` : "";
-  if(!neden && saat<3) return "";
-  return `<p style="color:${saat>=6?"var(--kirmizi)":"var(--amber)"};margin-top:4px">⚠️ ${yas}${kacis(neden)}</p>`;
+  return [["sn","Sancak"],["bek","BEK"]].map(([k,ad])=>{
+    const d = v && v[k]; if(!d) return "";
+    const saat = d.zaman ? (Date.now()-new Date(d.zaman))/36e5 : 1e9;
+    if(d.durum==="ok" && saat<3) return "";
+    const neden = { giris: k==="sn" ? "Sancak oturumu kapanmış — eczane bilgisayarındaki Chrome'da Sancak'a bir kez giriş yapın." : "BEK oturumu kapanmış — eczane bilgisayarındaki Chrome'da BEK'e bir kez giriş yapın.",
+      dogrulama: ad+" robot doğrulaması istiyor — eczane bilgisayarındaki Chrome'da "+ad+" sekmesini açıp kutuyu işaretleyin.",
+      eklenti_yok: ad+"'a ulaşılamadı — eczane bilgisayarında Chrome açık değil ya da Depo Köprüsü eklentisi kapalı.",
+      yarim: ad+" verisinin bir kısmı alınabildi.", hata: ad+"'ta geçici hata, bir sonraki saatte yeniden denenecek." }[d.durum] || "";
+    if(!neden && saat<3) return "";
+    const yas = d.zaman ? `${ad} verisi ${saat<1?"1 saatten yeni":Math.round(saat)+" saat önceki"}. ` : "";
+    return `<p style="color:${saat>=6?"var(--kirmizi)":"var(--amber)"};margin-top:4px">⚠️ ${yas}${kacis(neden)}</p>`;
+  }).join("");
 }
 async function depoSayfasi(){
   yukleniyor(); $("#depoDugme").classList.add("aktif");
@@ -1047,7 +1049,7 @@ async function depoSayfasi(){
   if(!v){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button><div class="liste-ust"><div><h1>Depolar</h1><p>Henüz depo verisi yok. Eczanedeki bilgisayarda depo bilgileri girildikten sonra saatte bir güncellenir.</p></div></div>`; return; }
   const filtreler = { oncelik:"Öncelikli MF", yeni:"Yeni MF (48 saat)", mf:"MF olanlar", hepsi:"Tümü" };
   let l = v.u.slice();
-  const aktif = ["as","sn"].filter(k=>v.u.some(u=>u[k]));
+  const aktif = ["as","sn","bek"].filter(k=>v.u.some(u=>u[k]));
   const mfVar = u => /\d\+\d/.test(u.k||"");
   if(DEPO_FILTRE==="mf") l = l.filter(mfVar);
   if(DEPO_FILTRE==="yeni") l = l.filter(depoYeni);
@@ -1076,7 +1078,7 @@ async function depoUrunSatiri(barkod){
     const en = depoEnIyi(u);
     return `<div class="kutu-blok"><h2 class="baslik" style="margin:0">Depolarda <small style="font-weight:400;color:var(--soluk)">· ${tarihSaat(v.zaman)}</small></h2>
       <table class="miad-tablo"><thead><tr><th>Depo</th><th class="s">Depocu</th><th>MF</th><th class="s">En düşük net</th></tr></thead><tbody>
-      ${["as","sn"].filter(k=>v.u.some(x=>x[k])).map(k=>{ const d=u[k]; if(!d) return `<tr><td>${DEPO_AD[k]}</td><td colspan="3" style="color:var(--soluk)">bulunamadı</td></tr>`;
+      ${["as","sn","bek"].filter(k=>v.u.some(x=>x[k])).map(k=>{ const d=u[k]; if(!d) return `<tr><td>${DEPO_AD[k]}</td><td colspan="3" style="color:var(--soluk)">bulunamadı</td></tr>`;
         const min=(d.mf||[]).filter(o=>o.n>0).reduce((a,o)=>!a||o.n<a.n?o:a,null);
         return `<tr><td>${DEPO_AD[k]}${en&&en.k===k?' <span class="etiket uzak">en iyi</span>':""}</td><td class="s">${para(d.d)}</td><td>${kacis(depoMfMetin(d))}</td><td class="s">${min?para(min.n)+(min.v!=null?` <small>(${min.v} gün)</small>`:""):"—"}</td></tr>`; }).join("")}
       </tbody></table></div>`;
