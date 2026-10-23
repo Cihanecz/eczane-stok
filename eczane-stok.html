@@ -659,6 +659,8 @@ async function anaEkran(){
     {k:"miad", renk:"var(--kirmizi)", ad:"Miadı 3 ay içinde dolacak", ac:"Önce bunları ver ya da iade et", sayi:o.miad_90_kutu, birim:"kutu", tl:o.miad_90_tl, tlNot:"PSF"},
     {k:"olu", renk:"var(--amber)", ad:"6 aydır hiç satmayan", ac:"Rafta duran para", sayi:o.olu_kalem, birim:"ürün", tl:o.olu_tl, tlNot:"maliyet", gizli:true},
     {k:"fazla", renk:"#E3C04B", ad:"6 aydan uzun yetecek stok", ac:"Gereğinden fazla alınmış", sayi:o.fazla_kalem, birim:"ürün", tl:o.fazla_tl, tlNot:"maliyet", gizli:true},
+    {k:"depo", renk:"#B48CF2", ad:"MF fırsatları", ac:"Çok sattığın ve stoğu azalan ürünlerde depoda MF var", sayi:null},
+    {k:"kalacak", renk:"#F07FA8", ad:"Bu hızla elde kalacak kutular", ac:"Satış hızına göre miadına kadar satılamayacaklar", sayi:null},
     {k:"bitiyor", renk:"var(--mavi)", ad:"Çok satıyor, bitmek üzere", ac:"2 haftadan az yetecek", sayi:o.bitiyor_kalem, birim:"ürün"},
     {k:"kazandiran", renk:"var(--yesil)", ad:"En çok kazandıranlar", ac:"Son 12 ayın kâr sıralaması", sayi:null},
   ];
@@ -790,16 +792,66 @@ const LISTELER = {
     sorgu:()=>db.from("urun_ozet").select("*").gte("adet_90",6).lt("kac_ay_yeter",0.5).order("adet_90",{ascending:false}).limit(500),
     satir:r=>[urunHucre(r), sayi(r.stok), sayi(r.adet_90/3), `${Math.round((r.kac_ay_yeter||0)*30)} gün`],
     csv:r=>[r.ad,r.barkod,r.stok,(r.adet_90/3).toFixed(1),Math.round((r.kac_ay_yeter||0)*30)], csvBas:["Ürün","Barkod","Stok","Aylık satış","Kaç gün yeter"]},
+  kalacak:{ad:"Bu hızla elde kalacak kutular", ac:"Satış hızına (mevsime göre) bakarak miadı dolana kadar satılamayacak kutular. Önce miadı en yakın olan satılır varsayılır. Tahmindir; iade ya da kampanya için erken uyarıdır.",
+    sutun:["Miat","Kalacak / partide","Ayda satış","Tutar"],
+    sorgu:()=>kalacakHesapla(),
+    satir:r=>[`${kacis(r.ad||r.barkod)}<span class="kucuk">Parti ${kacis(r.parti_no||"—")} · miada kadar ~${sayi(r.satilir)} satılır${r.mevsim?" (mevsime göre)":""}</span>`,
+      `<span class="etiket ${miadSinifi(r.miad)||"ilk"}">${tarih(r.miad)}</span>`, `<b>${sayi(r.kalacak)}</b> / ${sayi(r.kutu)}`, sayi(r.aylik), r.maliyet!=null?para(r.kalacak*r.maliyet):tl(r.kalacak*(r.psf||0))+" <small>PSF</small>"],
+    csv:r=>[r.ad,r.barkod,r.parti_no,r.miad,r.kutu,r.kalacak,Number(r.aylik).toFixed(1),r.maliyet!=null?paraCsv(r.kalacak*r.maliyet):""], csvBas:["Ürün","Barkod","Parti","Miat","Partideki kutu","Kalacak kutu","Aylık satış","Maliyet tutarı"]},
   kazandiran:{ad:"En çok kazandıranlar", ac:"Son 12 ayda en çok kâr bırakan ürünler.", kilitli:true,
     sutun:["Satılan","Ciro","Kâr"],
     sorgu:()=>db.from("urun_ozet").select("*").gt("kar_365",0).order("kar_365",{ascending:false}).limit(300),
     satir:r=>[urunHucre(r), sayi(r.adet_365), tl(r.ciro_365), `<b>${tl(r.kar_365)}</b>`],
     csv:r=>[r.ad,r.barkod,r.adet_365,r.ciro_365,r.kar_365], csvBas:["Ürün","Barkod","Satılan","Ciro","Kâr"]},
 };
+// Miadına kadar satılamayacak kutu tahmini: önce miadı en yakın parti satılır (FEFO).
+// Aylık hız: son 3 ay ortalaması; yeterli satış varsa son 12 ayın aylık dağılımıyla mevsime göre düzeltilir.
+async function kalacakHesapla(){
+  const { data: partiler, error } = await db.from("miad_listesi").select("barkod,ad,miad,parti_no,kutu,psf").gte("miad", gunSonra(0)).lt("miad", gunSonra(365)).order("miad").limit(5000);
+  if(error) return { data:null, error };
+  const barkodlar = [...new Set(partiler.map(p=>p.barkod))]; const oz = {};
+  for(let i=0;i<barkodlar.length;i+=300){ const { data, error:e } = await db.from("urun_ozet").select("barkod,ad,stok,adet_90,adet_365,birim_maliyet,psf").in("barkod", barkodlar.slice(i,i+300)); if(e) return { data:null, error:e }; for(const u of data||[]) oz[u.barkod]=u; }
+  const tumu = {}; for(const p of partiler){ (tumu[p.barkod] = tumu[p.barkod] || []).push(p); }
+  const gunlukDuz = u => (u.adet_90||0)/90;
+  // ay ay beklenen satış (bugünden 'son'a kadar)
+  const beklenen = (u, son, aylar) => {
+    const bas = new Date(); bas.setHours(0,0,0,0); const bit = new Date(son); let top = 0;
+    const duz = gunlukDuz(u);
+    if(!aylar) return Math.max(0, (bit-bas)/864e5) * duz;
+    const ort = aylar.reduce((a,x)=>a+x,0)/12 || 0;
+    const idx = m => ort ? Math.min(3, Math.max(0.3, aylar[m]/ort)) : 1;
+    const bugunAy = bas.getMonth(); const son3 = [1,2,3].map(k=>idx((bugunAy-k+12)%12)); const seviye = son3.reduce((a,x)=>a+x,0)/3 || 1;
+    for(let d=new Date(bas); d<bit; d.setDate(d.getDate()+1)) top += duz / seviye * idx(d.getMonth());
+    return top;
+  };
+  const hesapla = (barkod, aylar) => {
+    const u = oz[barkod]; if(!u) return [];
+    let tuketilen = 0; const sonuc = [];
+    for(const p of tumu[barkod]){
+      const s = beklenen(u, p.miad, aylar); const satilabilir = Math.max(0, s - tuketilen);
+      const satilir = Math.min(p.kutu, satilabilir); const kalacak = Math.round(p.kutu - satilir);
+      tuketilen += satilir;
+      if(kalacak > 0) sonuc.push({ ...p, ad:u.ad||p.ad, kalacak, satilir:Math.round(satilabilir), aylik:(u.adet_90||0)/3, maliyet:u.birim_maliyet, mevsim:!!aylar });
+    }
+    return sonuc;
+  };
+  // 1) düz hızla adaylar, 2) en büyük 80 aday için mevsimli yeniden hesap (son 12 ay ay ay satış)
+  const duzTop = {}; for(const b of barkodlar){ const l = hesapla(b,null); if(l.length) duzTop[b] = l.reduce((s,r)=>s+r.kalacak*(r.maliyet||r.psf||0),0); }
+  const adaylar = Object.keys(duzTop).sort((a,b)=>duzTop[b]-duzTop[a]);
+  const mevsimli = {};
+  const ilk = adaylar.slice(0,80);
+  for(let i=0;i<ilk.length;i+=6){ await Promise.all(ilk.slice(i,i+6).map(async b=>{ const u=oz[b]; if(!u || (u.adet_365||0) < 24) return;
+      const { data } = await db.rpc("urun_aylik", { p_barkod:b }); if(!data || data.length<12) return;
+      const aylar = Array(12).fill(0); for(const a of data){ aylar[new Date(a.ay).getMonth()] += Number(a.adet)||0; } mevsimli[b] = aylar; })); }
+  const satirlar = adaylar.flatMap(b=>hesapla(b, mevsimli[b]||null));
+  satirlar.sort((a,b)=>(b.kalacak*(b.maliyet||b.psf||0))-(a.kalacak*(a.maliyet||a.psf||0)));
+  return { data: satirlar.slice(0,300), error:null };
+}
 function gunSonra(n){ const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
 function urunHucre(r){ return `${kacis(r.ad||r.barkod)}<span class="kucuk">${kacis(r.barkod)}</span>`; }
 
 async function liste(k){
+  if(k==="depo"){ location.hash = "depolar"; return; }
   const L = LISTELER[k]; if(!L) return anaEkran();
   if(L.kilitli && kilitli()){
     $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
@@ -931,7 +983,7 @@ async function urunKarti(barkod){
    ayar.depo_fiyat = {zaman, depolar[], u:[{b,ad,st,a90,as:{d,s,v,mf:[{a,m,n,v}]},sn:{...},y}]}
    ===================================================================== */
 const DEPO_AD = { as:"AS", sn:"Sancak" };
-let DEPO = null, DEPO_ZAMAN = 0, DEPO_FILTRE = "mf";
+let DEPO = null, DEPO_ZAMAN = 0, DEPO_FILTRE = "oncelik";
 async function depoYukle(zorla){
   if(DEPO && !zorla && Date.now()-DEPO_ZAMAN < 120000) return DEPO;
   const { data, error } = await db.from("ayar").select("deger").eq("anahtar","depo_fiyat").maybeSingle();
@@ -946,6 +998,18 @@ function depoEnIyi(u){
     for(const o of secenek){ if(!en || o.n < en.n) en = {...o, k}; } }
   return en;
 }
+// MF önceliği: çok satan + stoğu az kalan + MF'si gerçekten işine yarayan (MF adedi en fazla ~3 aylık satış)
+function depoOncelik(u){
+  const aylik = (u.a90||0)/3; if(aylik < 1) return null;
+  let en = null;
+  for(const k of ["as","sn"]){ const d = u[k]; if(!d) continue;
+    for(const o of (d.mf||[])){ if(!(o.m>0)) continue; if(o.a + o.m > aylik*3.5) continue;
+      const kazanc = o.m/(o.a+o.m); if(!en || kazanc > en.kazanc) en = {...o, k, kazanc}; } }
+  if(!en) return null;
+  const gun = aylik ? Math.round((u.st||0)/aylik*30) : 999;
+  const aciliyet = gun < 7 ? 3 : gun < 15 ? 2 : gun < 30 ? 1.4 : 1;
+  return { ...en, gun, aylik, puan: aylik * aciliyet * (1 + en.kazanc*2) * (depoYeni(u)?1.5:1) };
+}
 function depoMfMetin(d){ if(!d) return "—"; const m = (d.mf||[]).filter(o=>o.m>0); const u = [...new Set(m.map(o=>o.a+"+"+o.m))]; return u.length ? u.join(" ") : "MF yok"; }
 function depoHucre(d, enIyi, k){
   if(!d) return `<span class="s ek" style="color:var(--soluk)">bulunamadı</span>`;
@@ -957,21 +1021,22 @@ async function depoSayfasi(){
   yukleniyor(); $("#depoDugme").classList.add("aktif");
   let v; try { v = await depoYukle(true); } catch(e){ return hataGoster(e); }
   if(!v){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button><div class="liste-ust"><div><h1>Depolar</h1><p>Henüz depo verisi yok. Eczanedeki bilgisayarda depo bilgileri girildikten sonra saatte bir güncellenir.</p></div></div>`; return; }
-  const filtreler = { mf:"MF olanlar", yeni:"Yeni MF (48 saat)", bitiyor:"Az kalan + MF", hepsi:"Tümü" };
+  const filtreler = { oncelik:"Öncelikli MF", yeni:"Yeni MF (48 saat)", mf:"MF olanlar", hepsi:"Tümü" };
   let l = v.u.slice();
+  const aktif = ["as","sn"].filter(k=>v.u.some(u=>u[k]));
   const mfVar = u => /\d\+\d/.test(u.k||"");
   if(DEPO_FILTRE==="mf") l = l.filter(mfVar);
   if(DEPO_FILTRE==="yeni") l = l.filter(depoYeni);
-  if(DEPO_FILTRE==="bitiyor") l = l.filter(u => mfVar(u) && u.a90>0 && (u.st||0) < (u.a90/3)*0.5);
-  l.sort((a,b)=>(Number(!!depoYeni(b))-Number(!!depoYeni(a))) || ((b.a90||0)-(a.a90||0)));
+  if(DEPO_FILTRE==="oncelik"){ l = l.map(u=>({u, o:depoOncelik(u)})).filter(x=>x.o).sort((a,b)=>b.o.puan-a.o.puan).map(x=>x.u); }
+  else l.sort((a,b)=>(Number(!!depoYeni(b))-Number(!!depoYeni(a))) || ((b.a90||0)-(a.a90||0)));
   $("#icerik").innerHTML = `
     <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
     <div class="liste-ust"><div><h1>Depolar</h1><p>${kacis((v.depolar||[]).join(" · "))} · son güncelleme ${tarihSaat(v.zaman)} · en çok satan ${v.u.length} ürün</p></div></div>
     <div class="hcipler">${Object.entries(filtreler).map(([k,a])=>`<button class="hcip ${DEPO_FILTRE===k?"secili":""}" type="button" data-df="${k}">${a}</button>`).join("")}</div>
     <div class="tablo">
-      ${l.length ? `<div class="satir bas"><span>Ürün</span><span class="s ek">Stok / ayda</span><span class="s">AS</span><span class="s">Sancak</span></div>`
-        + l.map(u=>{ const en = depoEnIyi(u); return `<button class="satir" type="button" data-barkod="${kacis(u.b)}"><span class="ad">${depoYeni(u)?'<span class="etiket yakin" style="margin-right:6px">YENİ MF</span>':""}${kacis(u.ad||u.b)}${en?`<small style="display:block;color:var(--soluk)">en iyi: ${DEPO_AD[en.k]} ${en.m?en.a+"+"+en.m+" ile ":""}${para(en.n)}</small>`:""}</span>
-            <span class="s ek">${sayi(u.st||0)} / ${sayi((u.a90||0)/3)}</span>${depoHucre(u.as,en,"as")}${depoHucre(u.sn,en,"sn")}</button>`; }).join("")
+      ${l.length ? `<div class="satir bas"><span>Ürün</span><span class="s ek">Stok / ayda</span>${aktif.map(k=>`<span class="s">${DEPO_AD[k]}</span>`).join("")}</div>`
+        + l.map(u=>{ const en = depoEnIyi(u); return `<button class="satir" type="button" data-barkod="${kacis(u.b)}"><span class="ad">${depoYeni(u)?'<span class="etiket yakin" style="margin-right:6px">YENİ MF</span>':""}${kacis(u.ad||u.b)}${(()=>{ const o = depoOncelik(u); return o ? `<small style="display:block;color:${o.gun<15?"var(--kirmizi)":"var(--amber)"}">Ayda ${sayi(o.aylik)} satıyor · stok ${o.gun<999?o.gun+" gün":"—"} yeter · ${DEPO_AD[o.k]}'ta ${o.a}+${o.m} (%${Math.round(o.kazanc*100)} bedava)</small>` : ""; })()}${en?`<small style="display:block;color:var(--soluk)">en ucuz net: ${DEPO_AD[en.k]} ${en.m?en.a+"+"+en.m+" ile ":""}${para(en.n)}</small>`:""}</span>
+            <span class="s ek">${sayi(u.st||0)} / ${sayi((u.a90||0)/3)}</span>${aktif.map(k=>depoHucre(u[k],en,k)).join("")}</button>`; }).join("")
         : `<div class="bos">Bu filtrede ürün yok.</div>`}
     </div>
     <p class="alt-not" style="margin-top:10px">Net fiyatlar depoların kendi ekranındaki MF ve iskontolu birim fiyattır; vade (gün) farklı olabilir. Sipariş vermeden önce depo ekranından teyit edin.</p>`;
@@ -979,15 +1044,15 @@ async function depoSayfasi(){
   document.querySelectorAll("[data-barkod]").forEach(b=>b.addEventListener("click",()=>location.hash="urun/"+b.dataset.barkod));
 }
 async function depoRozet(){
-  try { const v = await depoYukle(); const n = v ? v.u.filter(u=>depoYeni(u) && u.a90>0).length : 0;
-    const r = $("#depoRozet"); r.textContent = n; r.title = "48 saatte yeni MF çıkan, sattığın ürün"; r.classList.toggle("gizli", !n); } catch(e){}
+  try { const v = await depoYukle(); const n = v ? v.u.filter(u=>{ const o = depoOncelik(u); return o && (o.gun < 15 || depoYeni(u)); }).length : 0;
+    const r = $("#depoRozet"); r.textContent = n; r.title = "Çok sattığın, stoğu azalan ya da yeni MF çıkan ürün"; r.classList.toggle("gizli", !n); } catch(e){}
 }
 async function depoUrunSatiri(barkod){
   try { const v = await depoYukle(); const u = v && v.u.find(x=>x.b===barkod); if(!u) return "";
     const en = depoEnIyi(u);
     return `<div class="kutu-blok"><h2 class="baslik" style="margin:0">Depolarda <small style="font-weight:400;color:var(--soluk)">· ${tarihSaat(v.zaman)}</small></h2>
       <table class="miad-tablo"><thead><tr><th>Depo</th><th class="s">Depocu</th><th>MF</th><th class="s">En düşük net</th></tr></thead><tbody>
-      ${["as","sn"].map(k=>{ const d=u[k]; if(!d) return `<tr><td>${DEPO_AD[k]}</td><td colspan="3" style="color:var(--soluk)">bulunamadı</td></tr>`;
+      ${["as","sn"].filter(k=>v.u.some(x=>x[k])).map(k=>{ const d=u[k]; if(!d) return `<tr><td>${DEPO_AD[k]}</td><td colspan="3" style="color:var(--soluk)">bulunamadı</td></tr>`;
         const min=(d.mf||[]).filter(o=>o.n>0).reduce((a,o)=>!a||o.n<a.n?o:a,null);
         return `<tr><td>${DEPO_AD[k]}${en&&en.k===k?' <span class="etiket uzak">en iyi</span>':""}</td><td class="s">${para(d.d)}</td><td>${kacis(depoMfMetin(d))}</td><td class="s">${min?para(min.n)+(min.v!=null?` <small>(${min.v} gün)</small>`:""):"—"}</td></tr>`; }).join("")}
       </tbody></table></div>`;
