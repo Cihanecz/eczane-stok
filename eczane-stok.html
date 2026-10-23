@@ -1007,7 +1007,7 @@ function depoOncelik(u){
       const kazanc = o.m/(o.a+o.m); if(!en || kazanc > en.kazanc) en = {...o, k, kazanc}; } }
   if(!en) return null;
   const gun = aylik ? Math.round((u.st||0)/aylik*30) : 999;
-  const aciliyet = gun < 7 ? 3 : gun < 15 ? 2 : gun < 30 ? 1.4 : 1;
+  const aciliyet = gun < 7 ? 3 : gun < 15 ? 2 : gun < 30 ? 1.4 : gun < 60 ? 1 : 0.3;
   return { ...en, gun, aylik, puan: aylik * aciliyet * (1 + en.kazanc*2) * (depoYeni(u)?1.5:1) };
 }
 function depoMfMetin(d){ if(!d) return "—"; const m = (d.mf||[]).filter(o=>o.m>0); const u = [...new Set(m.map(o=>o.a+"+"+o.m))]; return u.length ? u.join(" ") : "MF yok"; }
@@ -1027,7 +1027,7 @@ async function depoSayfasi(){
   const mfVar = u => /\d\+\d/.test(u.k||"");
   if(DEPO_FILTRE==="mf") l = l.filter(mfVar);
   if(DEPO_FILTRE==="yeni") l = l.filter(depoYeni);
-  if(DEPO_FILTRE==="oncelik"){ l = l.map(u=>({u, o:depoOncelik(u)})).filter(x=>x.o).sort((a,b)=>b.o.puan-a.o.puan).map(x=>x.u); }
+  if(DEPO_FILTRE==="oncelik"){ l = l.map(u=>({u, o:depoOncelik(u)})).filter(x=>x.o && x.o.gun <= 90).sort((a,b)=>b.o.puan-a.o.puan).map(x=>x.u); }
   else l.sort((a,b)=>(Number(!!depoYeni(b))-Number(!!depoYeni(a))) || ((b.a90||0)-(a.a90||0)));
   $("#icerik").innerHTML = `
     <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
