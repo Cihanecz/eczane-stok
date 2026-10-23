@@ -71,7 +71,8 @@ async function yokla() {
         if (depo === "bek" && !yenilendi && sekme) { yenilendi = true; await chrome.tabs.reload(sekme.id); await yuklenmesiniBekle(sekme.id); await bekle(8000); continue; }
         await bildir({ durum: depo === "bek" ? "giris" : "hata", mesaj: "sekme: " + (e.message || e) }); return;
       }
-      if (!c) { await bildir({ durum: "hata", mesaj: "sekmeden cevap yok" }); return; }
+      if (!c && depo === "bek" && !yenilendi) { yenilendi = true; await chrome.tabs.reload(sekme.id); await yuklenmesiniBekle(sekme.id); await bekle(8000); continue; }
+      if (!c) { await bildir({ durum: depo === "bek" ? "giris" : "hata", mesaj: "sekmeden cevap yok" }); return; }
       if (c.durum === "giris") {
         if (depo === "bek" && !yenilendi) { yenilendi = true; await chrome.tabs.reload(sekme.id); await yuklenmesiniBekle(sekme.id); await bekle(8000); continue; }
         // Sancak oturumu düşmüş: kayıtlı bilgiyle bir kez giriş dene
