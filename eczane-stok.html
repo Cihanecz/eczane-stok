@@ -47,6 +47,8 @@ a{color:inherit}
 .tarayici .t-ust{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;color:#fff;font-weight:600}
 .tarayici .t-ust button{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:8px 14px;font-size:15px}
 .tarayici .t-alt{position:absolute;bottom:0;left:0;right:0;padding:16px 16px 26px;text-align:center;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.75));font-size:15px}
+.sepet-d{background:var(--yesil-acik);border:1px solid var(--yesil-koyu);color:var(--yesil);border-radius:8px;padding:2px 8px;margin-left:8px;font-size:13px;cursor:pointer;vertical-align:middle}
+.sepet-not{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:70;background:var(--yuzey2);border:1px solid var(--cizgi);border-radius:12px;padding:11px 16px;font-size:14px;max-width:92vw;box-shadow:0 8px 30px rgba(0,0,0,.4)}
 .okutma{border:1px solid var(--yesil-koyu);background:var(--yesil-acik);border-radius:14px;padding:10px 14px;margin:6px 0 12px;font-size:14px}
 .okutma.yakin{border-color:var(--kirmizi);background:var(--kirmizi-acik)}
 .okutma.orta{border-color:var(--amber);background:var(--amber-acik)}
@@ -343,6 +345,19 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
     <div class="hata" id="adHata" role="alert"></div>
     <button class="ana-dugme" id="adDugme" type="submit">Kaydet</button>
     <div class="yan"><button class="ikincil" type="button" id="adVazgec">Vazgeç</button></div>
+  </form>
+</div>
+
+<!-- SEPETE EKLE -->
+<div class="perde gizli" id="sepetPerde">
+  <form id="sepetFormu" autocomplete="off">
+    <h2 id="sepetBaslik">Sepete ekle</h2>
+    <p id="sepetAciklama"></p>
+    <label class="alan"><span>Kaç kez?</span><input id="sepetKat" type="number" min="1" max="99" value="1" inputmode="numeric" style="letter-spacing:0;font-size:18px"></label>
+    <p id="sepetToplam" style="margin:8px 0 14px"></p>
+    <button class="ana-dugme" type="submit">Depo sepetine ekle</button>
+    <div class="yan"><button class="ikincil" type="button" id="sepetVazgec">Vazgeç</button></div>
+    <p style="margin:12px 0 0;font-size:12px">Sadece sepete eklenir. Siparişi depo ekranından sen tamamlarsın.</p>
   </form>
 </div>
 
@@ -987,7 +1002,8 @@ async function urunKarti(barkod){
       <h2 class="baslik" style="margin:0">Son 12 ayda satış</h2>
       <div class="grafik">${(ay.data||[]).map(a=>{ const d=new Date(a.ay); return `<div><em>${Number(a.adet)?sayi(a.adet):""}</em><span class="cubuk" style="height:${Math.round(Number(a.adet)/enYuksek*100)}%"></span><small>${AYLAR[d.getMonth()]}</small></div>`; }).join("")}</div>
     </div>`;
-  const dp = await depoUrunSatiri(barkod); if(dp && location.hash.includes(barkod)) $(".bilgiler").insertAdjacentHTML("afterend", dp);
+  const dp = await depoUrunSatiri(barkod); if(dp && location.hash.includes(barkod)) { $(".bilgiler").insertAdjacentHTML("afterend", dp);
+    document.querySelectorAll("[data-sepet]").forEach(b=>b.addEventListener("click", ()=>{ const [k,a,m]=b.dataset.sepet.split("|"); sepetAc(k, barkod, r.ad||barkod, +a, +m); })); }
 }
 
 /* =====================================================================
@@ -1094,10 +1110,10 @@ async function depoUrunSatiri(barkod){
       return `<tr><td>${DEPO_AD[k]}${en&&en.k===k?' <span class="etiket uzak">en ucuz</span>':""}${d.s===0?'<small style="display:block;color:var(--kirmizi)">stok yok</small>':""}</td>
         <td class="s">${para(d.d)}</td>
         <td>${sec.map(o=>{ const iyi = en && en.k===k && en.a===o.a && (en.m||0)===(o.m||0);
-          return `<div style="padding:2px 0;white-space:nowrap${iyi?";color:var(--yesil)":""}">${secenekAd(o)} → tanesi <b>${para(kdvli(o.n,u))}</b>${o.v!=null?` <small style="color:var(--soluk)">${o.v} gün</small>`:""}</div>`; }).join("") || "—"}</td></tr>`; }).join("");
+          return `<div style="padding:2px 0;white-space:nowrap${iyi?";color:var(--yesil)":""}">${secenekAd(o)} → tanesi <b>${para(kdvli(o.n,u))}</b>${o.v!=null?` <small style="color:var(--soluk)">${o.v} gün</small>`:""}${SEPET_DEPOLAR.includes(k)?`<button class="sepet-d" type="button" data-sepet="${k}|${o.a}|${o.m||0}" title="Depo sepetine ekle">🛒</button>`:""}</div>`; }).join("") || "—"}</td></tr>`; }).join("");
     return `<div class="kutu-blok"><h2 class="baslik" style="margin:0">Depolarda <small style="font-weight:400;color:var(--soluk)">· ${tarihSaat(v.zaman)}</small></h2>
       <table class="miad-tablo"><thead><tr><th>Depo</th><th class="s">Depocu<br><small>KDV hariç</small></th><th>Kutu başı geliş <small>(KDV dahil)</small></th></tr></thead><tbody>${satirlar}</tbody></table>
-      <p class="alt-not" style="margin-top:6px">KDV %${depoKdv(u)} ile hesaplandı. Depo ekranındaki iskonto ve vadeye göre küçük farklar olabilir.</p></div>`;
+      <p class="alt-not" style="margin-top:6px">KDV %${depoKdv(u)} ile hesaplandı. Depo ekranındaki iskonto ve vadeye göre küçük farklar olabilir.${SEPET_DEPOLAR.length?" 🛒 ile ürün o deponun sepetine eklenir.":""}</p>${await sepetGecmisi(barkod)}</div>`;
   } catch(e){ return ""; }
 }
 
@@ -1477,6 +1493,60 @@ async function taramaAc(){
   }
 }
 $("#taraDugme").addEventListener("click", taramaAc);
+/* ---------- depo sepetine ekle (telefondan) ----------
+   istek ayar.sepet_istek'e yazılır; eczane bilgisayarındaki gözcü 15 sn içinde görür, Chrome eklentisi depo ekranında sepete ekler. */
+const SEPET_DEPOLAR = ["bek"];
+let SEPET_SECIM = null;
+async function sepetListe(){
+  const { data, error } = await db.from("ayar").select("deger").eq("anahtar","sepet_istek").maybeSingle();
+  if(error) throw error;
+  try { return (data && JSON.parse(data.deger).liste) || []; } catch(e){ return []; }
+}
+const SEPET_DURUM = { bekliyor:"⏳ eczane bilgisayarına gönderildi", sepette:"✓ sepete eklendi", hata:"✗ eklenemedi" };
+async function sepetGecmisi(barkod){
+  try { const l = (await sepetListe()).filter(x=>x.barkod===barkod && Date.now()-new Date(x.zaman) < 3*864e5).slice(-4).reverse();
+    if(!l.length) return "";
+    return `<div style="margin-top:8px;font-size:13px">${l.map(x=>`<div style="color:${x.durum==="sepette"?"var(--yesil)":x.durum==="hata"?"var(--kirmizi)":"var(--amber)"}">${DEPO_AD[x.depo]||x.depo} · ${x.m?x.a+"+"+x.m:x.a+" adet"} ×${x.kat} — ${SEPET_DURUM[x.durum]||x.durum}${x.mesaj&&x.durum!=="sepette"?" ("+kacis(x.mesaj)+")":""} <small style="color:var(--soluk)">${tarihSaat(x.zaman)}</small></div>`).join("")}</div>`;
+  } catch(e){ return ""; }
+}
+function sepetAc(depo, barkod, ad, a, m){
+  SEPET_SECIM = { depo, barkod, ad, a, m };
+  $("#sepetBaslik").textContent = `${DEPO_AD[depo]} sepetine ekle`;
+  $("#sepetAciklama").textContent = `${ad} — ${m ? a+"+"+m : "MF'siz"}`;
+  $("#sepetKat").value = 1; sepetToplamYaz();
+  $("#sepetPerde").classList.remove("gizli"); setTimeout(()=>$("#sepetKat").select(), 50);
+}
+function sepetToplamYaz(){
+  const s = SEPET_SECIM; if(!s) return; const k = Math.max(1, parseInt($("#sepetKat").value||"1",10)||1);
+  $("#sepetToplam").textContent = `Depoya ${s.a*k} adet sipariş${s.m ? `, ${s.m*k} adet MF ile toplam ${(s.a+s.m)*k} kutu` : ""}.`;
+}
+function sepetNot(metin, sure){ let n = $(".sepet-not"); if(!n){ n = document.createElement("div"); n.className = "sepet-not"; document.body.appendChild(n); }
+  n.innerHTML = metin; clearTimeout(n._t); if(sure) n._t = setTimeout(()=>n.remove(), sure); }
+$("#sepetKat").addEventListener("input", sepetToplamYaz);
+$("#sepetVazgec").addEventListener("click", ()=>$("#sepetPerde").classList.add("gizli"));
+$("#sepetFormu").addEventListener("submit", async e => {
+  e.preventDefault(); const s = SEPET_SECIM; if(!s) return;
+  const kat = Math.max(1, Math.min(99, parseInt($("#sepetKat").value||"1",10)||1));
+  $("#sepetPerde").classList.add("gizli");
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  try {
+    const l = await sepetListe();
+    l.push({ id, depo:s.depo, barkod:s.barkod, ad:s.ad, a:s.a, m:s.m, kat, adet:s.a*kat, durum:"bekliyor", zaman:new Date().toISOString() });
+    const { error } = await db.from("ayar").upsert({ anahtar:"sepet_istek", deger: JSON.stringify({ liste: l.slice(-60) }), guncelleme: new Date().toISOString() }, { onConflict:"anahtar" });
+    if(error) throw error;
+  } catch(err){ return sepetNot("✗ İstek gönderilemedi: "+kacis(err.message||err), 6000); }
+  sepetNot(`⏳ ${DEPO_AD[s.depo]} sepetine ekleniyor… <small style="color:var(--soluk)">(eczane bilgisayarı yaklaşık 1 dk içinde ekler)</small>`);
+  for(let i=0;i<48;i++){
+    await new Promise(r=>setTimeout(r,5000));
+    try { const x = (await sepetListe()).find(y=>y.id===id); if(!x || x.durum==="bekliyor") continue;
+      if(x.durum==="sepette") sepetNot(`✓ ${DEPO_AD[s.depo]} sepetine eklendi: ${kacis(s.ad)} ${s.m? (s.a*kat)+"+"+(s.m*kat) : (s.a*kat)+" adet"}`, 8000);
+      else sepetNot(`✗ ${DEPO_AD[s.depo]} sepetine eklenemedi: ${kacis(x.mesaj||"")}`, 10000);
+      return;
+    } catch(err){}
+  }
+  sepetNot("⏳ Eczane bilgisayarından henüz cevap gelmedi. Bilgisayar ve Chrome açık mı?", 10000);
+});
+
 
 // program açılınca: şifre bu oturumda girildiyse rozeti arka planda güncelle
 async function hRozetArkaPlan(){

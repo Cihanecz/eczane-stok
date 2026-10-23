@@ -995,6 +995,64 @@ function BekCoz($liste) {
   if (-not $fiyat -and $e.sm.PSF) { $fiyat = 0 }
   [ordered]@{ d = $fiyat; s = $(if ("$($e.sm.STOK_MEVCUT)" -eq "X") { 1 } else { 0 }); v = $vade; mf = $tek }
 }
+# ======================= SEPETE EKLE (telefondan istenir) =======================
+# Site ayar.sepet_istek'e istek yazar → gözcü görünce bu aşamayı çalıştırır → Chrome eklentisi depo ekranında ürünü sepete ekler.
+# Sadece sepete ekler; siparişi eczacı depo ekranından kendisi tamamlar.
+function SepetKopru([string]$depo, $kalemler) {
+  $sonuc = $null; $durum = "eklenti_yok"; $mesaj = ""
+  try { $l = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 47812); $l.Start() } catch { return @{ durum = "hata"; mesaj = "port meşgul" } }
+  try {
+    $bas = Get-Date; $verildi = $false
+    while (((Get-Date) - $bas).TotalSeconds -lt $(if ($verildi) { 240 } else { 75 })) {
+      if (-not $l.Pending()) { Start-Sleep -Milliseconds 200; continue }
+      $c = $l.AcceptTcpClient()
+      try {
+        $st = $c.GetStream(); $st.ReadTimeout = 15000
+        $r = HttpOku $st; if (-not $r) { continue }
+        if ($r.satir -match '^GET /is') {
+          if ($verildi) { HttpYaz $st 200 '{}'; continue }
+          HttpYaz $st 200 (ConvertTo-Json ([ordered]@{ tip = "sepet"; depo = $depo; kalemler = @($kalemler) }) -Compress -Depth 5)
+          $verildi = $true; $bas = Get-Date
+        } elseif ($r.satir -match '^POST /sonuc') {
+          HttpYaz $st 200 '{"tamam":true}'
+          $o = $r.govde | ConvertFrom-Json
+          $durum = "$($o.durum)"; $mesaj = "$($o.mesaj)"; $sonuc = $o.sonuc
+          break
+        } else { HttpYaz $st 404 '{}' }
+      } catch { } finally { $c.Close() }
+    }
+  } finally { $l.Stop() }
+  @{ durum = $durum; mesaj = $mesaj; sonuc = $sonuc }
+}
+function AsamaSepet {
+  $j = Jeton
+  $o = BulutOku "ayar?anahtar=eq.sepet_istek&select=deger" $j
+  if (-not $o) { return }
+  $liste = @((($o[0].deger | ConvertFrom-Json).liste) | Where-Object { $_ })
+  $bek = @($liste | Where-Object { $_.durum -eq "bekliyor" })
+  if (-not $bek.Count) { return }
+  Log ("Sepet: {0} istek" -f $bek.Count)
+  $sonuclar = @{}
+  foreach ($g in ($bek | Group-Object depo)) {
+    $kal = @($g.Group | ForEach-Object { [ordered]@{ id = $_.id; barkod = $_.barkod; adet = [int]$_.adet; a = $_.a; m = $_.m; ad = $_.ad } })
+    if ($g.Name -notin @("bek","sn")) { foreach ($k in $kal) { $sonuclar[$k.id] = @{ tamam = $false; mesaj = "Bu depo için sepete ekleme henüz yok" } }; continue }
+    $r = SepetKopru $g.Name $kal
+    Log ("  {0}: {1} {2}" -f $DEPOLAR[$g.Name].ad, $r.durum, $r.mesaj)
+    foreach ($k in $kal) {
+      $x = if ($r.sonuc) { $r.sonuc.PSObject.Properties[$k.id] } else { $null }
+      $sonuclar[$k.id] = if ($x) { @{ tamam = [bool]$x.Value.tamam; mesaj = "$($x.Value.mesaj)" } }
+                         else { @{ tamam = $false; mesaj = $(switch ($r.durum) { "eklenti_yok" { "Eczane bilgisayarındaki Chrome/eklenti cevap vermedi" } "giris" { "Depo oturumu kapalı" } default { "Eklenemedi: $($r.mesaj)" } }) } }
+    }
+  }
+  # en güncel listeyi tekrar oku, sadece işlenenleri güncelle (bu arada yeni istek gelmiş olabilir)
+  $o = BulutOku "ayar?anahtar=eq.sepet_istek&select=deger" $j
+  $liste = @((($o[0].deger | ConvertFrom-Json).liste) | Where-Object { $_ })
+  $simdi = (Get-Date).ToString("o")
+  foreach ($x in $liste) { if ($sonuclar.ContainsKey($x.id)) { $s = $sonuclar[$x.id]; $x.durum = $(if ($s.tamam) { "sepette" } else { "hata" }); $x | Add-Member -Force NoteProperty mesaj $s.mesaj; $x | Add-Member -Force NoteProperty bitis $simdi } }
+  $liste = @($liste | Select-Object -Last 60)
+  BulutEkle "ayar" @([ordered]@{ anahtar = "sepet_istek"; deger = (ConvertTo-Json ([ordered]@{ liste = $liste }) -Depth 5 -Compress); guncelleme = $simdi }) $j "anahtar"
+  Log ("Sepet: {0} tamam, {1} hata" -f @($sonuclar.Values | Where-Object { $_.tamam }).Count, @($sonuclar.Values | Where-Object { -not $_.tamam }).Count)
+}
 function AsamaDepo {
   $ay = DepoAyarOku; if (-not $ay.Count) { Log "Depo bilgisi kayıtlı değil, atlandı (toplayici.ps1 -DepoKur)."; return }
   $j = Jeton
@@ -1060,6 +1118,7 @@ try {
   if ($HastaKur) { HastaKur; return }
   if ($DepoKur) { DepoKur; return }
   if ($Asama -eq "depo") { AsamaDepo; Log "Bitti."; $script:KOD = 0; return }
+  if ($Asama -eq "sepet") { AsamaSepet; $script:KOD = 0; return }
   if ($Asama -eq "yukle") { StokYukle; Log "Bitti."; return }
   if ($Asama -eq "kkyukle") { KarekodYukle; Log "Bitti."; return }
   if ($Asama -eq "gunluk") { Gunluk; Log "Bitti."; $script:KOD = 0; return }

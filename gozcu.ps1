@@ -12,11 +12,36 @@ public static class GZ {
 }
 "@
 function Log($m) { Add-Content -Path (Join-Path $KOK "gozcu.txt") -Value ((Get-Date -Format "yyyy-MM-dd HH:mm:ss") + "  " + $m) -Encoding UTF8 }
+# Telefondan "sepete ekle" istekleri: bulutta bekleyen istek varsa toplayıcıyı "sepet" aşamasında çalıştır (15 sn'de bir bakılır)
+$SB_URL = "https://crgfvsfncazexynzhwmo.supabase.co"
+$SB_KEY = "sb_publishable_WqWzwvumk9pMhBoV6LeMMA_tEgvzbPw"
+$script:jt = $null; $script:jtZaman = [datetime]::MinValue; $script:sepetPr = $null
+function SepetBak {
+  try {
+    if ($script:sepetPr -and -not $script:sepetPr.HasExited) { return }
+    if (-not $script:jt -or ((Get-Date) - $script:jtZaman).TotalMinutes -gt 45) {
+      $g = Join-Path $KOK "giris.dat"; if (-not (Test-Path $g)) { return }
+      $s = Get-Content $g -Encoding UTF8
+      $sf = ConvertTo-SecureString $s[1].Trim()
+      $duz = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sf))
+      $govde = @{ email = $s[0].Trim(); password = $duz } | ConvertTo-Json
+      $r = Invoke-RestMethod -Method Post -Uri "$SB_URL/auth/v1/token?grant_type=password" -Headers @{ apikey = $SB_KEY } -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($govde)) -TimeoutSec 30
+      $script:jt = $r.access_token; $script:jtZaman = Get-Date
+    }
+    $o = Invoke-RestMethod -Uri "$SB_URL/rest/v1/ayar?anahtar=eq.sepet_istek&select=deger" -Headers @{ apikey = $SB_KEY; Authorization = "Bearer $($script:jt)" } -TimeoutSec 20
+    if ($o -and "$($o[0].deger)" -match '"durum":"bekliyor"') {
+      Log "Sepet isteği var, işleniyor"
+      $script:sepetPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama sepet" -WindowStyle Hidden -PassThru
+    }
+  } catch { $script:jt = $null }
+}
 Log "Gözcü başladı"
 $deneme = @{}
 $depoSon = [datetime]::MinValue
+$tur = 0
 while ($true) {
-  Start-Sleep 60
+  # 60 sn'lik ana döngü; arada 15 sn'de bir sepet isteklerine bak
+  for ($k = 0; $k -lt 4; $k++) { Start-Sleep 15; SepetBak }
   # Depolar (Rx'e dokunmaz): depo bilgisi kayıtlıysa 08:00-21:00 arası saatte bir fiyat/MF çek
   $h = (Get-Date).Hour
   if ((Test-Path (Join-Path $KOK "depo.dat")) -and $h -ge 8 -and $h -lt 21 -and ((Get-Date) - $depoSon).TotalMinutes -ge 60) {
