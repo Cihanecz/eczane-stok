@@ -1013,11 +1013,11 @@ function hSifreFormu(baslik, aciklama, iki, dugme){
 }
 function hSifreBelirle(){
   $("#icerik").innerHTML = hSifreFormu("Hasta şifresi belirle",
-    "Hasta adları ve telefonları bu şifreyle şifrelenir; şifreyi bilmeyen (sunucu dahil) kimse göremez. En az 6 karakter. <b>Şifreyi unutursanız liste bir sonraki toplamada yeniden oluşur ama gönderilen mesaj işaretleri kaybolur.</b>", true, "Kaydet");
+    "Hasta adları ve telefonları bu şifreyle şifrelenir; şifreyi bilmeyen (sunucu dahil) kimse göremez. En az 4 karakter. <b>Şifreyi unutursanız liste bir sonraki toplamada yeniden oluşur ama gönderilen mesaj işaretleri kaybolur.</b>", true, "Kaydet");
   $("#hs1").focus();
   $("#hSifreForm").addEventListener("submit", async e => {
     e.preventDefault(); const a=$("#hs1").value, b=$("#hs2").value;
-    if(a.length<6) return $("#hsHata").textContent="En az 6 karakter olmalı.";
+    if(a.length<4) return $("#hsHata").textContent="En az 4 karakter olmalı.";
     if(a!==b) return $("#hsHata").textContent="İki şifre aynı değil.";
     $("#hsHata").textContent="Kaydediliyor…";
     try {
