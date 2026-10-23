@@ -1024,6 +1024,40 @@ function SepetKopru([string]$depo, $kalemler) {
   } finally { $l.Stop() }
   @{ durum = $durum; mesaj = $mesaj; sonuc = $sonuc }
 }
+# AS: sitenin kendi akışı — ürün kartı (GetIlacDetay) → GetSubeler. Ana şube karşılıyorsa GetSubeler ürünü sepete ekler;
+# tek "kendi cep" şubesi dönerse SiparisEkle ile o şubeden eklenir; birden çok şube seçeneği çıkarsa eczacıya bırakılır.
+function SepetAS($kalemler) {
+  $sonuc = @{}
+  $ses = DepoGiris "as"
+  $null = Invoke-WebRequest "https://webdepo.asecza.com.tr/Siparis/hizlisiparis.aspx" -WebSession $ses -UseBasicParsing -TimeoutSec 60
+  $tr = [Globalization.CultureInfo]::GetCultureInfo("tr-TR")
+  foreach ($k in $kalemler) {
+    try {
+      $barkod = "$($k.barkod)" -replace '^0(\d{13})$', '$1'
+      $u = DepoPost $ses "https://webdepo.asecza.com.tr/Siparis/hizlisiparis-ajax.aspx" @{ action = "GetUrunler"; searchText = $barkod; isInculude = "true"; isStoktakiler = "false"; siralama = "ilacASC"; marka = ""; baslangicSayfasi = "0"; topRowNum = "0"; sayfaMaxRowAdet = "10"; s = "s" }
+      $e = @($u.obj.urunler)[0]; if (-not $e) { $sonuc[$k.id] = @{ tamam = $false; mesaj = "AS'ta ürün bulunamadı" }; continue }
+      $d = (DepoPost $ses "https://webdepo.asecza.com.tr/Ilac/IlacGetir-ajax.aspx" @{ action = "GetIlacDetay"; kod = $e.kodu; isEsdeger = "false"; esdeger = ""; isJenerik = "false"; jenerikId = ""; tip = "null"; ILACTIP = $e.ILACTIP; kampKodu = "" }).obj
+      $kamp = @($d.kampanyalar); if (-not $kamp.Count) { $sonuc[$k.id] = @{ tamam = $false; mesaj = "AS ürün kartı okunamadı" }; continue }
+      $c = $kamp | Where-Object { $x = $_; @(0..(@($x.miktar).Count - 1) | Where-Object { [int]$x.miktar[$_] -eq [int]$k.a -and [int]$x.mf[$_] -eq [int]$k.m }).Count -gt 0 } | Select-Object -First 1
+      if (-not $c) { $c = $kamp[0] }
+      $kod = if ($c.ilacKodu) { "$($c.ilacKodu)" } else { "$($e.kodu)" }
+      $miad = if ($c.miad) { "$($c.miad)" } else { "undefined" }
+      $govde = [ordered]@{ action = "GetSubeler"; kod = $kod; miktar = "$($k.adet)"; satisSekli = "$($c.satisSekli)"; etiketFiyati = ([double]$c.etiketFiyati).ToString("N2", $tr); ILACTIP = "$($e.ILACTIP)"; tip = "$($c.tip)"; miad = $miad; onerilenFiyat = ""; ekstraMf = ""; ekstraIskonto = ""; siparisNotu = "" }
+      $r = DepoPost $ses "https://webdepo.asecza.com.tr/Ilac/IlacGetir-ajax.aspx" $govde
+      if ($r.hataId -ne 0) { $sonuc[$k.id] = @{ tamam = $false; mesaj = "AS: $($r.hataStr)" }; continue }
+      $sb = @($r.obj | Where-Object { $_ })
+      if (-not $sb.Count) { $sonuc[$k.id] = @{ tamam = $true; mesaj = "" }; continue }
+      if ($sb.Count -eq 1 -and "$($sb[0].kendiCep)" -eq "1") {
+        $govde.action = "SiparisEkle"; $govde.miktar = "$($sb[0].karsilanacak)"; $govde["depoId"] = "$($sb[0].cepSube)"
+        $r2 = DepoPost $ses "https://webdepo.asecza.com.tr/Ilac/IlacGetir-ajax.aspx" $govde
+        $sonuc[$k.id] = if ($r2.hataId -eq 0) { @{ tamam = $true; mesaj = "" } } else { @{ tamam = $false; mesaj = "AS: $($r2.hataStr)" } }
+        continue
+      }
+      $sonuc[$k.id] = @{ tamam = $false; mesaj = "AS şube seçimi istiyor (ana şubede yeterli stok yok) — AS ekranından ekleyin" }
+    } catch { $sonuc[$k.id] = @{ tamam = $false; mesaj = "AS: " + $_.Exception.Message } }
+  }
+  $sonuc
+}
 function AsamaSepet {
   $j = Jeton
   $o = BulutOku "ayar?anahtar=eq.sepet_istek&select=deger" $j
@@ -1035,6 +1069,7 @@ function AsamaSepet {
   $sonuclar = @{}
   foreach ($g in ($bek | Group-Object depo)) {
     $kal = @($g.Group | ForEach-Object { [ordered]@{ id = $_.id; barkod = $_.barkod; adet = [int]$_.adet; a = $_.a; m = $_.m; ad = $_.ad } })
+    if ($g.Name -eq "as") { try { $r = SepetAS $kal; foreach ($k in $kal) { $sonuclar[$k.id] = $r[$k.id] } } catch { foreach ($k in $kal) { $sonuclar[$k.id] = @{ tamam = $false; mesaj = "AS: " + $_.Exception.Message } } }; Log ("  AS: {0} kalem" -f $kal.Count); continue }
     if ($g.Name -notin @("bek","sn")) { foreach ($k in $kal) { $sonuclar[$k.id] = @{ tamam = $false; mesaj = "Bu depo için sepete ekleme henüz yok" } }; continue }
     $r = SepetKopru $g.Name $kal
     Log ("  {0}: {1} {2}" -f $DEPOLAR[$g.Name].ad, $r.durum, $r.mesaj)

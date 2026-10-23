@@ -1495,7 +1495,7 @@ async function taramaAc(){
 $("#taraDugme").addEventListener("click", taramaAc);
 /* ---------- depo sepetine ekle (telefondan) ----------
    istek ayar.sepet_istek'e yazılır; eczane bilgisayarındaki gözcü 15 sn içinde görür, Chrome eklentisi depo ekranında sepete ekler. */
-const SEPET_DEPOLAR = ["bek","sn"];
+const SEPET_DEPOLAR = ["as","sn","bek"];
 let SEPET_SECIM = null;
 async function sepetListe(){
   const { data, error } = await db.from("ayar").select("deger").eq("anahtar","sepet_istek").maybeSingle();
