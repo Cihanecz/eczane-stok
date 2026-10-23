@@ -9,7 +9,7 @@ let calisiyor = false;
 function alarmKur() { chrome.alarms.create("yokla", { periodInMinutes: 0.5 }); }
 chrome.runtime.onInstalled.addListener(alarmKur);
 chrome.runtime.onStartup.addListener(alarmKur);
-chrome.alarms.onAlarm.addListener(a => { if (a.name === "yokla") yokla(); });
+chrome.alarms.onAlarm.addListener(a => { if (a.name === "yokla") { yokla(); sepetYokla(); } });
 
 const bekle = ms => new Promise(r => setTimeout(r, ms));
 
@@ -88,4 +88,29 @@ async function yokla() {
       if (c.durum !== "ok") return;
     }
   } finally { calisiyor = false; }
+}
+
+// ---- Sepete ekle işleri (toplayıcı 127.0.0.1:47812'de açar). Sadece sepete ekler, siparişi tamamlamaz.
+const SEPET = "http://127.0.0.1:47812";
+let sepetCalisiyor = false;
+async function sepetYokla() {
+  if (sepetCalisiyor) return;
+  sepetCalisiyor = true;
+  try {
+    for (let tur = 0; tur < 10; tur++) {
+      let is = null;
+      try { const r = await fetch(SEPET + "/is", { cache: "no-store" }); if (r.ok) is = await r.json(); } catch { }
+      if (!is || !is.kalemler || !is.kalemler.length) return;
+      const depo = is.depo; let c = null, sekme = null, yenilendi = false;
+      for (let deneme = 0; deneme < 2; deneme++) {
+        try {
+          sekme = await depoSekmesi(depo);
+          c = await sekmeyeSor(sekme.id, { tip: "sepet", depo, kalemler: is.kalemler });
+        } catch (e) { c = null; }
+        if (c || depo !== "bek" || yenilendi) break;
+        yenilendi = true; await chrome.tabs.reload(sekme.id); await yuklenmesiniBekle(sekme.id); await bekle(8000);
+      }
+      try { await fetch(SEPET + "/sonuc", { method: "POST", body: JSON.stringify(c || { durum: "hata", mesaj: "depo sekmesi cevap vermedi" }) }); } catch { }
+    }
+  } finally { sepetCalisiyor = false; }
 }
