@@ -1017,6 +1017,18 @@ function depoHucre(d, enIyi, k){
   const min = (d.mf||[]).filter(o=>o.n>0).reduce((a,o)=>!a||o.n<a.n?o:a, null);
   return `<span class="s">${para(d.d)}<small style="display:block;color:${iyi?"var(--yesil)":"var(--soluk)"}">${kacis(depoMfMetin(d))}${min?` · net ${para(min.n)}${min.v!=null?` (${min.v} gün)`:""}`:""}</small>${d.s===0?`<small style="display:block;color:var(--kirmizi)">stok yok</small>`:""}</span>`;
 }
+function depoSnNot(v){
+  const d = v && v.sn; if(!d) return "";
+  const saat = d.zaman ? (Date.now()-new Date(d.zaman))/36e5 : 1e9;
+  if(d.durum==="ok" && saat<3) return "";
+  const neden = { giris:"Sancak oturumu kapanmış — eczane bilgisayarındaki Chrome'da Sancak'a bir kez giriş yapın.",
+    dogrulama:"Sancak robot doğrulaması istiyor — eczane bilgisayarındaki Chrome'da Sancak sekmesini açıp kutuyu işaretleyin.",
+    eklenti_yok:"Sancak'a ulaşılamadı — eczane bilgisayarında Chrome açık değil ya da Depo Köprüsü eklentisi kapalı.",
+    yarim:"Sancak verisinin bir kısmı alınabildi.", hata:"Sancak'ta geçici hata, bir sonraki saatte yeniden denenecek." }[d.durum] || "";
+  const yas = d.zaman ? `Sancak verisi ${saat<1?"1 saatten yeni":Math.round(saat)+" saat önceki"}. ` : "";
+  if(!neden && saat<3) return "";
+  return `<p style="color:${saat>=6?"var(--kirmizi)":"var(--amber)"};margin-top:4px">⚠️ ${yas}${kacis(neden)}</p>`;
+}
 async function depoSayfasi(){
   yukleniyor(); $("#depoDugme").classList.add("aktif");
   let v; try { v = await depoYukle(true); } catch(e){ return hataGoster(e); }
@@ -1031,7 +1043,7 @@ async function depoSayfasi(){
   else l.sort((a,b)=>(Number(!!depoYeni(b))-Number(!!depoYeni(a))) || ((b.a90||0)-(a.a90||0)));
   $("#icerik").innerHTML = `
     <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
-    <div class="liste-ust"><div><h1>Depolar</h1><p>${kacis((v.depolar||[]).join(" · "))} · son güncelleme ${tarihSaat(v.zaman)} · en çok satan ${v.u.length} ürün</p></div></div>
+    <div class="liste-ust"><div><h1>Depolar</h1><p>${kacis((v.depolar||[]).join(" · "))} · son güncelleme ${tarihSaat(v.zaman)} · en çok satan ${v.u.length} ürün</p>${depoSnNot(v)}</div></div>
     <div class="hcipler">${Object.entries(filtreler).map(([k,a])=>`<button class="hcip ${DEPO_FILTRE===k?"secili":""}" type="button" data-df="${k}">${a}</button>`).join("")}</div>
     <div class="tablo">
       ${l.length ? `<div class="satir bas"><span>Ürün</span><span class="s ek">Stok / ayda</span>${aktif.map(k=>`<span class="s">${DEPO_AD[k]}</span>`).join("")}</div>`
