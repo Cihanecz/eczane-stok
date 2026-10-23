@@ -10,6 +10,7 @@ param(
   [switch]$Kesif,                    # yeni açılan pencerelerin yapısını kaydet
   [switch]$Kur                       # bir kerelik: bulut giriş bilgisini kaydet
   ,[switch]$HastaKur                 # bir kerelik: hasta şifresini bu bilgisayara kaydet
+  ,[switch]$DepoKur                  # bir kerelik: depo kullanıcı adı/şifresini bu bilgisayara kaydet
 )
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
@@ -784,10 +785,154 @@ function Gunluk {
 }
 
 # ---------- çalıştır ----------
+# ======================= DEPOLAR (AS, Sancak) =======================
+# Sadece okuma: giriş + ürün arama + ürün detayı. Sepete ekleme / sipariş YOK.
+$DEPO_DAT = Join-Path $KOK "depo.dat"
+$DEPOLAR = [ordered]@{
+  as = @{ ad = "AS Ecza";     giris = "https://webdepo.asecza.com.tr/" }
+  sn = @{ ad = "Sancak Ecza"; giris = "https://eticaret.sancakecza.com.tr/" }
+}
+function DpKoru([string]$s) { Add-Type -AssemblyName System.Security; [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($s), $null, 'CurrentUser')) }
+function DpAc([string]$s)   { Add-Type -AssemblyName System.Security; [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String($s), $null, 'CurrentUser')) }
+function DepoAyarOku { if (Test-Path $DEPO_DAT) { $o = Get-Content $DEPO_DAT -Raw | ConvertFrom-Json; $h = @{}; foreach ($p in $o.PSObject.Properties) { $h[$p.Name] = $p.Value }; return $h }; @{} }
+# Giriş sayfasındaki formu bulur: şifre kutusu olan form
+function DepoForm([string]$url, $ses) {
+  $r = Invoke-WebRequest -Uri $url -WebSession $ses -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 60
+  $html = $r.Content
+  $formlar = [regex]::Matches($html, '(?is)<form\b([^>]*)>(.*?)</form>')
+  foreach ($f in $formlar) {
+    if ($f.Groups[2].Value -notmatch '(?i)type\s*=\s*["'']?password') { continue }
+    $act = ([regex]::Match($f.Groups[1].Value, '(?i)action\s*=\s*["'']([^"'']*)')).Groups[1].Value
+    $alanlar = New-Object System.Collections.ArrayList
+    foreach ($i in [regex]::Matches($f.Groups[2].Value, '(?is)<input\b[^>]*>')) {
+      $t = $i.Value
+      $ad = ([regex]::Match($t, '(?i)\bname\s*=\s*["'']([^"'']+)')).Groups[1].Value; if (-not $ad) { continue }
+      $tip = ([regex]::Match($t, '(?i)\btype\s*=\s*["'']?([a-z]+)')).Groups[1].Value.ToLower(); if (-not $tip) { $tip = "text" }
+      $val = [Net.WebUtility]::HtmlDecode(([regex]::Match($t, '(?i)\bvalue\s*=\s*["'']([^"'']*)')).Groups[1].Value)
+      $ph  = ([regex]::Match($t, '(?i)placeholder\s*=\s*["'']([^"'']*)')).Groups[1].Value
+      [void]$alanlar.Add([pscustomobject]@{ ad = $ad; tip = $tip; deger = $val; ipucu = $ph })
+    }
+    $hedef = if ($act) { (New-Object Uri((New-Object Uri($r.BaseResponse.ResponseUri.AbsoluteUri)), [Net.WebUtility]::HtmlDecode($act))).AbsoluteUri } else { $r.BaseResponse.ResponseUri.AbsoluteUri }
+    return [pscustomobject]@{ hedef = $hedef; alanlar = $alanlar; html = $f.Groups[2].Value }
+  }
+  throw "Giriş formu bulunamadı ($url)."
+}
+function DepoKur {
+  $ay = DepoAyarOku
+  foreach ($k in $DEPOLAR.Keys) {
+    $d = $DEPOLAR[$k]
+    $c = Read-Host ("{0} kurulsun mu? (e/h)" -f $d.ad); if ($c -notmatch '^[eE]') { continue }
+    $ses = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+    $f = DepoForm $d.giris $ses
+    $deger = @{}
+    foreach ($a in ($f.alanlar | Where-Object { $_.tip -in @("text","email","tel","number","password") })) {
+      $etiket = if ($a.ipucu) { $a.ipucu } else { $a.ad }
+      if ($a.tip -eq "password") { $s = Read-Host ("  {0} — {1}" -f $d.ad, $etiket) -AsSecureString; $deger[$a.ad] = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)) }
+      else { $deger[$a.ad] = Read-Host ("  {0} — {1}" -f $d.ad, $etiket) }
+    }
+    $ay[$k] = DpKoru (ConvertTo-Json $deger -Compress)
+    ConvertTo-Json $ay | Set-Content $DEPO_DAT -Encoding UTF8
+    try { $null = DepoGiris $k; Write-Host ("  {0}: giriş başarılı" -f $d.ad) -ForegroundColor Green } catch { Write-Host ("  {0}: giriş denemesi başarısız — {1}" -f $d.ad, $_.Exception.Message) -ForegroundColor Yellow }
+  }
+}
+function DepoGiris([string]$k) {
+  $ay = DepoAyarOku; if (-not $ay[$k]) { throw "kayıtlı değil" }
+  $deger = DpAc $ay[$k] | ConvertFrom-Json
+  $ses = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+  $ses.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
+  $f = DepoForm $DEPOLAR[$k].giris $ses
+  $govde = [ordered]@{}
+  foreach ($a in $f.alanlar) {
+    if ($a.tip -in @("checkbox","radio","button","image","file","reset")) { continue }
+    if ($a.tip -eq "submit") { if (-not ($govde.Keys | Where-Object { $_ -eq "__sub" })) { $govde[$a.ad] = $a.deger; $govde["__sub"] = 1 }; continue }
+    $p = $deger.PSObject.Properties[$a.ad]
+    $govde[$a.ad] = if ($p) { $p.Value } else { $a.deger }
+  }
+  $govde.Remove("__sub")
+  # Web Forms bağlantı düğmesi (__doPostBack) ile giriş
+  if (($f.alanlar | Where-Object { $_.ad -eq "__EVENTTARGET" }) -and -not ($f.alanlar | Where-Object { $_.tip -eq "submit" })) {
+    $m = [regex]::Match($f.html, "__doPostBack\(&#39;([^&]+)&#39;|__doPostBack\('([^']+)'")
+    if ($m.Success) { $govde["__EVENTTARGET"] = if ($m.Groups[1].Value) { $m.Groups[1].Value } else { $m.Groups[2].Value } }
+  }
+  $r = Invoke-WebRequest -Uri $f.hedef -Method Post -Body $govde -WebSession $ses -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 60 -ContentType "application/x-www-form-urlencoded"
+  if ($r.Content -match '(?i)type\s*=\s*["'']?password') {
+    $hata = [regex]::Match($r.Content, '(?is)(hatal[ıi][^<]{0,80}|yanl[ıi][şs][^<]{0,80}|ge[çc]ersiz[^<]{0,80})').Value
+    throw ("giriş olmadı " + $hata + " | gönderilen alanlar: " + (($govde.Keys) -join ","))
+  }
+  $ses
+}
+function DepoPost($ses, [string]$url, $govde, [string]$tur = "form") {
+  Start-Sleep -Milliseconds 350
+  if ($tur -eq "json") { $r = Invoke-WebRequest -Uri $url -Method Post -Body ([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $govde -Compress))) -ContentType "application/json; charset=utf-8" -Headers @{ "X-Requested-With" = "XMLHttpRequest" } -WebSession $ses -UseBasicParsing -TimeoutSec 60 }
+  else { $r = Invoke-WebRequest -Uri $url -Method Post -Body $govde -ContentType "application/x-www-form-urlencoded; charset=UTF-8" -Headers @{ "X-Requested-With" = "XMLHttpRequest" } -WebSession $ses -UseBasicParsing -TimeoutSec 60 }
+  $r.Content | ConvertFrom-Json
+}
+function DepoAS($ses, [string]$barkod) {
+  $u = DepoPost $ses "https://webdepo.asecza.com.tr/Siparis/hizlisiparis-ajax.aspx" @{ action = "GetUrunler"; searchText = $barkod; isInculude = "false"; isStoktakiler = "false"; siralama = "ilacASC"; marka = ""; baslangicSayfasi = "0"; topRowNum = "0"; sayfaMaxRowAdet = "10"; s = "s" }
+  $l = @($u.obj.urunler); if (-not $l.Count) { return $null }
+  $e = $l[0]
+  $d = (DepoPost $ses "https://webdepo.asecza.com.tr/Ilac/IlacGetir-ajax.aspx" @{ action = "GetIlacDetay"; kod = $e.kodu; isEsdeger = "false"; esdeger = ""; isJenerik = "false"; jenerikId = ""; tip = "null"; ILACTIP = $e.ILACTIP; kampKodu = "" }).obj
+  if (-not $d -or ($d.barkod -and $d.barkod -ne $barkod)) { return $null }
+  $mf = @(); $vade = $null
+  foreach ($k in @($d.kampanyalar)) {
+    if (-not $vade) { $vade = $k.vadeGun }
+    for ($i = 0; $i -lt @($k.miktar).Count; $i++) { if ($k.miktar[$i] -gt 0) { $mf += [ordered]@{ a = $k.miktar[$i]; m = $k.mf[$i]; n = [math]::Round([double]$k.netFiyati[$i], 2); v = $k.vadeGun } } }
+  }
+  [ordered]@{ d = [double]$d.depocuFiyati; s = [int]("0" + $e.stokDurumu); v = $vade; mf = $mf
+              atc = $d.atc.value; atca = $d.atc.display; end = $d.endikasyon.display; etk = $d.etkenMadde.display }
+}
+function DepoSN($ses, [string]$barkod, [string]$adres) {
+  $r = DepoPost $ses $adres @{ Key = $barkod; SearchType = 0; StockType = 0; Page = 1; CacheForCampaign = $false; ItemScope = "0" } "json"
+  $l = @($r.Value); if (-not $l.Count) { return $null }
+  $e = $l[0]
+  $tek = @(); foreach ($o in @($e.EQOffers)) { $tek += [ordered]@{ a = $o.Quantity; m = $o.ExtraQuantity; n = [math]::Round([double]$o.NetPrice, 2); v = $o.DaysDue } }
+  [ordered]@{ d = [double]$e.SalesPrice; s = [int][bool]$e.HasStock; ad = $e.Name; mf = $tek }
+}
+function AsamaDepo {
+  $ay = DepoAyarOku; if (-not $ay.Count) { Log "Depo bilgisi kayıtlı değil, atlandı (toplayici.ps1 -DepoKur)."; return }
+  $j = Jeton
+  # sorgulanacak ürünler: son 90 günde satılan ilaçlar (en çok satan 350) + stokta az kalan çok satanlar
+  $u = @(BulutOku "urun_ozet?select=barkod,ad,stok,adet_90&adet_90=gt.0&order=adet_90.desc&limit=350" $j)
+  $barkodlar = @($u | Where-Object { $_.barkod -match '^\d{8,14}$' } | ForEach-Object { $_.barkod })
+  $bilgi = @{}; foreach ($x in $u) { $bilgi[$x.barkod] = $x }
+  Log ("Depo: {0} ürün sorgulanacak" -f $barkodlar.Count)
+  $sesler = @{}
+  foreach ($k in @($ay.Keys)) { try { $sesler[$k] = DepoGiris $k; Log ("  {0}: giriş tamam" -f $DEPOLAR[$k].ad) } catch { Log ("  {0}: GİRİŞ HATASI — {1}" -f $DEPOLAR[$k].ad, $_.Exception.Message) } }
+  if (-not $sesler.Count) { throw "Hiçbir depoya girilemedi." }
+  $onceki = @{}; try { $o = BulutOku "ayar?anahtar=eq.depo_fiyat&select=deger" $j; if ($o) { foreach ($x in (($o[0].deger | ConvertFrom-Json).u)) { $onceki[$x.b] = $x } } } catch { }
+  $kat = @{}; try { $o = BulutOku "ayar?anahtar=eq.ilac_kategori&select=deger" $j; if ($o) { foreach ($p in ($o[0].deger | ConvertFrom-Json).PSObject.Properties) { $kat[$p.Name] = $p.Value } } } catch { }
+  $simdi = (Get-Date).ToString("o"); $sonuc = New-Object System.Collections.ArrayList; $hata = @{}
+  foreach ($b in $barkodlar) {
+    $s = [ordered]@{ b = $b; ad = $bilgi[$b].ad; st = $bilgi[$b].stok; a90 = $bilgi[$b].adet_90 }
+    foreach ($k in $sesler.Keys) {
+      try { $v = if ($k -eq "as") { DepoAS $sesler[$k] $b } else { DepoSN $sesler[$k] $b "https://eticaret.sancakecza.com.tr/Sales/QuickSearchItems" }
+            if ($v) { if ($k -eq "as" -and $v.atc) { $kat[$b] = [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk }; foreach ($z in "atc","atca","end","etk") { $v.Remove($z) } }; $s[$k] = $v } }
+      catch { $hata[$k] = 1 + [int]$hata[$k]; if ($hata[$k] -eq 3) { Log ("  {0}: tekrarlayan hata — {1}" -f $DEPOLAR[$k].ad, $_.Exception.Message) } }
+    }
+    # yeni MF: önceki çekimde MF yoktu ya da farklıydı → 'y' zamanı (2 gün gösterilir)
+    $mfi = (@("as","sn") | ForEach-Object { if ($s[$_]) { $_ + ":" + ((@($s[$_].mf) | Where-Object { $_.m -gt 0 } | ForEach-Object { "$($_.a)+$($_.m)" } | Sort-Object -Unique) -join " ") } }) -join "|"
+    $s["k"] = $mfi
+    $o = $onceki[$b]
+    if ($o -and $o.k -ne $mfi -and ($mfi -match '\d\+\d')) { $s["y"] = $simdi } elseif ($o -and $o.y -and ((Get-Date) - [datetime]$o.y).TotalHours -lt 48) { $s["y"] = $o.y }
+    [void]$sonuc.Add($s)
+  }
+  # kategori (etken madde / tedavi grubu) her çalışmada stoktaki 150 ürün daha tamamlanır — arama için
+  if ($sesler["as"]) {
+    $stoklu = @(BulutOku "urun_ozet?select=barkod&stok=gt.0&limit=10000" $j | ForEach-Object { $_.barkod } | Where-Object { $_ -match '^\d{8,14}$' -and -not $kat.ContainsKey($_) } | Select-Object -First 150)
+    foreach ($b in $stoklu) { try { $v = DepoAS $sesler["as"] $b; $kat[$b] = if ($v -and $v.atc) { [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk } } else { [ordered]@{ yok = 1 } } } catch { } }
+  }
+  $veri = [ordered]@{ zaman = $simdi; depolar = @($sesler.Keys | ForEach-Object { $DEPOLAR[$_].ad }); u = $sonuc.ToArray() }
+  BulutEkle "ayar" @([ordered]@{ anahtar = "depo_fiyat"; deger = (ConvertTo-Json $veri -Depth 6 -Compress); guncelleme = $simdi }) $j "anahtar"
+  BulutEkle "ayar" @([ordered]@{ anahtar = "ilac_kategori"; deger = (ConvertTo-Json $kat -Depth 4 -Compress); guncelleme = $simdi }) $j "anahtar"
+  Log ("Depo: {0} ürün yüklendi, {1} yeni MF, {2} ilaç kategorisi" -f $sonuc.Count, @($sonuc | Where-Object { $_.y -eq $simdi }).Count, $kat.Count)
+}
+
 try {
   Log "=== Toplayıcı başladı (aşama: $Asama) ==="
   if ($Kur) { GirisKur; Log "Bitti."; return }
   if ($HastaKur) { HastaKur; return }
+  if ($DepoKur) { DepoKur; return }
+  if ($Asama -eq "depo") { AsamaDepo; Log "Bitti."; $script:KOD = 0; return }
   if ($Asama -eq "yukle") { StokYukle; Log "Bitti."; return }
   if ($Asama -eq "kkyukle") { KarekodYukle; Log "Bitti."; return }
   if ($Asama -eq "gunluk") { Gunluk; Log "Bitti."; $script:KOD = 0; return }

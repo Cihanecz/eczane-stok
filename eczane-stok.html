@@ -314,6 +314,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
         <input id="ara" type="search" placeholder="İlaç adı ya da barkod" aria-label="Ürün ara" autocomplete="off">
       </div>
       <button class="ust-dugme hasta" id="hastaDugme" type="button" aria-label="Hasta takibi"><span>👥</span><span class="ek-yazi">Hastalar</span><b class="hrozet gizli" id="hastaRozet"></b></button>
+      <button class="ust-dugme hasta" id="depoDugme" type="button" aria-label="Depolar"><span>🏷️</span><span class="ek-yazi">Depolar</span><b class="hrozet gizli" id="depoRozet"></b></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button">Çıkış</button>
     </div>
@@ -534,7 +535,7 @@ async function basla(){
   if(session){ programiAc(); } else { girisiAc(); }
 }
 function girisiAc(){ $("#program").classList.add("gizli"); $("#girisEkrani").classList.remove("gizli"); $("#eposta").focus(); }
-function programiAc(){ $("#girisEkrani").classList.add("gizli"); $("#program").classList.remove("gizli"); kilitDugmesi(); yonlendir(); setTimeout(()=>{ if(typeof hRozetArkaPlan==="function") hRozetArkaPlan(); }, 0); }
+function programiAc(){ $("#girisEkrani").classList.add("gizli"); $("#program").classList.remove("gizli"); kilitDugmesi(); yonlendir(); setTimeout(()=>{ if(typeof hRozetArkaPlan==="function") hRozetArkaPlan(); depoRozet(); }, 0); }
 
 $("#girisFormu").addEventListener("submit", async e => {
   e.preventDefault();
@@ -558,8 +559,9 @@ function yonlendir(){
   if(h.startsWith("urun/")) return urunKarti(h.slice(5));
   if(h.startsWith("liste/")) return liste(h.slice(6));
   if(h.startsWith("ara/")) return aramaSonucu(h.slice(4));
-  $("#hastaDugme").classList.remove("aktif");
+  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif");
   if(h==="hastalar") return hastaSayfasi();
+  if(h==="depolar") return depoSayfasi();
   return anaEkran();
 }
 
@@ -859,6 +861,8 @@ async function aramaSonucu(q){
         : `<div class="bos">Bu adla ürün bulunamadı. Adın bir kısmını ya da barkodu yazmayı dene.</div>`}
     </div>`;
   document.querySelectorAll("[data-barkod]").forEach(b=>b.addEventListener("click",()=>location.hash="urun/"+b.dataset.barkod));
+  if(!/^\d{5,}$/.test(t)){ const ek = await kategoriSonucu(q, t).catch(()=>""); if(ek && benim===aramaNo){ $("#icerik").insertAdjacentHTML("beforeend", ek);
+    document.querySelectorAll("[data-barkod]").forEach(b=>b.onclick=()=>location.hash="urun/"+b.dataset.barkod); } }
 }
 
 /* ---------- ürün kartı ---------- */
@@ -919,6 +923,113 @@ async function urunKarti(barkod){
       <h2 class="baslik" style="margin:0">Son 12 ayda satış</h2>
       <div class="grafik">${(ay.data||[]).map(a=>{ const d=new Date(a.ay); return `<div><em>${Number(a.adet)?sayi(a.adet):""}</em><span class="cubuk" style="height:${Math.round(Number(a.adet)/enYuksek*100)}%"></span><small>${AYLAR[d.getMonth()]}</small></div>`; }).join("")}</div>
     </div>`;
+  const dp = await depoUrunSatiri(barkod); if(dp && location.hash.includes(barkod)) $(".bilgiler").insertAdjacentHTML("afterend", dp);
+}
+
+/* =====================================================================
+   DEPOLAR — AS / Sancak fiyat ve MF karşılaştırması (toplayıcı saatte bir yazar)
+   ayar.depo_fiyat = {zaman, depolar[], u:[{b,ad,st,a90,as:{d,s,v,mf:[{a,m,n,v}]},sn:{...},y}]}
+   ===================================================================== */
+const DEPO_AD = { as:"AS", sn:"Sancak" };
+let DEPO = null, DEPO_ZAMAN = 0, DEPO_FILTRE = "mf";
+async function depoYukle(zorla){
+  if(DEPO && !zorla && Date.now()-DEPO_ZAMAN < 120000) return DEPO;
+  const { data, error } = await db.from("ayar").select("deger").eq("anahtar","depo_fiyat").maybeSingle();
+  if(error) throw error;
+  DEPO = data ? JSON.parse(data.deger) : null; DEPO_ZAMAN = Date.now(); return DEPO;
+}
+const depoYeni = u => u.y && (Date.now() - new Date(u.y)) < 48*3600e3;
+function depoEnIyi(u){
+  let en = null;
+  for(const k of ["as","sn"]){ const d = u[k]; if(!d) continue;
+    const secenek = (d.mf||[]).filter(o=>o.n>0).length ? d.mf.filter(o=>o.n>0) : (d.d ? [{a:1,m:0,n:d.d,v:d.v}] : []);
+    for(const o of secenek){ if(!en || o.n < en.n) en = {...o, k}; } }
+  return en;
+}
+function depoMfMetin(d){ if(!d) return "—"; const m = (d.mf||[]).filter(o=>o.m>0); const u = [...new Set(m.map(o=>o.a+"+"+o.m))]; return u.length ? u.join(" ") : "MF yok"; }
+function depoHucre(d, enIyi, k){
+  if(!d) return `<span class="s ek" style="color:var(--soluk)">bulunamadı</span>`;
+  const iyi = enIyi && enIyi.k===k;
+  const min = (d.mf||[]).filter(o=>o.n>0).reduce((a,o)=>!a||o.n<a.n?o:a, null);
+  return `<span class="s">${para(d.d)}<small style="display:block;color:${iyi?"var(--yesil)":"var(--soluk)"}">${kacis(depoMfMetin(d))}${min?` · net ${para(min.n)}${min.v!=null?` (${min.v} gün)`:""}`:""}</small>${d.s===0?`<small style="display:block;color:var(--kirmizi)">stok yok</small>`:""}</span>`;
+}
+async function depoSayfasi(){
+  yukleniyor(); $("#depoDugme").classList.add("aktif");
+  let v; try { v = await depoYukle(true); } catch(e){ return hataGoster(e); }
+  if(!v){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button><div class="liste-ust"><div><h1>Depolar</h1><p>Henüz depo verisi yok. Eczanedeki bilgisayarda depo bilgileri girildikten sonra saatte bir güncellenir.</p></div></div>`; return; }
+  const filtreler = { mf:"MF olanlar", yeni:"Yeni MF (48 saat)", bitiyor:"Az kalan + MF", hepsi:"Tümü" };
+  let l = v.u.slice();
+  const mfVar = u => /\d\+\d/.test(u.k||"");
+  if(DEPO_FILTRE==="mf") l = l.filter(mfVar);
+  if(DEPO_FILTRE==="yeni") l = l.filter(depoYeni);
+  if(DEPO_FILTRE==="bitiyor") l = l.filter(u => mfVar(u) && u.a90>0 && (u.st||0) < (u.a90/3)*0.5);
+  l.sort((a,b)=>(Number(!!depoYeni(b))-Number(!!depoYeni(a))) || ((b.a90||0)-(a.a90||0)));
+  $("#icerik").innerHTML = `
+    <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
+    <div class="liste-ust"><div><h1>Depolar</h1><p>${kacis((v.depolar||[]).join(" · "))} · son güncelleme ${tarihSaat(v.zaman)} · en çok satan ${v.u.length} ürün</p></div></div>
+    <div class="hcipler">${Object.entries(filtreler).map(([k,a])=>`<button class="hcip ${DEPO_FILTRE===k?"secili":""}" type="button" data-df="${k}">${a}</button>`).join("")}</div>
+    <div class="tablo">
+      ${l.length ? `<div class="satir bas"><span>Ürün</span><span class="s ek">Stok / ayda</span><span class="s">AS</span><span class="s">Sancak</span></div>`
+        + l.map(u=>{ const en = depoEnIyi(u); return `<button class="satir" type="button" data-barkod="${kacis(u.b)}"><span class="ad">${depoYeni(u)?'<span class="etiket yakin" style="margin-right:6px">YENİ MF</span>':""}${kacis(u.ad||u.b)}${en?`<small style="display:block;color:var(--soluk)">en iyi: ${DEPO_AD[en.k]} ${en.m?en.a+"+"+en.m+" ile ":""}${para(en.n)}</small>`:""}</span>
+            <span class="s ek">${sayi(u.st||0)} / ${sayi((u.a90||0)/3)}</span>${depoHucre(u.as,en,"as")}${depoHucre(u.sn,en,"sn")}</button>`; }).join("")
+        : `<div class="bos">Bu filtrede ürün yok.</div>`}
+    </div>
+    <p class="alt-not" style="margin-top:10px">Net fiyatlar depoların kendi ekranındaki MF ve iskontolu birim fiyattır; vade (gün) farklı olabilir. Sipariş vermeden önce depo ekranından teyit edin.</p>`;
+  document.querySelectorAll("[data-df]").forEach(b=>b.addEventListener("click",()=>{ DEPO_FILTRE=b.dataset.df; depoSayfasi(); }));
+  document.querySelectorAll("[data-barkod]").forEach(b=>b.addEventListener("click",()=>location.hash="urun/"+b.dataset.barkod));
+}
+async function depoRozet(){
+  try { const v = await depoYukle(); const n = v ? v.u.filter(u=>depoYeni(u) && u.a90>0).length : 0;
+    const r = $("#depoRozet"); r.textContent = n; r.title = "48 saatte yeni MF çıkan, sattığın ürün"; r.classList.toggle("gizli", !n); } catch(e){}
+}
+async function depoUrunSatiri(barkod){
+  try { const v = await depoYukle(); const u = v && v.u.find(x=>x.b===barkod); if(!u) return "";
+    const en = depoEnIyi(u);
+    return `<div class="kutu-blok"><h2 class="baslik" style="margin:0">Depolarda <small style="font-weight:400;color:var(--soluk)">· ${tarihSaat(v.zaman)}</small></h2>
+      <table class="miad-tablo"><thead><tr><th>Depo</th><th class="s">Depocu</th><th>MF</th><th class="s">En düşük net</th></tr></thead><tbody>
+      ${["as","sn"].map(k=>{ const d=u[k]; if(!d) return `<tr><td>${DEPO_AD[k]}</td><td colspan="3" style="color:var(--soluk)">bulunamadı</td></tr>`;
+        const min=(d.mf||[]).filter(o=>o.n>0).reduce((a,o)=>!a||o.n<a.n?o:a,null);
+        return `<tr><td>${DEPO_AD[k]}${en&&en.k===k?' <span class="etiket uzak">en iyi</span>':""}</td><td class="s">${para(d.d)}</td><td>${kacis(depoMfMetin(d))}</td><td class="s">${min?para(min.n)+(min.v!=null?` <small>(${min.v} gün)</small>`:""):"—"}</td></tr>`; }).join("")}
+      </tbody></table></div>`;
+  } catch(e){ return ""; }
+}
+
+/* =====================================================================
+   ETKEN MADDE / TEDAVİ GRUBU ARAMASI — "ağrı", "antibiyotik", "parasetamol"
+   ayar.ilac_kategori = { barkod: {atc, a(etken/ATC adı), e(endikasyon), m(etken madde)} }
+   ===================================================================== */
+let KAT = null;
+const KAT_SOZ = {
+  "agri":["N02","M01A","M02A"], "agri kesici":["N02","M01A"], "ates":["N02B"], "ates dusurucu":["N02B"], "romatizma":["M01"], "migren":["N02C"],
+  "antibiyotik":["J01"], "enfeksiyon":["J01","J02","J05"], "mantar":["J02","D01","G01A"], "antiviral":["J05"],
+  "tansiyon":["C02","C03","C07","C08","C09"], "kalp":["C01","C07","C08"], "kolesterol":["C10"], "kan sulandirici":["B01"],
+  "seker":["A10"], "diyabet":["A10"], "insulin":["A10A"], "mide":["A02"], "reflu":["A02"], "bulanti":["A04"], "ishal":["A07"], "kabizlik":["A06"],
+  "alerji":["R06"], "oksuruk":["R05"], "nezle":["R01","R06"], "burun":["R01"], "astim":["R03"], "bogaz":["R02"],
+  "uyku":["N05C"], "depresyon":["N06A"], "anksiyete":["N05B"], "sara":["N03"], "epilepsi":["N03"], "parkinson":["N04"], "kas gevsetici":["M03"],
+  "tiroid":["H03"], "kortizon":["H02","D07"], "vitamin":["A11"], "demir":["B03A"], "kalsiyum":["A12A"],
+  "goz":["S01"], "kulak":["S02"], "cilt":["D"], "krem":["D"], "sivilce":["D10"], "idrar":["G04"], "prostat":["G04C"], "dogum kontrol":["G03A"]
+};
+async function katYukle(){
+  if(KAT) return KAT;
+  const { data } = await db.from("ayar").select("deger").eq("anahtar","ilac_kategori").maybeSingle();
+  KAT = data ? JSON.parse(data.deger) : {}; return KAT;
+}
+async function kategoriBul(t){
+  const k = await katYukle(); const ent = Object.entries(k).filter(([b,v])=>v && v.atc);
+  if(!ent.length || t.length < 3) return [];
+  const atclar = KAT_SOZ[t] || (Object.keys(KAT_SOZ).find(s=>s.startsWith(t)) ? KAT_SOZ[Object.keys(KAT_SOZ).find(s=>s.startsWith(t))] : null);
+  return ent.filter(([b,v]) => (atclar && atclar.some(a=>v.atc.startsWith(a)))
+      || araMetni(v.m).includes(t) || araMetni(v.a).includes(t) || araMetni(v.e).includes(t)).map(([b])=>b);
+}
+async function kategoriSonucu(q, t){
+  const bar = await kategoriBul(t); if(!bar.length) return "";
+  const { data } = await db.from("urun_ozet").select("barkod,ad,stok,en_yakin_miad,adet_90,psf").in("barkod", bar.slice(0,400)).gt("stok",0);
+  const l = (data||[]).sort((a,b)=>(a.en_yakin_miad||"9999").localeCompare(b.en_yakin_miad||"9999"));
+  if(!l.length) return "";
+  return `<div class="liste-ust" style="margin-top:22px"><div><h2 style="margin:0">Etken madde / tedavi grubu: ${l.length} ürün stokta</h2><p>Miadı en yakın olan en üstte. Kırmızı: 4 aydan az kaldı.</p></div></div>
+    <div class="tablo"><div class="satir bas"><span>Ürün</span><span class="s ek">Etken madde</span><span class="s">Stok</span><span class="s">En yakın miat</span></div>
+    ${l.map(r=>{ const g = gunFarki(r.en_yakin_miad); const v = KAT[r.barkod]||{};
+      return `<button class="satir" type="button" data-barkod="${kacis(r.barkod)}"><span class="ad">${kacis(r.ad)}<small style="display:block;color:var(--soluk)">${kacis(v.e||v.a||"")}</small></span><span class="s ek">${kacis(v.m||"")}</span><span class="s">${sayi(r.stok)}</span><span class="s">${r.en_yakin_miad?`<span class="etiket ${g!==null&&g<120?"yakin":"uzak"}">${tarih(r.en_yakin_miad)}</span>`:"—"}</span></button>`; }).join("")}</div>`;
 }
 
 /* =====================================================================
@@ -1177,6 +1288,7 @@ function hSablonDuzenle(){
   });
 }
 $("#hastaDugme").addEventListener("click", ()=>{ location.hash = "hastalar"; });
+$("#depoDugme").addEventListener("click", ()=>{ location.hash = "depolar"; });
 // program açılınca: şifre bu oturumda girildiyse rozeti arka planda güncelle
 async function hRozetArkaPlan(){
   if(!hAnahtarYukle()) return;

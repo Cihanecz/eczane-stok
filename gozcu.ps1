@@ -1,4 +1,4 @@
-﻿# Eczane Stok — gözcü. Windows açılınca gizli başlar; Rx'e giriş yapılınca (saat fark etmez) günde bir kez toplayıcıyı çalıştırır.
+﻿# Eczane Stok — gözcü. Windows açılınca gizli başlar; Rx'e giriş yapılınca (saat fark etmez) günde bir kez toplayıcıyı çalıştırır; depoları saatte bir okur.
 $KOK = "C:\EczaneStok"
 $RX_ANA = "RxMediaPharma Eczane Y"   # ana pencere adı bununla başlar (Türkçe harfe güvenilmez; giriş ekranı eşleşmez)
 Add-Type @"
@@ -14,8 +14,15 @@ public static class GZ {
 function Log($m) { Add-Content -Path (Join-Path $KOK "gozcu.txt") -Value ((Get-Date -Format "yyyy-MM-dd HH:mm:ss") + "  " + $m) -Encoding UTF8 }
 Log "Gözcü başladı"
 $deneme = @{}
+$depoSon = [datetime]::MinValue
 while ($true) {
   Start-Sleep 60
+  # Depolar (Rx'e dokunmaz): depo bilgisi kayıtlıysa 08:00-21:00 arası saatte bir fiyat/MF çek
+  $h = (Get-Date).Hour
+  if ((Test-Path (Join-Path $KOK "depo.dat")) -and $h -ge 8 -and $h -lt 21 -and ((Get-Date) - $depoSon).TotalMinutes -ge 60) {
+    $depoSon = Get-Date
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama depo" -WindowStyle Hidden | Out-Null
+  }
   $bugun = (Get-Date).ToString("yyyy-MM-dd")
   $isaret = Join-Path $KOK "tamam-$bugun.txt"
   if (Test-Path $isaret) { continue }
