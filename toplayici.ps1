@@ -862,7 +862,7 @@ function DepoGiris([string]$k) {
   $ses
 }
 function DepoPost($ses, [string]$url, $govde, [string]$tur = "form") {
-  Start-Sleep -Milliseconds 350
+  Start-Sleep -Milliseconds 600
   if ($tur -eq "json") { $r = Invoke-WebRequest -Uri $url -Method Post -Body ([Text.Encoding]::UTF8.GetBytes((ConvertTo-Json $govde -Compress))) -ContentType "application/json; charset=utf-8" -Headers @{ "X-Requested-With" = "XMLHttpRequest" } -WebSession $ses -UseBasicParsing -TimeoutSec 60 }
   else { $r = Invoke-WebRequest -Uri $url -Method Post -Body $govde -ContentType "application/x-www-form-urlencoded; charset=UTF-8" -Headers @{ "X-Requested-With" = "XMLHttpRequest"; "Referer" = "https://webdepo.asecza.com.tr/Siparis/hizlisiparis.aspx" } -WebSession $ses -UseBasicParsing -TimeoutSec 60 }
   $r.Content | ConvertFrom-Json
@@ -904,13 +904,14 @@ function AsamaDepo {
   if (-not $sesler.Count) { throw "Hiçbir depoya girilemedi." }
   $onceki = @{}; try { $o = BulutOku "ayar?anahtar=eq.depo_fiyat&select=deger" $j; if ($o) { foreach ($x in (($o[0].deger | ConvertFrom-Json).u)) { $onceki[$x.b] = $x } } } catch { }
   $kat = @{}; try { $o = BulutOku "ayar?anahtar=eq.ilac_kategori&select=deger" $j; if ($o) { foreach ($p in ($o[0].deger | ConvertFrom-Json).PSObject.Properties) { $y = $p.Value.yok; if ($y -and ($y -isnot [string] -or ((Get-Date) - [datetime]$y).TotalDays -gt 30)) { continue }; $kat[$p.Name] = $p.Value } } } catch { }
-  $simdi = (Get-Date).ToString("o"); $sonuc = New-Object System.Collections.ArrayList; $hata = @{}
+  $simdi = (Get-Date).ToString("o"); $sonuc = New-Object System.Collections.ArrayList; $hata = @{}; $ard = @{}
   foreach ($b in $barkodlar) {
     $s = [ordered]@{ b = $b; ad = $bilgi[$b].ad; st = $bilgi[$b].stok; a90 = $bilgi[$b].adet_90 }
-    foreach ($k in $sesler.Keys) {
+    foreach ($k in @($sesler.Keys)) {
       try { $v = if ($k -eq "as") { DepoAS $sesler[$k] $b } else { DepoSN $sesler[$k] $b "https://eticaret.sancakecza.com.tr/Sales/QuickSearchItems" }
-            if ($v) { if ($k -eq "as" -and $v.atc) { $kat[$b] = [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk }; foreach ($z in "atc","atca","end","etk") { $v.Remove($z) } }; $s[$k] = $v } }
-      catch { $hata[$k] = 1 + [int]$hata[$k]; if ($hata[$k] -eq 3) { Log ("  {0}: tekrarlayan hata — {1}" -f $DEPOLAR[$k].ad, $_.Exception.Message) } }
+            if ($v) { if ($k -eq "as" -and $v.atc) { $kat[$b] = [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk }; foreach ($z in "atc","atca","end","etk") { $v.Remove($z) } }; $s[$k] = $v }; $ard[$k] = 0 }
+      catch { $hata[$k] = 1 + [int]$hata[$k]; $ard[$k] = 1 + [int]$ard[$k]; if ($hata[$k] -eq 3) { Log ("  {0}: tekrarlayan hata — {1}" -f $DEPOLAR[$k].ad, $_.Exception.Message) }
+              if ($ard[$k] -ge 8) { Log ("  {0}: üst üste hata, bu çalışmada bırakıldı (depo sunucusu yorulmasın)" -f $DEPOLAR[$k].ad); $sesler.Remove($k); break } }
     }
     # yeni MF: önceki çekimde MF yoktu ya da farklıydı → 'y' zamanı (2 gün gösterilir)
     $mfi = (@("as","sn") | ForEach-Object { if ($s[$_]) { $_ + ":" + ((@($s[$_].mf) | Where-Object { $_.m -gt 0 } | ForEach-Object { "$($_.a)+$($_.m)" } | Sort-Object -Unique) -join " ") } }) -join "|"
@@ -924,6 +925,9 @@ function AsamaDepo {
     $stoklu = @(BulutOku "urun_ozet?select=barkod&stok=gt.0&limit=10000" $j | ForEach-Object { $_.barkod } | Where-Object { $_ -match '^\d{8,14}$' -and -not $kat.ContainsKey($_) } | Select-Object -First 150)
     foreach ($b in $stoklu) { try { $v = DepoAS $sesler["as"] $b; $kat[$b] = if ($v -and $v.atc) { [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk } } else { [ordered]@{ yok = (Get-Date).ToString("yyyy-MM-dd") } } } catch { } }
   }
+  # ilk çekimde ya da toplu değişimde ürünlerin çoğu "yeni" görünür → bu bir başlangıçtır, işaretleri sil
+  foreach ($g in ($sonuc | Where-Object { $_.y } | Group-Object { $_.y })) { if ($g.Count -gt [math]::Max(20, $sonuc.Count * 0.3)) { foreach ($x in $g.Group) { $x.Remove("y") } } }
+  if (-not $sesler.Count) { throw "Depo çekimi yarıda kaldı, buluta yazılmadı." }
   $veri = [ordered]@{ zaman = $simdi; depolar = @($sesler.Keys | ForEach-Object { $DEPOLAR[$_].ad }); u = $sonuc.ToArray() }
   BulutEkle "ayar" @([ordered]@{ anahtar = "depo_fiyat"; deger = (ConvertTo-Json $veri -Depth 6 -Compress); guncelleme = $simdi }) $j "anahtar"
   BulutEkle "ayar" @([ordered]@{ anahtar = "ilac_kategori"; deger = (ConvertTo-Json $kat -Depth 4 -Compress); guncelleme = $simdi }) $j "anahtar"
