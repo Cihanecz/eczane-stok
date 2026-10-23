@@ -1102,7 +1102,9 @@ function KolayKategori($kat, [string]$j, $kl) {
   if (-not $kl) { $kl = KolayListe }; if (-not $kl) { return 0 }
   $m = @{}; foreach ($x in $kl.liste) { if ($x.b -and $x.c) { $m["$($x.b)" -replace '^0+(\d{13})$', '$1'] = "$($x.c)" } }
   $n = 0
-  foreach ($b in @(BulutOku "urun_ozet?select=barkod&limit=20000" $j | ForEach-Object { $_.barkod })) {
+  $tum = New-Object System.Collections.ArrayList; $ofs = 0
+  while ($true) { $p = @(BulutOku "urun_ozet?select=barkod&order=barkod&limit=1000&offset=$ofs" $j | ForEach-Object { $_ }); foreach ($x in $p) { [void]$tum.Add($x.barkod) }; if ($p.Count -lt 1000 -or $ofs -gt 100000) { break }; $ofs += 1000 }
+  foreach ($b in $tum) {
     if ($b -notmatch '^\d{8,14}$') { continue }
     $v = $kat[$b]; if ($v -and $v.atc) { continue }
     $k13 = $b -replace '^0(\d{13})$', '$1'
