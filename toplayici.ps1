@@ -880,7 +880,7 @@ function DepoAS($ses, [string]$barkod) {
     if (-not $vade) { $vade = $k.vadeGun }
     for ($i = 0; $i -lt @($k.miktar).Count; $i++) { if ($k.miktar[$i] -gt 0) { $mf += [ordered]@{ a = $k.miktar[$i]; m = $k.mf[$i]; n = [math]::Round([double]$k.netFiyati[$i], 2); v = $k.vadeGun } } }
   }
-  [ordered]@{ d = [double]$d.depocuFiyati; s = [int]("0" + $e.stokDurumu); v = $vade; mf = $mf
+  [ordered]@{ d = [double]$d.depocuFiyati; s = $(if ("$($e.stokDurumu)" -match '^[1-9]') { 1 } else { 0 }); v = $vade; mf = $mf
               atc = $d.atc.value; atca = $d.atc.display; end = $d.endikasyon.display; etk = $d.etkenMadde.display }
 }
 function DepoSN($ses, [string]$barkod, [string]$adres) {
@@ -916,7 +916,7 @@ function AsamaDepo {
     $mfi = (@("as","sn") | ForEach-Object { if ($s[$_]) { $_ + ":" + ((@($s[$_].mf) | Where-Object { $_.m -gt 0 } | ForEach-Object { "$($_.a)+$($_.m)" } | Sort-Object -Unique) -join " ") } }) -join "|"
     $s["k"] = $mfi
     $o = $onceki[$b]
-    if ($o -and $o.k -ne $mfi -and ($mfi -match '\d\+\d')) { $s["y"] = $simdi } elseif ($o -and $o.y -and ((Get-Date) - [datetime]$o.y).TotalHours -lt 48) { $s["y"] = $o.y }
+    if ($o -and ($o.as -or $o.sn) -and $o.k -ne $mfi -and ($mfi -match '\d\+\d')) { $s["y"] = $simdi } elseif ($Bas -ne "mfsifirla" -and $o -and $o.y -and ((Get-Date) - [datetime]$o.y).TotalHours -lt 48) { $s["y"] = $o.y }
     [void]$sonuc.Add($s)
   }
   # kategori (etken madde / tedavi grubu) her çalışmada stoktaki 150 ürün daha tamamlanır — arama için
