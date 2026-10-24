@@ -1065,8 +1065,15 @@ function AsamaSepet {
   $liste = @((($o[0].deger | ConvertFrom-Json).liste) | Where-Object { $_ })
   $bek = @($liste | Where-Object { $_.durum -eq "bekliyor" })
   if (-not $bek.Count) { return }
-  Log ("Sepet: {0} istek" -f $bek.Count)
   $sonuclar = @{}
+  # "Depolarda ara" istekleri (sitedeki arama): önce bunlar, hızlı cevap beklenir
+  foreach ($a in @($bek | Where-Object { $_.tip -eq "ara" })) {
+    $yas = 0; try { $yas = ((Get-Date) - [datetime]$a.zaman).TotalMinutes } catch { }
+    if ($yas -lt 6) { try { DepoAra $a $j } catch { Log ("Depolarda ara HATA: " + $_.Exception.Message) } }
+    $sonuclar[$a.id] = @{ tamam = $true; mesaj = ""; ara = $true }
+  }
+  $bek = @($bek | Where-Object { $_.tip -ne "ara" })
+  if ($bek.Count) { Log ("Sepet: {0} istek" -f $bek.Count) }
   foreach ($g in ($bek | Group-Object depo)) {
     $kal = @($g.Group | ForEach-Object { [ordered]@{ id = $_.id; barkod = $_.barkod; adet = [int]$_.adet; a = $_.a; m = $_.m; ad = $_.ad } })
     if ($g.Name -eq "as") { try { $r = SepetAS $kal; foreach ($k in $kal) { $sonuclar[$k.id] = $r[$k.id] } } catch { foreach ($k in $kal) { $sonuclar[$k.id] = @{ tamam = $false; mesaj = "AS: " + $_.Exception.Message } } }; Log ("  AS: {0} kalem" -f $kal.Count); continue }
@@ -1083,10 +1090,107 @@ function AsamaSepet {
   $o = BulutOku "ayar?anahtar=eq.sepet_istek&select=deger" $j
   $liste = @((($o[0].deger | ConvertFrom-Json).liste) | Where-Object { $_ })
   $simdi = (Get-Date).ToString("o")
-  foreach ($x in $liste) { if ($sonuclar.ContainsKey($x.id)) { $s = $sonuclar[$x.id]; $x.durum = $(if ($s.tamam) { "sepette" } else { "hata" }); $x | Add-Member -Force NoteProperty mesaj $s.mesaj; $x | Add-Member -Force NoteProperty bitis $simdi } }
+  foreach ($x in $liste) { if ($sonuclar.ContainsKey($x.id)) { $s = $sonuclar[$x.id]; $x.durum = $(if ($s.ara) { "tamam" } elseif ($s.tamam) { "sepette" } else { "hata" }); $x | Add-Member -Force NoteProperty mesaj $s.mesaj; $x | Add-Member -Force NoteProperty bitis $simdi } }
   $liste = @($liste | Select-Object -Last 60)
   BulutEkle "ayar" @([ordered]@{ anahtar = "sepet_istek"; deger = (ConvertTo-Json ([ordered]@{ liste = $liste }) -Depth 5 -Compress); guncelleme = $simdi }) $j "anahtar"
-  Log ("Sepet: {0} tamam, {1} hata" -f @($sonuclar.Values | Where-Object { $_.tamam }).Count, @($sonuclar.Values | Where-Object { -not $_.tamam }).Count)
+  if ($bek.Count) { Log ("Sepet: {0} tamam, {1} hata" -f @($sonuclar.Values | Where-Object { $_.tamam -and -not $_.ara }).Count, @($sonuclar.Values | Where-Object { -not $_.tamam }).Count) }
+}
+# ======================= DEPOLARDA ARA (sitedeki arama) =======================
+# Ad ya da barkodla bütün depolarda arar (eczanede olmayan ürünler dahil). Sadece okur, sepete eklemez.
+# Sonuç depo depo ayar.depo_ara_sonuc'a yazılır; site 3 sn'de bir okur.
+function IlkDeger($nesneler, [string[]]$adlar) {
+  foreach ($o in $nesneler) { if (-not $o) { continue }; foreach ($a in $adlar) { $p = $o.PSObject.Properties[$a]; if ($p -and "$($p.Value)".Trim()) { return "$($p.Value)".Trim() } } }
+  foreach ($o in $nesneler) { if (-not $o) { continue }; foreach ($p in $o.PSObject.Properties) { if ($p.Name -match '(?i)(ad[iı]?|name|tanim)$' -and "$($p.Value)" -match '[A-Za-zÇĞİÖŞÜçğıöşü]{3}') { return "$($p.Value)".Trim() } } }
+  ""
+}
+function BarkodDeger($o, [string[]]$adlar) { if (-not $o) { return "" }; foreach ($a in $adlar) { $p = $o.PSObject.Properties[$a]; if ($p -and "$($p.Value)" -match '^\d{8,14}$') { return "$($p.Value)" } }; "" }
+function AraSonucYaz($sonuc, [string]$j) {
+  $o = BulutOku "ayar?anahtar=eq.depo_ara_sonuc&select=deger" $j
+  $liste = @(); if ($o) { try { $liste = @((($o[0].deger | ConvertFrom-Json).liste) | Where-Object { $_ -and $_.id -ne $sonuc.id }) } catch { } }
+  $liste = @($liste | Select-Object -Last 7) + @($sonuc)
+  BulutEkle "ayar" @([ordered]@{ anahtar = "depo_ara_sonuc"; deger = (ConvertTo-Json ([ordered]@{ liste = $liste }) -Depth 12 -Compress); guncelleme = (Get-Date).ToString("o") }) $j "anahtar"
+}
+function AsAra([string]$q) {
+  $ses = DepoGiris "as"
+  $null = Invoke-WebRequest "https://webdepo.asecza.com.tr/Siparis/hizlisiparis.aspx" -WebSession $ses -UseBasicParsing -TimeoutSec 60
+  $u = DepoPost $ses "https://webdepo.asecza.com.tr/Siparis/hizlisiparis-ajax.aspx" @{ action = "GetUrunler"; searchText = $q; isInculude = "true"; isStoktakiler = "false"; siralama = "ilacASC"; marka = ""; baslangicSayfasi = "0"; topRowNum = "0"; sayfaMaxRowAdet = "10"; s = "s" }
+  $out = New-Object System.Collections.ArrayList
+  foreach ($e in @($u.obj.urunler | Where-Object { $_ } | Select-Object -First 8)) {
+    $d = $null; try { $d = (DepoPost $ses "https://webdepo.asecza.com.tr/Ilac/IlacGetir-ajax.aspx" @{ action = "GetIlacDetay"; kod = $e.kodu; isEsdeger = "false"; esdeger = ""; isJenerik = "false"; jenerikId = ""; tip = "null"; ILACTIP = $e.ILACTIP; kampKodu = "" }).obj } catch { }
+    $mf = @(); $vade = $null
+    if ($d) { foreach ($k in @($d.kampanyalar)) { if (-not $vade) { $vade = $k.vadeGun }; for ($i = 0; $i -lt @($k.miktar).Count; $i++) { if ($k.miktar[$i] -gt 0) { $mf += [ordered]@{ a = $k.miktar[$i]; m = $k.mf[$i]; n = [math]::Round([double]$k.netFiyati[$i], 2); v = $k.vadeGun } } } } }
+    $b = if ($d -and "$($d.barkod)") { "$($d.barkod)" } else { BarkodDeger $e @("barkod", "barcode") }
+    $fiyat = if ($d) { [double]$d.depocuFiyati } else { 0 }
+    [void]$out.Add([ordered]@{ ad = (IlkDeger @($d, $e) @("ilacAdi", "ilacAdı", "adi", "ad", "urunAdi", "ilac_adi", "name", "ilac")); b = $b; d = $fiyat; s = $(if ("$($e.stokDurumu)" -match '^[1-9]') { 1 } else { 0 }); v = $vade; mf = $mf })
+  }
+  ,$out.ToArray()
+}
+# Eklentili depolar (Sancak / BEK): Chrome eklentisi 127.0.0.1:47813'ten "ara" işini alır, depo sekmesinde arar
+function AraKopru([string[]]$araDepolar, [string]$q, $sonuc, [scriptblock]$yaz) {
+  $sira = New-Object System.Collections.Generic.Queue[string]; foreach ($d in $araDepolar) { $sira.Enqueue($d) }
+  $snGiris = $null; try { $ay = DepoAyarOku; if ($ay["sn"]) { $snGiris = DpAc $ay["sn"] | ConvertFrom-Json } } catch { }
+  try { $l = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 47813); $l.Start() } catch { foreach ($d in $araDepolar) { $sonuc.depolar[$d] = [ordered]@{ durum = "hata"; mesaj = "port meşgul"; u = @() } }; return }
+  try {
+    $bas = Get-Date; $verilen = $null; $verZaman = $null
+    while ($true) {
+      if ($verilen -and ((Get-Date) - $verZaman).TotalSeconds -gt 100) { $sonuc.depolar[$verilen] = [ordered]@{ durum = "hata"; mesaj = "depo sekmesi cevap vermedi"; u = @() }; & $yaz; $verilen = $null; $bas = Get-Date }
+      if (-not $verilen -and -not $sira.Count) { break }
+      if (-not $verilen -and ((Get-Date) - $bas).TotalSeconds -gt 75) { while ($sira.Count) { $sonuc.depolar[$sira.Dequeue()] = [ordered]@{ durum = "eklenti_yok"; u = @() } }; & $yaz; break }
+      if (-not $l.Pending()) { Start-Sleep -Milliseconds 200; continue }
+      $c = $l.AcceptTcpClient()
+      try {
+        $st = $c.GetStream(); $st.ReadTimeout = 15000
+        $r = HttpOku $st; if (-not $r) { continue }
+        if ($r.satir -match '^GET /ara') {
+          if ($verilen -or -not $sira.Count) { HttpYaz $st 200 '{}'; continue }
+          $verilen = $sira.Dequeue(); $verZaman = Get-Date
+          $is = [ordered]@{ depo = $verilen; q = $q; adres = $DEPOLAR[$verilen].giris }
+          if ($verilen -eq "sn" -and $snGiris) { $is.giris = $snGiris }
+          HttpYaz $st 200 (ConvertTo-Json $is -Compress -Depth 4)
+        } elseif ($r.satir -match '^POST /sonuc') {
+          HttpYaz $st 200 '{"tamam":true}'
+          $o = $r.govde | ConvertFrom-Json
+          $k = if ("$($o.depo)") { "$($o.depo)" } else { $verilen }
+          $u = New-Object System.Collections.ArrayList
+          if ("$($o.durum)" -eq "ok") {
+            foreach ($x in @($o.u | Where-Object { $_ })) {
+              try {
+                if ($k -eq "bek") {
+                  $v = BekCoz @($x); if (-not $v) { continue }
+                  $v["ad"] = "$($x.sm.MAKTX)".Trim(); $v["b"] = BarkodDeger $x.sm @("EAN11", "EAN", "BARKOD", "BARCODE")
+                } else {
+                  $v = SnCoz @($x) ""; if (-not $v) { continue }
+                  $v["ad"] = IlkDeger @($x) @("Name", "ItemName", "Description"); $v["b"] = BarkodDeger $x @("Barcode", "EAN", "Gtin")
+                }
+                [void]$u.Add($v)
+              } catch { }
+            }
+            # barkodla arandıysa ve tek ürün geldiyse barkod o
+            if ($q -match '^\d{8,14}$' -and $u.Count -eq 1 -and -not $u[0]["b"]) { $u[0]["b"] = $q }
+          }
+          $sonuc.depolar[$k] = [ordered]@{ durum = $(if ("$($o.durum)") { "$($o.durum)" } else { "hata" }); mesaj = "$($o.mesaj)"; u = $u.ToArray() }
+          Log ("  Ara {0}: {1}, {2} ürün" -f $DEPOLAR[$k].ad, $sonuc.depolar[$k].durum, $u.Count)
+          & $yaz; $verilen = $null; $bas = Get-Date
+        } else { HttpYaz $st 404 '{}' }
+      } catch { } finally { $c.Close() }
+    }
+  } finally { $l.Stop() }
+}
+function DepoAra($ist, [string]$j) {
+  $q = "$($ist.q)".Trim(); if ($q -match '^\d{8,14}$') { $q = $q -replace '^0(\d{13})$', '$1' }
+  Log ("Depolarda ara: '{0}'" -f $q)
+  $ay = DepoAyarOku
+  $http = @($DEPOLAR.Keys | Where-Object { $_ -notin @("sn", "bek") -and $ay[$_] })
+  $ek = @($DEPOLAR.Keys | Where-Object { $_ -in @("sn", "bek") })
+  $sonuc = [ordered]@{ id = "$($ist.id)"; q = $q; zaman = (Get-Date).ToString("o"); bitti = $false; sira = @($http + $ek); depolar = [ordered]@{} }
+  $yaz = { try { AraSonucYaz $sonuc $j } catch { Log ("  depo_ara_sonuc yazılamadı: " + $_.Exception.Message) } }   # $sonuc / $j çağıran işlevden (dinamik kapsam)
+  foreach ($k in $http) {
+    try { $sonuc.depolar[$k] = [ordered]@{ durum = "ok"; u = @(AsAra $q) } } catch { $sonuc.depolar[$k] = [ordered]@{ durum = "hata"; mesaj = $_.Exception.Message; u = @() } }
+    Log ("  Ara {0}: {1}, {2} ürün" -f $DEPOLAR[$k].ad, $sonuc.depolar[$k].durum, @($sonuc.depolar[$k].u).Count)
+    & $yaz
+  }
+  if ($ek.Count) { AraKopru $ek $q $sonuc $yaz }
+  $sonuc.zaman = (Get-Date).ToString("o"); $sonuc.bitti = $true; & $yaz
 }
 # ======================= KOLAY ASİSTAN İLAÇ LİSTESİ =======================
 # Kolay Asistan programının kendi klasöründeki ilaç listesi (barkod, ad, ATC). Sadece ilaç listesi okunur;

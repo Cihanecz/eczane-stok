@@ -47,6 +47,13 @@ a{color:inherit}
 .tarayici .t-ust{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;color:#fff;font-weight:600}
 .tarayici .t-ust button{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:8px 14px;font-size:15px}
 .tarayici .t-alt{position:absolute;bottom:0;left:0;right:0;padding:16px 16px 26px;text-align:center;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.75));font-size:15px}
+.da-dugme{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--yesil-acik);border:1px solid var(--yesil-koyu);color:var(--yesil);border-radius:14px;padding:12px 16px;margin:0 0 14px;font-size:15px;font-weight:600;cursor:pointer}
+.da-dugme small{font-weight:400;color:var(--soluk)}
+.da-blok{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:16px;padding:14px 16px;margin-bottom:12px}
+.da-blok h2{margin:0 0 8px;font-size:17px}
+.da-urun{padding:8px 0;border-top:1px solid var(--cizgi)}
+.da-urun:first-of-type{border-top:0}
+.mf-h{font-size:13px;line-height:1.45;padding:3px 0}
 .sepet-d{background:var(--yesil-acik);border:1px solid var(--yesil-koyu);color:var(--yesil);border-radius:8px;padding:2px 8px;margin-left:8px;font-size:13px;cursor:pointer;vertical-align:middle}
 .sepet-not{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:70;background:var(--yuzey2);border:1px solid var(--cizgi);border-radius:12px;padding:11px 16px;font-size:14px;max-width:92vw;box-shadow:0 8px 30px rgba(0,0,0,.4)}
 .okutma{border:1px solid var(--yesil-koyu);background:var(--yesil-acik);border-radius:14px;padding:10px 14px;margin:6px 0 12px;font-size:14px}
@@ -586,6 +593,7 @@ function yonlendir(){
   if(h.startsWith("urun/")) return urunKarti(h.slice(5));
   if(h.startsWith("liste/")) return liste(h.slice(6));
   if(h.startsWith("ara/")) return aramaSonucu(h.slice(4));
+  if(h.startsWith("depoara/")) return depoAraSayfasi(h.slice(8));
   $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif");
   if(h==="hastalar") return hastaSayfasi();
   if(h==="depolar") return depoSayfasi();
@@ -934,12 +942,14 @@ async function aramaSonucu(q){
   if(error) return hataGoster(error);
   $("#icerik").innerHTML = `
     <div class="liste-ust"><div><h1>“${kacis(q)}”</h1><p>${data.length} ürün bulundu${data.length===60?" (ilk 60)":""}.</p></div></div>
+    <button class="da-dugme" type="button" id="daAra">🏷️ Depolarda ara: “${kacis(q)}” <small>elinde olmayanlar dahil, bütün depolarda</small></button>
     <div class="tablo">
       ${data.length ? `<div class="satir bas"><span>Ürün</span><span class="s ek">Stok</span><span class="s ek">Aylık satış</span><span class="s">PSF</span></div>`
         + data.map(r=>`<button class="satir" type="button" data-barkod="${kacis(r.barkod)}"><span class="ad">${urunHucre(r)}</span><span class="s ek">${sayi(r.stok)}</span><span class="s ek">${sayi(r.adet_90/3)}</span><span class="s">${tl(r.psf)}</span></button>`).join("")
         : `<div class="bos">Bu adla ürün bulunamadı. Adın bir kısmını ya da barkodu yazmayı dene.</div>`}
     </div>`;
   document.querySelectorAll("[data-barkod]").forEach(b=>b.addEventListener("click",()=>location.hash="urun/"+b.dataset.barkod));
+  $("#daAra").onclick = ()=>location.hash = "depoara/"+encodeURIComponent(q);
   if(!/^\d{5,}$/.test(t)){ const ek = await kategoriSonucu(q, t).catch(()=>""); if(ek && benim===aramaNo){ $("#icerik").insertAdjacentHTML("beforeend", ek);
     document.querySelectorAll("[data-barkod]").forEach(b=>b.onclick=()=>location.hash="urun/"+b.dataset.barkod); } }
 }
@@ -954,7 +964,7 @@ async function urunKarti(barkod){
   ]);
   const hata = oz.error || kk.error || ay.error; if(hata) return hataGoster(hata);
   const r = oz.data;
-  if(!r){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="history.back()">‹ Geri</button><div class="tablo"><div class="bos">Bu barkodla ürün bulunamadı.</div></div>`; return; }
+  if(!r){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="history.back()">‹ Geri</button><button class="da-dugme" type="button" onclick="location.hash='depoara/${kacis(barkod)}'">🏷️ Depolarda ara <small>bu barkod stok listende yok</small></button><div class="tablo"><div class="bos">Bu barkodla ürün bulunamadı.</div></div>`; return; }
 
   const aylik = (r.adet_90||0)/3;
   const kutuKar = r.adet_365 ? r.kar_365 / r.adet_365 : null;
@@ -1002,7 +1012,10 @@ async function urunKarti(barkod){
       <h2 class="baslik" style="margin:0">Son 12 ayda satış</h2>
       <div class="grafik">${(ay.data||[]).map(a=>{ const d=new Date(a.ay); return `<div><em>${Number(a.adet)?sayi(a.adet):""}</em><span class="cubuk" style="height:${Math.round(Number(a.adet)/enYuksek*100)}%"></span><small>${AYLAR[d.getMonth()]}</small></div>`; }).join("")}</div>
     </div>`;
-  const dp = await depoUrunSatiri(barkod); if(dp && location.hash.includes(barkod)) { $(".bilgiler").insertAdjacentHTML("afterend", dp);
+  const dp = await depoUrunSatiri(barkod);
+  if(location.hash.includes(barkod)) $(".bilgiler").insertAdjacentHTML("afterend", `<button class="da-dugme" type="button" id="daUrun">🏷️ Depolarda şimdi ara <small>${dp?"güncel fiyat, stok ve MF":"bu ürün saatlik depo listesinde yok — depolarda ara"}</small></button>`);
+  const dau = $("#daUrun"); if(dau) dau.onclick = ()=>location.hash = "depoara/"+barkod;
+  if(dp && location.hash.includes(barkod)) { $("#daUrun").insertAdjacentHTML("afterend", dp);
     document.querySelectorAll("[data-sepet]").forEach(b=>b.addEventListener("click", ()=>{ const [k,a,m]=b.dataset.sepet.split("|"); sepetAc(k, barkod, r.ad||barkod, +a, +m); })); }
 }
 
@@ -1011,7 +1024,7 @@ async function urunKarti(barkod){
    ayar.depo_fiyat = {zaman, depolar[], u:[{b,ad,st,a90,as:{d,s,v,mf:[{a,m,n,v}]},sn:{...},y}]}
    ===================================================================== */
 const DEPO_AD = { as:"AS", sn:"Sancak", bek:"BEK" };
-let DEPO = null, DEPO_ZAMAN = 0, DEPO_FILTRE = "oncelik";
+let DEPO = null, DEPO_ZAMAN = 0, DEPO_FILTRE = "alinacak";
 async function depoYukle(zorla){
   if(DEPO && !zorla && Date.now()-DEPO_ZAMAN < 120000) return DEPO;
   const { data, error } = await db.from("ayar").select("deger").eq("anahtar","depo_fiyat").maybeSingle();
@@ -1049,6 +1062,45 @@ function depoSecenekler(d){
   return [...m.values()].sort((x,y)=>(x.a+x.m)-(y.a+y.m));
 }
 const secenekAd = o => o.m ? `${o.a}+${o.m}` : (o.a>1 ? `${o.a} adet` : "1 adet");
+/* ---------- MF hesabı: depolara 3 ay vadeyle ödeniyor ----------
+   MF ile alınan mal, eldeki stokla birlikte vade gelmeden satılıyorsa parası satıştan ödenir → MF'nin indirimi doğrudan kâr.
+   3 ayda eriyor: AL · 3–5 ay: DİKKAT (vade gününde rafta mal kalır) · 5 aydan uzun: ALMA */
+const VADE_AY = 3;
+function mfTaban(d){   // MF'siz tek kutunun fiyatı (KDV hariç)
+  const tek = ((d && d.mf) || []).filter(o=>o.n>0 && !(o.m>0)).map(o=>o.n);
+  if(tek.length) return Math.min(...tek);
+  return d && d.d > 0 ? d.d : null;
+}
+function mfHesap(u, k, o){
+  const aylik = (u.a90||0)/3, st = Math.max(0, Number(u.st)||0), kutu = o.a + (o.m||0);
+  // karşılaştırma: MF'siz alsaydın depolardaki en ucuz tek kutu fiyatı
+  const tabanlar = ["as","sn","bek"].map(x=>u[x] && u[x].s!==0 ? mfTaban(u[x]) : null).filter(x=>x>0);
+  const taban = tabanlar.length ? Math.min(...tabanlar) : mfTaban(u[k]);
+  const erime = aylik > 0 ? (st + kutu) / aylik : Infinity;
+  const kalan = Math.min(kutu, Math.max(0, st + kutu - aylik*VADE_AY));
+  const kazanc = taban ? Math.max(0, taban - o.n) * kutu : 0;
+  const indirim = taban ? Math.max(0, 1 - o.n/taban) : (o.m ? o.m/kutu : 0);
+  const karar = aylik < 1/3 ? "satmiyor" : erime <= VADE_AY ? "al" : erime <= 5 ? "dikkat" : "alma";
+  return { k, ...o, kutu, aylik, erime, kalan, rafta: kalan*o.n, kazanc, indirim, karar };
+}
+// her depodaki her MF basamağını hesaplar; en mantıklısı başta (önce "al", sonra en çok kazandıran)
+function mfOneri(u){
+  const l = [];
+  for(const k of ["as","sn","bek"]){ const d = u[k]; if(!d || d.s===0) continue;
+    for(const o of depoSecenekler(d)) if(o.m>0) l.push(mfHesap(u, k, o)); }
+  if(!l.length) return null;
+  const sira = { al:0, dikkat:1, alma:2, satmiyor:3 };
+  l.sort((x,y)=>(sira[x.karar]-sira[y.karar]) || (y.kazanc-x.kazanc) || (x.erime-y.erime));
+  return { en: l[0], hepsi: l };
+}
+const MF_KARAR = { al:["✅","Al","var(--yesil)"], dikkat:["⚠️","Dikkat","var(--amber)"], alma:["❌","Alma","var(--kirmizi)"], satmiyor:["❌","Satmıyor","var(--kirmizi)"] };
+const ayMetin = a => !isFinite(a) ? "—" : a < 1 ? `~${Math.max(1,Math.round(a*30))} günde` : `~${a.toLocaleString("tr-TR",{maximumFractionDigits:1})} ayda`;
+function mfSatir(h, u){
+  const [s, ad, renk] = MF_KARAR[h.karar];
+  const ek = h.karar==="dikkat" ? ` · vade gününde ~${sayi(Math.ceil(h.kalan))} kutu (${para(kdvli(h.rafta,u))}) rafta kalır`
+    : h.karar==="alma" ? " · vadeyi çok aşar, para bağlar" : h.karar==="satmiyor" ? " · son 3 ayda neredeyse hiç satmamış" : " · vadeden önce satılır, parası satıştan ödenir";
+  return `<span style="color:${renk};white-space:nowrap">${s} <b>${ad}</b></span> — ${DEPO_AD[h.k]} <b>${h.a}+${h.m}</b>: ${sayi(h.kutu)} kutu${h.karar!=="satmiyor"?`, stokla birlikte ${ayMetin(h.erime)} erir`:""} · kutu %${Math.round(h.indirim*100)} ucuz${h.kazanc>0?` · kazanç ~${para(kdvli(h.kazanc,u))}`:""}${ek}`;
+}
 function depoMfMetin(d){ if(!d) return "—"; const m = (d.mf||[]).filter(o=>o.m>0); const u = [...new Set(m.map(o=>o.a+"+"+o.m))]; return u.length ? u.join(" ") : "MF yok"; }
 function depoHucre(d, enIyi, k, u){
   if(!d) return `<span class="s ek" style="color:var(--soluk)">bulunamadı</span>`;
@@ -1075,13 +1127,14 @@ async function depoSayfasi(){
   yukleniyor(); $("#depoDugme").classList.add("aktif");
   let v; try { v = await depoYukle(true); } catch(e){ return hataGoster(e); }
   if(!v){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button><div class="liste-ust"><div><h1>Depolar</h1><p>Henüz depo verisi yok. Eczanedeki bilgisayarda depo bilgileri girildikten sonra saatte bir güncellenir.</p></div></div>`; return; }
-  const filtreler = { oncelik:"Öncelikli MF", yeni:"Yeni MF (48 saat)", mf:"MF olanlar", hepsi:"Tümü" };
+  const filtreler = { alinacak:"Alınacak MF (vadede öder)", oncelik:"Öncelikli MF", yeni:"Yeni MF (48 saat)", mf:"MF olanlar", hepsi:"Tümü" };
   let l = v.u.slice();
   const aktif = ["as","sn","bek"].filter(k=>v.u.some(u=>u[k]));
   const mfVar = u => /\d\+\d/.test(u.k||"");
   if(DEPO_FILTRE==="mf") l = l.filter(mfVar);
   if(DEPO_FILTRE==="yeni") l = l.filter(depoYeni);
-  if(DEPO_FILTRE==="oncelik"){ l = l.map(u=>({u, o:depoOncelik(u)})).filter(x=>x.o && x.o.gun <= 90).sort((a,b)=>b.o.puan-a.o.puan).map(x=>x.u); }
+  if(DEPO_FILTRE==="alinacak"){ l = l.map(u=>({u, h:mfOneri(u)})).filter(x=>x.h && x.h.en.karar==="al").sort((a,b)=>b.h.en.kazanc-a.h.en.kazanc).map(x=>x.u); }
+  else if(DEPO_FILTRE==="oncelik"){ l = l.map(u=>({u, o:depoOncelik(u)})).filter(x=>x.o && x.o.gun <= 90).sort((a,b)=>b.o.puan-a.o.puan).map(x=>x.u); }
   else l.sort((a,b)=>(Number(!!depoYeni(b))-Number(!!depoYeni(a))) || ((b.a90||0)-(a.a90||0)));
   $("#icerik").innerHTML = `
     <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
@@ -1089,11 +1142,11 @@ async function depoSayfasi(){
     <div class="hcipler">${Object.entries(filtreler).map(([k,a])=>`<button class="hcip ${DEPO_FILTRE===k?"secili":""}" type="button" data-df="${k}">${a}</button>`).join("")}</div>
     <div class="tablo">
       ${l.length ? `<div class="satir bas"><span>Ürün</span><span class="s ek">Stok / ayda</span>${aktif.map(k=>`<span class="s">${DEPO_AD[k]}</span>`).join("")}</div>`
-        + l.map(u=>{ const en = depoEnIyi(u); return `<button class="satir" type="button" data-barkod="${kacis(u.b)}"><span class="ad">${depoYeni(u)?'<span class="etiket yakin" style="margin-right:6px">YENİ MF</span>':""}${kacis(u.ad||u.b)}${(()=>{ const o = depoOncelik(u); return o ? `<small style="display:block;color:${o.gun<15?"var(--kirmizi)":"var(--amber)"}">Ayda ${sayi(o.aylik)} satıyor · stok ${o.gun<999?o.gun+" gün":"—"} yeter · ${DEPO_AD[o.k]}'ta ${o.a}+${o.m} (%${Math.round(o.kazanc*100)} bedava)</small>` : ""; })()}${en?`<small style="display:block;color:var(--soluk)">en ucuz: ${DEPO_AD[en.k]} ${en.m?en.a+"+"+en.m+" ile ":""}tanesi ${para(kdvli(en.n,u))} (KDV dahil)</small>`:""}</span>
+        + l.map(u=>{ const en = depoEnIyi(u); return `<button class="satir" type="button" data-barkod="${kacis(u.b)}"><span class="ad">${depoYeni(u)?'<span class="etiket yakin" style="margin-right:6px">YENİ MF</span>':""}${kacis(u.ad||u.b)}${(()=>{ const o = depoOncelik(u); return o ? `<small style="display:block;color:${o.gun<15?"var(--kirmizi)":"var(--amber)"}">Ayda ${sayi(o.aylik)} satıyor · stok ${o.gun<999?o.gun+" gün":"—"} yeter · ${DEPO_AD[o.k]}'ta ${o.a}+${o.m} (%${Math.round(o.kazanc*100)} bedava)</small>` : ""; })()}${(()=>{ const h = mfOneri(u); return h ? `<small class="mf-h" style="display:block">${mfSatir(h.en,u)}</small>` : ""; })()}${en?`<small style="display:block;color:var(--soluk)">en ucuz: ${DEPO_AD[en.k]} ${en.m?en.a+"+"+en.m+" ile ":""}tanesi ${para(kdvli(en.n,u))} (KDV dahil)</small>`:""}</span>
             <span class="s ek">${sayi(u.st||0)} / ${sayi((u.a90||0)/3)}</span>${aktif.map(k=>depoHucre(u[k],en,k,u)).join("")}</button>`; }).join("")
         : `<div class="bos">Bu filtrede ürün yok.</div>`}
     </div>
-    <p class="alt-not" style="margin-top:10px">Fiyatlar kutu başı geliş fiyatıdır (MF ve iskonto dahil, KDV dahil). Vade (gün) depoya göre değişir; sipariş vermeden önce depo ekranından teyit edin.</p>`;
+    <p class="alt-not" style="margin-top:10px">MF hesabı: depolara ${VADE_AY} ay vadeyle ödendiği varsayılır; eldeki stokla birlikte ${VADE_AY} ayda satılan MF kendi parasını öder. Satış hızı son 3 ayın ortalamasıdır. Fiyatlar kutu başı geliş fiyatıdır (MF ve iskonto dahil, KDV dahil). Vade (gün) depoya göre değişir; sipariş vermeden önce depo ekranından teyit edin.</p>`;
   document.querySelectorAll("[data-df]").forEach(b=>b.addEventListener("click",()=>{ DEPO_FILTRE=b.dataset.df; depoSayfasi(); }));
   document.querySelectorAll("[data-barkod]").forEach(b=>b.addEventListener("click",()=>location.hash="urun/"+b.dataset.barkod));
 }
@@ -1113,6 +1166,9 @@ async function depoUrunSatiri(barkod){
           return `<div style="padding:2px 0;white-space:nowrap${iyi?";color:var(--yesil)":""}">${secenekAd(o)} → tanesi <b>${para(kdvli(o.n,u))}</b>${o.v!=null?` <small style="color:var(--soluk)">${o.v} gün</small>`:""}${SEPET_DEPOLAR.includes(k)?`<button class="sepet-d" type="button" data-sepet="${k}|${o.a}|${o.m||0}" title="Depo sepetine ekle">🛒</button>`:""}</div>`; }).join("") || "—"}</td></tr>`; }).join("");
     return `<div class="kutu-blok"><h2 class="baslik" style="margin:0">Depolarda <small style="font-weight:400;color:var(--soluk)">· ${tarihSaat(v.zaman)}</small></h2>
       <table class="miad-tablo"><thead><tr><th>Depo</th><th class="s">Depocu<br><small>KDV hariç</small></th><th>Kutu başı geliş <small>(KDV dahil)</small></th></tr></thead><tbody>${satirlar}</tbody></table>
+      ${(()=>{ const h = mfOneri(u); if(!h) return "";
+        return `<h3 style="margin:14px 0 4px;font-size:15px">MF hesabı <small style="font-weight:400;color:var(--soluk)">· vade ${VADE_AY} ay · stok ${sayi(u.st||0)} · ayda ~${sayi(h.en.aylik)} satıyor</small></h3>`
+          + h.hepsi.slice(0,6).map((x,i)=>`<div class="mf-h"${i===0&&x.karar==="al"?' style="background:var(--yesil-acik);border-radius:8px;padding:4px 8px"':""}>${i===0&&x.karar==="al"?"<b>Önerilen:</b> ":""}${mfSatir(x,u)}</div>`).join(""); })()}
       <p class="alt-not" style="margin-top:6px">KDV %${depoKdv(u)} ile hesaplandı. Depo ekranındaki iskonto ve vadeye göre küçük farklar olabilir.${SEPET_DEPOLAR.length?" 🛒 ile ürün o deponun sepetine eklenir.":""}</p>${await sepetGecmisi(barkod)}</div>`;
   } catch(e){ return ""; }
 }
@@ -1486,7 +1542,9 @@ async function taramaAc(){
     const o = karekodCoz(ham); if(!o){ alt.textContent = "Okunamadı, tekrar dene"; continue; }
     const adaylar = [...new Set([o.gtin, o.gtin.replace(/^0/,""), "0"+o.gtin.replace(/^0+/,"")])];
     const { data } = await db.from("urun_ozet").select("barkod").in("barkod", adaylar).limit(1);
-    if(!data || !data.length){ alt.innerHTML = `Bu ürün stok listesinde yok <small>(${kacis(o.gtin)})</small>`; continue; }
+    if(!data || !data.length){ alt.innerHTML = `Bu ürün stok listesinde yok <small>(${kacis(o.gtin)})</small> <button type="button" class="sepet-d" id="taraDepo">🏷️ Depolarda ara</button>`;
+      const g = o.gtin.replace(/^0(\d{13})$/,"$1"); const td = document.getElementById("taraDepo"); if(td) td.onclick = ()=>{ kapat(); location.hash = "depoara/"+g; };
+      continue; }
     if(navigator.vibrate) navigator.vibrate(60);
     SON_OKUTMA = { ...o, barkod: data[0].barkod, zaman: Date.now() };
     kapat(); const hedef = "urun/" + data[0].barkod;
@@ -1506,7 +1564,7 @@ async function sepetListe(){
 }
 const SEPET_DURUM = { bekliyor:"⏳ eczane bilgisayarına gönderildi", sepette:"✓ sepete eklendi", hata:"✗ eklenemedi" };
 async function sepetGecmisi(barkod){
-  try { const l = (await sepetListe()).filter(x=>x.barkod===barkod && Date.now()-new Date(x.zaman) < 3*864e5).slice(-4).reverse();
+  try { const l = (await sepetListe()).filter(x=>x.tip!=="ara" && x.barkod===barkod && Date.now()-new Date(x.zaman) < 3*864e5).slice(-4).reverse();
     if(!l.length) return "";
     return `<div style="margin-top:8px;font-size:13px">${l.map(x=>`<div style="color:${x.durum==="sepette"?"var(--yesil)":x.durum==="hata"?"var(--kirmizi)":"var(--amber)"}">${DEPO_AD[x.depo]||x.depo} · ${x.m?x.a+"+"+x.m:x.a+" adet"} ×${x.kat} — ${SEPET_DURUM[x.durum]||x.durum}${x.mesaj&&x.durum!=="sepette"?" ("+kacis(x.mesaj)+")":""} <small style="color:var(--soluk)">${tarihSaat(x.zaman)}</small></div>`).join("")}</div>`;
   } catch(e){ return ""; }
@@ -1549,6 +1607,70 @@ $("#sepetFormu").addEventListener("submit", async e => {
   sepetNot("⏳ Eczane bilgisayarından henüz cevap gelmedi. Bilgisayar ve Chrome açık mı?", 10000);
 });
 
+/* ---------- DEPOLARDA ARA: ad ya da barkodla bütün depolarda arar (elde olmayan ürünler dahil) ----------
+   istek ayar.sepet_istek listesine {tip:"ara"} olarak yazılır; eczane bilgisayarı depolarda arar,
+   sonucu depo depo ayar.depo_ara_sonuc'a yazar. Sadece okur; sepete eklemek için 🛒'a basılır. */
+let DEPO_ARA_NO = 0;
+async function depoAraSonucOku(id){
+  const { data } = await db.from("ayar").select("deger").eq("anahtar","depo_ara_sonuc").maybeSingle();
+  try { return ((data && JSON.parse(data.deger).liste) || []).find(x=>x.id===id) || null; } catch(e){ return null; }
+}
+const DA_DURUM = {
+  giris: k => `${DEPO_AD[k]} oturumu kapalı — eczane bilgisayarındaki Chrome'da ${DEPO_AD[k]} sitesine bir kez giriş yapın.`,
+  dogrulama: k => `${DEPO_AD[k]} robot doğrulaması istiyor — eczane bilgisayarındaki Chrome'da ${DEPO_AD[k]} sekmesini açıp kutuyu işaretleyin.`,
+  eklenti_yok: k => `${DEPO_AD[k]} sitesine ulaşılamadı — eczane bilgisayarında Chrome kapalı ya da Depo Köprüsü eklentisi güncel değil.`,
+  hata: k => `${DEPO_AD[k]}'ta hata oluştu.` };
+function depoAraCiz(s, q){
+  const barkodla = /^\d{8,14}$/.test(q);
+  const sira = (s.sira && s.sira.length) ? s.sira : Object.keys(s.depolar||{});
+  const blok = k => {
+    const d = (s.depolar||{})[k];
+    if(!d) return `<div class="da-blok"><h2>${DEPO_AD[k]||k}</h2><div style="color:var(--soluk)">⏳ aranıyor…</div></div>`;
+    if(d.durum!=="ok") return `<div class="da-blok"><h2>${DEPO_AD[k]||k}</h2><div style="color:var(--amber)">⚠️ ${kacis((DA_DURUM[d.durum]||DA_DURUM.hata)(k))}${d.mesaj?` <small style="color:var(--soluk)">(${kacis(d.mesaj)})</small>`:""}</div></div>`;
+    const u = d.u || [];
+    if(!u.length) return `<div class="da-blok"><h2>⚪ ${DEPO_AD[k]||k}</h2><div style="color:var(--soluk)">${barkodla?"Bu barkodla bu depoda kaydı yok.":"Bu adla bu depoda ürün bulunamadı."}</div></div>`;
+    const varSay = u.filter(x=>x.s!==0).length;
+    return `<div class="da-blok"><h2>${varSay?"🟢":"🔴"} ${DEPO_AD[k]||k} <small style="font-weight:400;color:var(--soluk)">· ${u.length} ürün${u.length>varSay?`, ${u.length-varSay} tanesi stokta yok`:""}</small></h2>
+      ${u.map((x,i)=>{ const kd = x.k!=null ? Number(x.k) : 10; const sec = depoSecenekler(x);
+        const ben = (s.benim||{})[String(x.b||"").replace(/^0(\d{13})$/,"$1")];
+        return `<div class="da-urun"><b>${kacis(x.ad||x.b||"?")}</b>${x.b?` <small style="color:var(--soluk)">${kacis(x.b)}</small>`:""}
+          ${x.s===0?' <span style="color:var(--kirmizi);font-size:13px">· kayıtlı ama stokta yok</span>':' <span style="color:var(--yesil);font-size:13px">· stokta var</span>'}
+          ${ben?`<small style="display:block;color:var(--soluk)">Sende ${sayi(ben.stok)} kutu · ayda ~${sayi((ben.adet_90||0)/3)} satıyor</small>`:""}
+          ${sec.map(o=>`<div style="padding:2px 0;white-space:nowrap;font-size:14px">${secenekAd(o)} → tanesi <b>${para(o.n*(1+kd/100))}</b> <small style="color:var(--soluk)">KDV dahil${o.v!=null?` · ${o.v} gün`:""}</small>${x.b && SEPET_DEPOLAR.includes(k)?`<button class="sepet-d" type="button" data-dasepet="${k}|${i}|${o.a}|${o.m||0}" title="Depo sepetine ekle">🛒</button>`:""}</div>`).join("") || `<small style="color:var(--soluk)">fiyat yok</small>`}</div>`; }).join("")}</div>`;
+  };
+  $("#daSonuc").innerHTML = sira.map(blok).join("") + `<p class="alt-not">Fiyatlar depo ekranındaki net fiyattır (MF ve iskonto dahil). Sipariş vermeden önce depo ekranından teyit edin.</p>`;
+  document.querySelectorAll("[data-dasepet]").forEach(b=>b.addEventListener("click", ()=>{
+    const [k,i,a,m] = b.dataset.dasepet.split("|"); const x = s.depolar[k].u[+i];
+    sepetAc(k, String(x.b).replace(/^0(\d{13})$/,"$1"), x.ad||x.b, +a, +m); }));
+}
+async function depoAraSayfasi(q){
+  const no = ++DEPO_ARA_NO;
+  $("#depoDugme").classList.remove("aktif"); $("#hastaDugme").classList.remove("aktif");
+  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="history.length>1?history.back():location.hash=''">‹ Geri</button>
+    <div class="liste-ust"><div><h1>Depolarda: “${kacis(q)}”</h1><p id="daDurum">⏳ Eczane bilgisayarına soruluyor… genelde 30 sn – 1 dk sürer.</p></div></div>
+    <div id="daSonuc"></div>`;
+  const id = "a" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  try {
+    const l = await sepetListe();
+    l.push({ id, tip:"ara", q, durum:"bekliyor", zaman:new Date().toISOString() });
+    const { error } = await db.from("ayar").upsert({ anahtar:"sepet_istek", deger: JSON.stringify({ liste: l.slice(-60) }), guncelleme: new Date().toISOString() }, { onConflict:"anahtar" });
+    if(error) throw error;
+  } catch(err){ $("#daDurum").textContent = "✗ İstek gönderilemedi: " + (err.message||err); return; }
+  let benim = null;
+  for(let i=0;i<80;i++){
+    await new Promise(r=>setTimeout(r,3000));
+    if(no!==DEPO_ARA_NO || !decodeURIComponent(location.hash).startsWith("#depoara/")) return;
+    let s; try { s = await depoAraSonucOku(id); } catch(e){ continue; }
+    if(!s) continue;
+    const bl = [...new Set(Object.values(s.depolar||{}).flatMap(d=>(d.u||[]).map(x=>String(x.b||"").replace(/^0(\d{13})$/,"$1"))).filter(b=>/^\d{8,14}$/.test(b)))];
+    if(!benim || bl.some(b=>!(b in benim))){ benim = benim || {}; for(const b of bl) if(!(b in benim)) benim[b] = null;
+      try { const { data } = await db.from("urun_ozet").select("barkod,stok,adet_90").in("barkod", [...bl, ...bl.map(b=>"0"+b)]); for(const r of data||[]) benim[r.barkod.replace(/^0(\d{13})$/,"$1")] = r; } catch(e){} }
+    s.benim = benim; depoAraCiz(s, q);
+    if(s.bitti){ $("#daDurum").textContent = `${tarihSaat(s.zaman)} itibarıyla depo ekranlarından alındı.`; return; }
+    $("#daDurum").textContent = "⏳ Diğer depolar aranıyor…";
+  }
+  $("#daDurum").textContent = "⏳ Eczane bilgisayarından cevap gelmedi. Bilgisayar ve Chrome açık mı?";
+}
 
 // program açılınca: şifre bu oturumda girildiyse rozeti arka planda güncelle
 async function hRozetArkaPlan(){
