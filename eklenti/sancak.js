@@ -44,6 +44,32 @@
     return { durum: "ok", sonuc };
   }
 
+  // ---- DEPOLARDA ARA: ad ya da barkodla arama (sitedeki arama kutusu gibi). Sadece okur.
+  async function araQ(q) {
+    if (dogrulamaVar(document, document.title)) return { durum: "dogrulama" };
+    if (girisSayfasi()) return { durum: "giris" };
+    const jt = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+    const bas = { "Content-Type": "application/json; charset=utf-8", "X-Requested-With": "XMLHttpRequest" };
+    if (jt) { bas["RequestVerificationToken"] = jt; bas["__RequestVerificationToken"] = jt; }
+    try {
+      const r = await fetch("/Sales/QuickSearchItems", {
+        method: "POST", credentials: "include", headers: bas,
+        body: JSON.stringify({ Key: String(q).replace(/^0(\d{13})$/, "$1"), SearchType: 0, StockType: 0, Page: 1, CacheForCampaign: false, ItemScope: "0" })
+      });
+      const ct = r.headers.get("content-type") || "";
+      if (r.status === 401 || r.status === 403) return { durum: "giris" };
+      if (!ct.includes("json")) {
+        const t = await r.text();
+        if (dogrulamaVar(null, t)) return { durum: "dogrulama" };
+        if (/type=["']?password/i.test(t) || /login|giris|account/i.test(r.url)) return { durum: "giris" };
+        return { durum: "hata", mesaj: "beklenmeyen cevap " + r.status };
+      }
+      const j = await r.json();
+      const v = j.Value || j.value || j.Items || j.items || (Array.isArray(j) ? j : []);
+      return { durum: "ok", u: (Array.isArray(v) ? v : []).slice(0, 12) };
+    } catch (e) { return { durum: "hata", mesaj: String((e && e.message) || e) }; }
+  }
+
   function giris(g) {
     // g: { alanAdi: deger } — toplayıcının şifreli kayıtlı bilgisi (depo.dat). Sadece giriş formunu doldurur.
     const sifre = document.querySelector('input[type="password"]');
@@ -104,6 +130,7 @@
 
   chrome.runtime.onMessage.addListener((m, _s, cevap) => {
     if (m.tip === "sepet" && m.depo === "sn") { sepet(m.kalemler).then(cevap, e => cevap({ durum: "hata", mesaj: String(e) })); return true; }
+    if (m.tip === "araq" && m.depo === "sn") { araQ(m.q).then(cevap, e => cevap({ durum: "hata", mesaj: String(e) })); return true; }
     if (m.tip === "ara" && (m.depo || "sn") === "sn") { ara(m.barkodlar).then(cevap, e => cevap({ durum: "hata", mesaj: String(e) })); return true; }
     if (m.tip === "giris") { cevap({ tamam: giris(m.giris) }); return false; }
   });

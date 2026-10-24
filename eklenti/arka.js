@@ -9,7 +9,7 @@ let calisiyor = false;
 function alarmKur() { chrome.alarms.create("yokla", { periodInMinutes: 0.5 }); }
 chrome.runtime.onInstalled.addListener(alarmKur);
 chrome.runtime.onStartup.addListener(alarmKur);
-chrome.alarms.onAlarm.addListener(a => { if (a.name === "yokla") { yokla(); sepetYokla(); } });
+chrome.alarms.onAlarm.addListener(a => { if (a.name === "yokla") { yokla(); sepetYokla(); araYokla(); } });
 
 const bekle = ms => new Promise(r => setTimeout(r, ms));
 
@@ -113,4 +113,31 @@ async function sepetYokla() {
       try { await fetch(SEPET + "/sonuc", { method: "POST", body: JSON.stringify(c || { durum: "hata", mesaj: "depo sekmesi cevap vermedi" }) }); } catch { }
     }
   } finally { sepetCalisiyor = false; }
+}
+
+// ---- "Depolarda ara" işleri (sitedeki arama; toplayıcı 127.0.0.1:47813'te açar). Sadece arar ve okur.
+const ARA = "http://127.0.0.1:47813";
+let araCalisiyor = false;
+async function araYokla() {
+  if (araCalisiyor) return;
+  araCalisiyor = true;
+  try {
+    for (let tur = 0; tur < 6; tur++) {
+      let is = null;
+      try { const r = await fetch(ARA + "/ara", { cache: "no-store" }); if (r.ok) is = await r.json(); } catch { }
+      if (!is || !is.depo) return;
+      let c = null, sekme = null, yenilendi = false, girisDenendi = false;
+      for (let deneme = 0; deneme < 3; deneme++) {
+        try { sekme = await depoSekmesi(is.depo, is.adres); c = await sekmeyeSor(sekme.id, { tip: "araq", depo: is.depo, q: is.q }); } catch (e) { c = null; }
+        if (c && c.durum === "giris" && is.depo === "sn" && is.giris && !girisDenendi) {
+          girisDenendi = true; try { await sekmeyeSor(sekme.id, { tip: "giris", giris: is.giris }); } catch { }
+          await bekle(1500); await yuklenmesiniBekle(sekme.id); continue;
+        }
+        if ((!c || c.durum === "giris") && is.depo === "bek" && !yenilendi && sekme) { yenilendi = true; await chrome.tabs.reload(sekme.id); await yuklenmesiniBekle(sekme.id); await bekle(8000); continue; }
+        break;
+      }
+      const govde = c ? { depo: is.depo, durum: c.durum, mesaj: c.mesaj || "", u: c.u || [] } : { depo: is.depo, durum: is.depo === "bek" ? "giris" : "hata", mesaj: "depo sekmesi cevap vermedi", u: [] };
+      try { await fetch(ARA + "/sonuc", { method: "POST", body: JSON.stringify(govde) }); } catch { }
+    }
+  } finally { araCalisiyor = false; }
 }

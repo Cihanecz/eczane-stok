@@ -39,6 +39,21 @@
     return { durum: "ok", sonuc };
   }
 
+  // ---- DEPOLARDA ARA: ad ya da barkodla arama, bulunan ürünlerin kartını okur. Sadece okur.
+  async function araQ(q) {
+    try {
+      const s = await istek("/MainService/api/rfc/mat/sm?ST=" + encodeURIComponent(String(q).replace(/^0(\d{13})$/, "$1")) + "&TYP=3");
+      const l = ((s && s.ET_MAKTX) || []).filter(x => x && x.MATNR).slice(0, 8);
+      const u = [];
+      for (const x of l) {
+        await bekle(250);
+        let d = null; try { d = await istek("/MainService/api/rfc/mat/ms?MATNR=" + encodeURIComponent(x.MATNR), {}); } catch (e) { if (e && e.giris) throw e; }
+        u.push({ sm: x, ms: d });
+      }
+      return { durum: "ok", u };
+    } catch (e) { if (e && e.giris) return { durum: "giris" }; return { durum: "hata", mesaj: String((e && e.message) || e) }; }
+  }
+
   // ---- SEPETE EKLE: depo ekranında elle yapılanın aynısı (ürün sayfası → adet → "Siparişe Ekle"). Siparişi tamamlamaz.
   const dugmeBul = () => [...document.querySelectorAll("button")].find(x => /Sipari/i.test(x.textContent) && /Ekle/i.test(x.textContent));
   const adetKutusu = d => [...document.querySelectorAll("input")].filter(i => d && (i.compareDocumentPosition(d) & 4) && /^\d+$/.test(i.value)).pop();
@@ -89,6 +104,11 @@
     if (m.tip === "sepet" && m.depo === "bek") {
       if (!anahtar().token) return false;
       sepet(m.kalemler).then(cevap, e => cevap({ durum: "hata", mesaj: String(e) }));
+      return true;
+    }
+    if (m.tip === "araq" && m.depo === "bek") {
+      if (!anahtar().token) return false;
+      araQ(m.q).then(cevap, e => cevap({ durum: "hata", mesaj: String(e) }));
       return true;
     }
     if (m.tip !== "ara" || m.depo !== "bek") return false;
