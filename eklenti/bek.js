@@ -117,3 +117,9 @@
     return true;
   });
 })();
+
+// Nabız: arka plana 1,5 sn'de bir haber verir (sepet / arama işi beklemesin). Sadece en üst çerçeveden.
+(() => {
+  if (window.top !== window || window.__ezNabiz) return; window.__ezNabiz = true;
+  const t = setInterval(() => { try { chrome.runtime.sendMessage({ tip: "nabiz" }).catch(() => {}); } catch (e) { clearInterval(t); } }, 1500);
+})();

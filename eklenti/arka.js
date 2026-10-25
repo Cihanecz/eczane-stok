@@ -10,6 +10,9 @@ function alarmKur() { chrome.alarms.create("yokla", { periodInMinutes: 0.5 }); }
 chrome.runtime.onInstalled.addListener(alarmKur);
 chrome.runtime.onStartup.addListener(alarmKur);
 chrome.alarms.onAlarm.addListener(a => { if (a.name === "yokla") { yokla(); sepetYokla(); araYokla(); } });
+// Açık depo sekmesi 1,5 sn'de bir "nabız" gönderir: sepet ve arama işlerine 30 sn beklemeden hemen bakılır
+let sonNabiz = 0;
+chrome.runtime.onMessage.addListener(m => { if (m && m.tip === "nabiz") { const s = Date.now(); if (s - sonNabiz < 1200) return; sonNabiz = s; sepetYokla(); araYokla(); } });
 
 const bekle = ms => new Promise(r => setTimeout(r, ms));
 
