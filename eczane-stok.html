@@ -1093,12 +1093,12 @@ function mfOneri(u){
   l.sort((x,y)=>(sira[x.karar]-sira[y.karar]) || (y.kazanc-x.kazanc) || (x.erime-y.erime));
   return { en: l[0], hepsi: l };
 }
-const MF_KARAR = { al:["✅","Al","var(--yesil)"], dikkat:["⚠️","Dikkat","var(--amber)"], alma:["❌","Alma","var(--kirmizi)"], satmiyor:["❌","Satmıyor","var(--kirmizi)"] };
+const MF_KARAR = { al:["✅","Al","var(--yesil)"], dikkat:["⚠️","Dikkat","var(--amber)"], alma:["⚠️","Dikkat","var(--amber)"], satmiyor:["⚠️","Dikkat","var(--amber)"] };
 const ayMetin = a => !isFinite(a) ? "—" : a < 1 ? `~${Math.max(1,Math.round(a*30))} günde` : `~${a.toLocaleString("tr-TR",{maximumFractionDigits:1})} ayda`;
 function mfSatir(h, u){
   const [s, ad, renk] = MF_KARAR[h.karar];
   const ek = h.karar==="dikkat" ? ` · vade gününde ~${sayi(Math.ceil(h.kalan))} kutu (${para(kdvli(h.rafta,u))}) rafta kalır`
-    : h.karar==="alma" ? " · vadeyi çok aşar, para bağlar" : h.karar==="satmiyor" ? " · son 3 ayda neredeyse hiç satmamış" : " · vadeden önce satılır, parası satıştan ödenir";
+    : h.karar==="alma" ? " · vadeyi çok aşar, para uzun süre rafta kalır" : h.karar==="satmiyor" ? " · son 3 ayda neredeyse hiç satmamış" : " · vadeden önce satılır, parası satıştan ödenir";
   return `<span style="color:${renk};white-space:nowrap">${s} <b>${ad}</b></span> — ${DEPO_AD[h.k]} <b>${h.a}+${h.m}</b>: ${sayi(h.kutu)} kutu${h.karar!=="satmiyor"?`, stokla birlikte ${ayMetin(h.erime)} erir`:""} · kutu %${Math.round(h.indirim*100)} ucuz${h.kazanc>0?` · kazanç ~${para(kdvli(h.kazanc,u))}`:""}${ek}`;
 }
 function depoMfMetin(d){ if(!d) return "—"; const m = (d.mf||[]).filter(o=>o.m>0); const u = [...new Set(m.map(o=>o.a+"+"+o.m))]; return u.length ? u.join(" ") : "MF yok"; }
@@ -1630,11 +1630,11 @@ function depoAraCiz(s, q){
     const u = d.u || [];
     if(!u.length) return `<div class="da-blok"><h2>⚪ ${DEPO_AD[k]||k}</h2><div style="color:var(--soluk)">${barkodla?"Bu barkodla bu depoda kaydı yok.":"Bu adla bu depoda ürün bulunamadı."}</div></div>`;
     const varSay = u.filter(x=>x.s!==0).length;
-    return `<div class="da-blok"><h2>${varSay?"🟢":"🔴"} ${DEPO_AD[k]||k} <small style="font-weight:400;color:var(--soluk)">· ${u.length} ürün${u.length>varSay?`, ${u.length-varSay} tanesi stokta yok`:""}</small></h2>
+    return `<div class="da-blok"><h2>${u.some(x=>x.s===1)?"🟢":varSay?"🔵":"🔴"} ${DEPO_AD[k]||k} <small style="font-weight:400;color:var(--soluk)">· ${u.length} ürün${u.length>varSay?`, ${u.length-varSay} tanesi stokta yok`:""}</small></h2>
       ${u.map((x,i)=>{ const kd = x.k!=null ? Number(x.k) : 10; const sec = depoSecenekler(x);
         const ben = (s.benim||{})[String(x.b||"").replace(/^0(\d{13})$/,"$1")];
         return `<div class="da-urun"><b>${kacis(x.ad||x.b||"?")}</b>${x.b?` <small style="color:var(--soluk)">${kacis(x.b)}</small>`:""}
-          ${x.s===0?' <span style="color:var(--kirmizi);font-size:13px">· kayıtlı ama stokta yok</span>':' <span style="color:var(--yesil);font-size:13px">· stokta var</span>'}
+          ${x.s===0?' <span style="color:var(--kirmizi);font-size:13px">· kayıtlı ama stokta yok</span>':x.s===1?' <span style="color:var(--yesil);font-size:13px">· stokta var</span>':' <span style="color:var(--soluk);font-size:13px">· stok bilgisi gelmedi</span>'}
           ${ben?`<small style="display:block;color:var(--soluk)">Sende ${sayi(ben.stok)} kutu · ayda ~${sayi((ben.adet_90||0)/3)} satıyor</small>`:""}
           ${sec.map(o=>`<div style="padding:2px 0;white-space:nowrap;font-size:14px">${secenekAd(o)} → tanesi <b>${para(o.n*(1+kd/100))}</b> <small style="color:var(--soluk)">KDV dahil${o.v!=null?` · ${o.v} gün`:""}</small>${x.b && SEPET_DEPOLAR.includes(k)?`<button class="sepet-d" type="button" data-dasepet="${k}|${i}|${o.a}|${o.m||0}" title="Depo sepetine ekle">🛒</button>`:""}</div>`).join("") || `<small style="color:var(--soluk)">fiyat yok</small>`}</div>`; }).join("")}</div>`;
   };

@@ -962,7 +962,7 @@ function SnCoz($liste, [string]$barkod) {
   if (-not $e) { $e = $l[0] }
   $tek = @(); foreach ($o in @($e.EQOffers)) { if ($o -and $o.Quantity -gt 0) { $np = if ($o.NetPrice) { $o.NetPrice } else { [double]$o.NetPriceWithTaxes / (1 + [double]$e.TaxRate / 100) }; $tek += [ordered]@{ a = $o.Quantity; m = $o.ExtraQuantity; n = [math]::Round([double]$np, 2); v = $o.DaysDue } } }
   $fiyat = foreach ($a in "SalesPrice","ListPrice") { if ($e.$a) { [double]$e.$a; break } }
-  [ordered]@{ d = [double]$fiyat; s = [int]([bool]$e.HasStock -or [bool]$e.IsAvailableForSales); k = $e.TaxRate; mf = $tek }
+  [ordered]@{ d = [double]$fiyat; s = $(if ([bool]$e.HasStock -or [bool]$e.IsAvailableForSales) { 1 } elseif ("$($e.NotAvailableMessage)") { 0 } else { $null }); k = $e.TaxRate; mf = $tek }
 }
 function JsonNesneler($o, [string]$alan) {
   # iç içe JSON içinde belirtilen alanı taşıyan nesneleri bulur
@@ -1115,7 +1115,10 @@ function AsAra([string]$q) {
   $null = Invoke-WebRequest "https://webdepo.asecza.com.tr/Siparis/hizlisiparis.aspx" -WebSession $ses -UseBasicParsing -TimeoutSec 60
   $u = DepoPost $ses "https://webdepo.asecza.com.tr/Siparis/hizlisiparis-ajax.aspx" @{ action = "GetUrunler"; searchText = $q; isInculude = "true"; isStoktakiler = "false"; siralama = "ilacASC"; marka = ""; baslangicSayfasi = "0"; topRowNum = "0"; sayfaMaxRowAdet = "10"; s = "s" }
   $out = New-Object System.Collections.ArrayList
-  foreach ($e in @($u.obj.urunler | Where-Object { $_ } | Select-Object -First 8)) {
+  if ($Asama -eq "aratest") { Log ("  ham cevap: " + ((ConvertTo-Json $u -Depth 3 -Compress) -replace '^(.{0,600}).*$', '$1')) }
+  $liste = New-Object System.Collections.ArrayList   # PS 5.1: JSON dizisi tek nesne gibi gelebilir → düzleştir
+  foreach ($x in $u.obj.urunler) { if ($x -is [array]) { foreach ($y in $x) { if ($y) { [void]$liste.Add($y) } } } elseif ($x) { [void]$liste.Add($x) } }
+  foreach ($e in @($liste | Select-Object -First 8)) {
     $d = $null; try { $d = (DepoPost $ses "https://webdepo.asecza.com.tr/Ilac/IlacGetir-ajax.aspx" @{ action = "GetIlacDetay"; kod = $e.kodu; isEsdeger = "false"; esdeger = ""; isJenerik = "false"; jenerikId = ""; tip = "null"; ILACTIP = $e.ILACTIP; kampKodu = "" }).obj } catch { }
     $mf = @(); $vade = $null
     if ($d) { foreach ($k in @($d.kampanyalar)) { if (-not $vade) { $vade = $k.vadeGun }; for ($i = 0; $i -lt @($k.miktar).Count; $i++) { if ($k.miktar[$i] -gt 0) { $mf += [ordered]@{ a = $k.miktar[$i]; m = $k.mf[$i]; n = [math]::Round([double]$k.netFiyati[$i], 2); v = $k.vadeGun } } } } }
@@ -1123,7 +1126,7 @@ function AsAra([string]$q) {
     $fiyat = if ($d) { [double]$d.depocuFiyati } else { 0 }
     [void]$out.Add([ordered]@{ ad = (IlkDeger @($d, $e) @("ilacAdi", "ilacAdı", "adi", "ad", "urunAdi", "ilac_adi", "name", "ilac")); b = $b; d = $fiyat; s = $(if ("$($e.stokDurumu)" -match '^[1-9]') { 1 } else { 0 }); v = $vade; mf = $mf })
   }
-  ,$out.ToArray()
+  $out.ToArray()
 }
 # Eklentili depolar (Sancak / BEK): Chrome eklentisi 127.0.0.1:47813'ten "ara" işini alır, depo sekmesinde arar
 function AraKopru([string[]]$araDepolar, [string]$q, $sonuc, [scriptblock]$yaz) {
@@ -1151,9 +1154,12 @@ function AraKopru([string[]]$araDepolar, [string]$q, $sonuc, [scriptblock]$yaz) 
           HttpYaz $st 200 '{"tamam":true}'
           $o = $r.govde | ConvertFrom-Json
           $k = if ("$($o.depo)") { "$($o.depo)" } else { $verilen }
+          if ($Asama -eq "aratest") { Log ("  ham {0}: {1}" -f $k, ((ConvertTo-Json @($o.u)[0] -Depth 4 -Compress) -replace '^(.{0,900}).*$', '$1')) }
           $u = New-Object System.Collections.ArrayList
           if ("$($o.durum)" -eq "ok") {
-            foreach ($x in @($o.u | Where-Object { $_ })) {
+            $ham = New-Object System.Collections.ArrayList
+            foreach ($x in $o.u) { if ($x -is [array]) { foreach ($y in $x) { if ($y) { [void]$ham.Add($y) } } } elseif ($x) { [void]$ham.Add($x) } }
+            foreach ($x in $ham) {
               try {
                 if ($k -eq "bek") {
                   $v = BekCoz @($x); if (-not $v) { continue }
@@ -1314,6 +1320,7 @@ try {
   if ($Asama -eq "kolay") { AsamaKolay; Log "Bitti."; $script:KOD = 0; return }
   if ($Asama -eq "yukle") { StokYukle; Log "Bitti."; return }
   if ($Asama -eq "kkyukle") { KarekodYukle; Log "Bitti."; return }
+  if ($Asama -eq "aratest") { $jt = Jeton; DepoAra ([pscustomobject]@{ id = "test"; q = $Bas }) $jt; $o = BulutOku "ayar?anahtar=eq.depo_ara_sonuc&select=deger" $jt; $x = @(($o[0].deger | ConvertFrom-Json).liste | Where-Object { $_.id -eq "test" })[0]; foreach ($p in $x.depolar.PSObject.Properties) { foreach ($u in @($p.Value.u)) { "{0,-4} {1,-45} {2,-14} d={3} s={4} mf={5}" -f $p.Name, "$($u.ad)".Substring(0, [Math]::Min(45, "$($u.ad)".Length)), $u.b, $u.d, $u.s, ((@($u.mf) | ForEach-Object { "$($_.a)+$($_.m)=$($_.n)" }) -join " ") } }; Log "Bitti."; return }   # deneme: toplayici.ps1 -Asama aratest -Bas "parol"
   if ($Asama -eq "gunluk") { Gunluk; Log "Bitti."; $script:KOD = 0; return }
   $p = RxSureci
   # elle çalıştırılınca konsol Rx'in önünde kalıp tıklamaları yutmasın: küçült (sonda geri açılır)
