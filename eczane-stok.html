@@ -313,6 +313,13 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 .nv-yildiz{border:0;background:none;font-size:22px;line-height:1;cursor:pointer;padding:4px;filter:grayscale(1);opacity:.35}
 .nv-yildiz.on{filter:none;opacity:1}
 @media (max-width:600px){.nv-satir{grid-template-columns:36px 1fr 46px 96px}.nv-satir .psf{display:none}}
+.nv-cipler{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 14px}
+.nv-cip{border:1px solid var(--cizgi);background:var(--yuzey);color:var(--murekkep);border-radius:999px;padding:7px 13px;font-size:14px;cursor:pointer}
+.nv-cip b{font-weight:600;color:var(--soluk);margin-left:2px}
+.nv-cip.on{background:var(--yesil);border-color:var(--yesil);color:#fff}
+.nv-cip.on b{color:#fff}
+.nv-bolum{font-size:17px;margin:22px 0 8px}
+.nv-bolum small{font-weight:400;font-size:13px;color:var(--soluk);margin-left:6px}
 .hrozet{background:var(--kirmizi);color:#fff;font-size:11px;font-weight:700;border-radius:999px;padding:1px 6px;min-width:18px;text-align:center}
 .hcipler{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
 .hcip{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:14px}
@@ -1269,11 +1276,41 @@ async function kategoriSonucu(q, t){
 
 /* =====================================================================
    NE VERELİM — "ağrı" yazınca endikasyonunda ağrı geçen, stokta olan ilaçlar.
-   Sıra: ⭐ öncelikli işaretliler, sonra miadı en yakın olandan uzağa.
+   Sonuçlar ilaç şekline göre bölümlere ayrılır (önce tablet/kapsül/şurup,
+   sonra krem, gargara, spreyler, damlalar…). Her bölümde: ⭐ öncelikliler,
+   sonra miadı en yakın olan. Üstteki düğmelerle bir ya da birkaç bölüm seçilir.
    Endikasyonlar Kolay Asistan etiketlerinden (ayar.kolay_etiket_veri).
    ⭐ işaretleri ayar.oncelikli_ver'de; tutar şifresi gerekmez, herkes işaretler.
    ===================================================================== */
-let NV = null, nvNo = 0, nvZaman;
+// İlaç şekilleri — sıra ekrandaki bölüm sırasıdır. Yeni şekil eklemek için bir satır eklemek yeter:
+//   k: kod · ad: başlık · ara: aramada bu kelimeler yazılırsa bu bölüm seçilir · bul: ilaç adı+endikasyonda aranan kalıp
+const NV_SEKIL = [
+  { k:"oral",   ad:"Tablet · kapsül · şurup", ara:["tablet","kapsul","surup","hap"],              bul:/tablet|kapsul|draje|surup|suspansiyon|efervesan|sase|granul|pastil|\boral\b|\btb\b|\bkap\b|cigneme|\btoz\b|damla|eliksir|solusyon|cozelti|\bftb\b|\bkase\b/ },
+  { k:"krem",   ad:"Krem · jel · merhem",     ara:["krem","jel","merhem","pomad"],                bul:/krem|\bjel\b|jel |merhem|pomad|pomat|losyon|kopuk|sampuan|\bsprey|spray|solusyon|\byag\b|emulsiyon|bant|band|flaster|plaster/ },
+  { k:"gargara",ad:"Gargara",                 ara:["gargara"],                                    bul:/gargara|agiz calkalama|agiz yikama/ },
+  { k:"bogaz",  ad:"Boğaz spreyi",            ara:["bogaz spreyi","bogaz spray","agiz spreyi"],   bul:/(sprey|spray).*(bogaz|agiz)|(bogaz|agiz).*(sprey|spray)/ },
+  { k:"burun",  ad:"Burun spreyi · damlası",  ara:["burun spreyi","burun damlasi","burun"],       bul:/burun|nazal|nasal/ },
+  { k:"goz",    ad:"Göz damlası · merhemi",   ara:["goz damlasi","goz merhemi","goz"],            bul:/\bgoz\b|oftalm/ },
+  { k:"kulak",  ad:"Kulak damlası",           ara:["kulak damlasi","kulak"],                      bul:/kulak|\botik\b/ },
+  { k:"fitil",  ad:"Fitil · ovül",            ara:["fitil","supozituar","ovul"],                  bul:/supozituar|suppozituar|supozituvar|suppozituvar|supozitar|fitil|\bovul|vajinal/ },
+  { k:"serum",  ad:"Serum",                   ara:["serum"],                                      bul:/serum/ },
+  { k:"igne",   ad:"İğne · ampul",            ara:["igne","ampul","enjeksiyon"],                  bul:/enjeksiyon|enjektabl|ampul|flakon|infuzyon|\bim\b|\biv\b|\bsc\b|kalem/ },
+  { k:"diger",  ad:"Diğer",                   ara:[],                                             bul:null }
+];
+// Kontrol sırası: önce belirgin olanlar (gargara, burun, göz…), en son genel tablet/krem kalıpları
+const NV_KONTROL = ["gargara","burun","goz","kulak","bogaz","serum","fitil","oralKesin","igne","krem","oral"];
+const NV_ORAL_KESIN = /\boral\b|surup|tablet|kapsul|draje|efervesan|\bsase|eliksir|pastil|cigneme|\bftb\b|\bkase\b/;
+function nvSekil(ad, en){
+  const t = " " + araMetni(ad) + " ", e = " " + araMetni(en) + " ";
+  for(const k of NV_KONTROL){ const s = NV_SEKIL.find(x=>x.k===k);
+    if(k==="oralKesin"){ if(NV_ORAL_KESIN.test(t)) return "oral"; continue; }
+    if(k==="serum"){ if(/ serum/.test(e) && !/serum icin/.test(e)) return "serum"; continue; }
+    if(k==="bogaz" || k==="burun" || k==="goz" || k==="kulak"){ if(s.bul.test(t) || (s.bul.test(e) && /sprey|spray|damla|merhem|pomad/.test(t))) return k; }
+    else if(s.bul.test(t)) return k; }
+  if(/\d ?ml\b/.test(t) && !/igne|siringa|perfuzyon|intraven/.test(t)) return "oral";   // ör. 150 ML şurup
+  return "diger";
+}
+let NV = null, nvNo = 0, nvZaman, nvSon = null, nvSecili = new Set();
 const nvAnahtar = b => String(b||"").replace(/^0+/,"");
 async function nvVeri(){
   if(NV) return NV;
@@ -1282,7 +1319,7 @@ async function nvVeri(){
   const v = data ? JSON.parse(data.deger) : { alanlar:[], l:[] };
   const i = n => v.alanlar.indexOf(n);
   const ib = i("barkod"), ia = i("ad"), ie = i("endikasyon");
-  NV = v.l.map(x=>({ k:nvAnahtar(x[ib]), ad:x[ia], en:x[ie]||"", ara:" "+araMetni(x[ie]+" "+x[ia]) }));
+  NV = v.l.map(x=>({ k:nvAnahtar(x[ib]), ad:x[ia], en:x[ie]||"", ara:" "+araMetni(x[ie]+" "+x[ia]), sk:nvSekil(x[ia], x[ie]) }));
   NV.harita = {}; for(const x of NV) NV.harita[x.k] = x;
   return NV;
 }
@@ -1294,46 +1331,68 @@ async function neVerelim(q){
   $("#nvDugme").classList.add("aktif");
   $("#icerik").innerHTML = `
     <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
-    <div class="liste-ust"><div><h1>💊 Ne Verelim?</h1><p>Şikâyeti ya da ilaç grubunu yaz (ağrı, öksürük, tansiyon…). Stokta olanlar çıkar: önce ⭐ öncelikliler, sonra miadı en yakın olan.</p></div></div>
-    <div class="nv-kutu"><span aria-hidden="true">🔎</span><input id="nvAra" type="search" placeholder="ör. ağrı" aria-label="Şikâyet ya da ilaç grubu" autocomplete="off"></div>
+    <div class="liste-ust"><div><h1>💊 Ne Verelim?</h1><p>Şikâyeti ya da ilaç grubunu yaz (ağrı kesici, öksürük, alerji…). Stokta olanlar şekline göre bölüm bölüm çıkar; her bölümde önce ⭐ öncelikliler, sonra miadı en yakın olan.</p></div></div>
+    <div class="nv-kutu"><span aria-hidden="true">🔎</span><input id="nvAra" type="search" placeholder="ör. ağrı kesici, gargara, göz damlası" aria-label="Şikâyet ya da ilaç grubu" autocomplete="off"></div>
+    <div id="nvCipler" class="nv-cipler"></div>
     <div id="nvSonuc"><div class="yukleniyor">Yükleniyor…</div></div>`;
   const inp = $("#nvAra"); inp.value = q || "";
-  inp.addEventListener("input", ()=>{ clearTimeout(nvZaman); nvZaman = setTimeout(()=>{ history.replaceState(null, "", "#neverelim/"+encodeURIComponent(inp.value)); nvListele(inp.value); }, 300); });
+  inp.addEventListener("input", ()=>{ clearTimeout(nvZaman); nvZaman = setTimeout(()=>{ history.replaceState(null, "", "#neverelim/"+encodeURIComponent(inp.value)); nvSecili = new Set(); nvListele(inp.value); }, 300); });
   $("#nvSonuc").addEventListener("click", nvTikla);
+  $("#nvCipler").addEventListener("click", e=>{ const c = e.target.closest("[data-sekil]"); if(!c) return; const k = c.dataset.sekil;
+    if(k==="hepsi") nvSecili = new Set(); else if(nvSecili.has(k)) nvSecili.delete(k); else nvSecili.add(k); nvCiz(); });
   if(!q) inp.focus();
-  nvListele(q || "");
+  nvSecili = new Set(); nvListele(q || "");
 }
 async function nvListele(q){
   const benim = ++nvNo, kutu = $("#nvSonuc"); if(!kutu) return;
   let veri, onc;
   try { [veri, onc] = await Promise.all([nvVeri(), nvOncelik()]); } catch(e){ return hataGoster(e); }
   if(benim !== nvNo) return;
+  $("#nvCipler").innerHTML = "";
   if(!veri.length){ kutu.innerHTML = `<div class="tablo"><div class="bos">Endikasyon listesi henüz yüklenmemiş.</div></div>`; return; }
-  const kel = araMetni(q).split(/\s+/).filter(w=>w.length>=2);
+  // yazılanın içindeki şekil kelimelerini (gargara, göz damlası…) ayıkla → o bölümler seçili gelir
+  let t = " " + araMetni(q) + " "; const yazilanSekil = new Set();
+  for(const s of NV_SEKIL) for(const a of [...s.ara].sort((x,y)=>y.length-x.length)) if(t.includes(" "+a+" ")){ yazilanSekil.add(s.k); t = t.replace(" "+a+" "," "); }
+  const kel = t.split(/\s+/).filter(w=>w.length>=2);
   let adaylar;
-  if(kel.length) adaylar = veri.filter(x=>kel.every(w=>x.ara.includes(" "+w) || x.ara.includes(w))).map(x=>x.k);
-  else adaylar = Object.keys(onc);
-  if(kel.length && !adaylar.length){ kutu.innerHTML = `<div class="tablo"><div class="bos">“${kacis(q)}” için endikasyon bulunamadı. Başka bir kelime dene (ör. ağrı, ateş, öksürük, alerji).</div></div>`; return; }
-  if(!kel.length && !adaylar.length){ kutu.innerHTML = `<div class="tablo"><div class="bos">Aramak için yukarıya yaz. ⭐ ile işaretlediğin ilaçlar burada da listelenir.</div></div>`; return; }
+  if(kel.length) adaylar = veri.filter(x=>kel.every(w=>x.ara.includes(w)) && (!yazilanSekil.size || yazilanSekil.has(x.sk)));
+  else if(yazilanSekil.size) adaylar = veri.filter(x=>yazilanSekil.has(x.sk));
+  else adaylar = Object.keys(onc).map(k=>veri.harita[k] || { k, en:"", sk:"diger" });
+  if(!adaylar.length){ kutu.innerHTML = `<div class="tablo"><div class="bos">${q.trim() ? `“${kacis(q)}” için ilaç bulunamadı. Başka bir kelime dene (ör. ağrı, ateş, öksürük, alerji).` : "Aramak için yukarıya yaz. ⭐ ile işaretlenen ilaçlar burada da listelenir."}</div></div>`; return; }
   kutu.innerHTML = `<div class="yukleniyor">Stok kontrol ediliyor…</div>`;
-  const barkodlar = []; for(const k of adaylar.slice(0, 2500)) barkodlar.push(k, "0"+k);
+  const barkodlar = []; for(const x of adaylar.slice(0, 3000)) barkodlar.push(x.k, "0"+x.k);
   const parca = []; for(let i=0;i<barkodlar.length;i+=200) parca.push(barkodlar.slice(i,i+200));
   const cev = await Promise.all(parca.map(p=>db.from("urun_ozet").select("barkod,ad,stok,en_yakin_miad,psf").in("barkod", p).gt("stok",0)));
   if(benim !== nvNo) return;
   const hata = cev.find(r=>r.error); if(hata) return hataGoster(hata.error);
   const gor = new Set(), l = [];
-  for(const r of cev.flatMap(r=>r.data||[])){ const k = nvAnahtar(r.barkod); if(gor.has(k)) continue; gor.add(k); const g = gunFarki(r.en_yakin_miad); l.push({ ...r, k, on: !!onc[k], en: (veri.harita[k]||{}).en || "", gec: g!==null && g<0 }); }
+  for(const r of cev.flatMap(r=>r.data||[])){ const k = nvAnahtar(r.barkod); if(gor.has(k)) continue; gor.add(k);
+    const v = veri.harita[k] || {}, g = gunFarki(r.en_yakin_miad);
+    l.push({ ...r, k, on: !!onc[k], en: v.en || "", sk: v.sk || nvSekil(r.ad, ""), gec: g!==null && g<0 }); }
   l.sort((a,b)=> (a.gec - b.gec) || (b.on - a.on) || (a.en_yakin_miad||"9999").localeCompare(b.en_yakin_miad||"9999") || (b.stok - a.stok));
-  const onSay = l.filter(x=>x.on).length, gecSay = l.filter(x=>x.gec).length, yakin = l.filter(x=>{ const g=gunFarki(x.en_yakin_miad); return g!==null && g>=0 && g<90; }).length;
-  kutu.innerHTML = l.length ? `
-    <p style="margin:0 0 10px;color:var(--soluk)">${l.length} ilaç stokta${onSay?` · ⭐ ${onSay} öncelikli`:""}${yakin?` · <b style="color:var(--kirmizi)">${yakin} tanesinin miadı 3 aydan az</b>`:""}${gecSay?` · ${gecSay} tanesinin kayıtlı miadı geçmiş (en altta)`:""}</p>
-    <div class="tablo"><div class="nv-satir bas"><span>⭐</span><span>İlaç</span><span class="s">Stok</span><span class="s">En yakın miat</span><span class="s psf">PSF</span></div>
-    ${l.map(r=>{ const g = gunFarki(r.en_yakin_miad);
-      const m = r.gec ? `<span class="etiket yakin" title="Kayıtlı en yakın miat geçmiş — rafı kontrol edin">GEÇMİŞ ${tarih(r.en_yakin_miad)}</span>` : r.en_yakin_miad ? `<span class="etiket ${g!==null&&g<90?"yakin":g!==null&&g<180?"orta":"uzak"}">${tarih(r.en_yakin_miad)}</span>` : `<span style="color:var(--soluk)">—</span>`;
-      return `<div class="nv-satir${r.on?" on":""}" data-barkod="${kacis(r.barkod)}"><button class="nv-yildiz${r.on?" on":""}" type="button" data-yildiz="${kacis(r.k)}" aria-label="${r.on?"Öncelikten çıkar":"Öncelikli yap"}" title="${r.on?"Öncelikten çıkar":"Öncelikli ver (herkes görür)"}">⭐</button>
-        <span class="ad">${kacis(r.ad)}<small>${kacis(r.en)}</small></span><span class="s">${sayi(r.stok)}</span><span class="s">${m}</span><span class="s psf">${tl(r.psf)}</span></div>`; }).join("")}</div>
-    <p class="alt-not" style="margin-top:12px">⭐ ile işaretlenen ilaç bu listede hep en üstte çıkar (elinde fazla olan, kârlı olan…). Herkes işaretleyip kaldırabilir. Miat: kırmızı 3 aydan az, sarı 6 aydan az. Miadı “—” olanların karekod kaydı yok. “GEÇMİŞ” yazanların kayıtlı miadı dolmuş, rafı kontrol edin.</p>`
-    : `<div class="tablo"><div class="bos">${kel.length ? `“${kacis(q)}” için ${adaylar.length} ilaç var ama hiçbiri stokta değil.` : "⭐ işaretli ilaçların hiçbiri şu an stokta değil."}</div></div>`;
+  nvSon = { q, l, bos: kel.length ? `“${kacis(q)}” için ${adaylar.length} ilaç var ama hiçbiri stokta değil.` : yazilanSekil.size ? "Bu bölümde stokta ilaç yok." : "⭐ işaretli ilaçların hiçbiri şu an stokta değil." };
+  nvSecili = new Set(yazilanSekil);
+  nvCiz();
+}
+function nvCiz(){
+  const kutu = $("#nvSonuc"), cip = $("#nvCipler"); if(!kutu || !nvSon) return;
+  const { l } = nvSon;
+  if(!l.length){ cip.innerHTML = ""; kutu.innerHTML = `<div class="tablo"><div class="bos">${nvSon.bos}</div></div>`; return; }
+  const say = {}; for(const r of l) say[r.sk] = (say[r.sk]||0) + 1;
+  const varOlan = NV_SEKIL.filter(s=>say[s.k]);
+  for(const k of [...nvSecili]) if(!say[k]) nvSecili.delete(k);
+  cip.innerHTML = varOlan.length > 1 || nvSecili.size ? `<button type="button" class="nv-cip${nvSecili.size?"":" on"}" data-sekil="hepsi">Hepsi <b>${l.length}</b></button>`
+    + varOlan.map(s=>`<button type="button" class="nv-cip${nvSecili.has(s.k)?" on":""}" data-sekil="${s.k}">${s.ad} <b>${say[s.k]}</b></button>`).join("") : "";
+  const goster = varOlan.filter(s=>!nvSecili.size || nvSecili.has(s.k));
+  const satir = r => { const g = gunFarki(r.en_yakin_miad);
+    const m = r.gec ? `<span class="etiket yakin" title="Kayıtlı en yakın miat geçmiş — rafı kontrol edin">GEÇMİŞ ${tarih(r.en_yakin_miad)}</span>` : r.en_yakin_miad ? `<span class="etiket ${g!==null&&g<90?"yakin":g!==null&&g<180?"orta":"uzak"}">${tarih(r.en_yakin_miad)}</span>` : `<span style="color:var(--soluk)">—</span>`;
+    return `<div class="nv-satir${r.on?" on":""}" data-barkod="${kacis(r.barkod)}"><button class="nv-yildiz${r.on?" on":""}" type="button" data-yildiz="${kacis(r.k)}" aria-label="${r.on?"Öncelikten çıkar":"Öncelikli yap"}" title="${r.on?"Öncelikten çıkar":"Öncelikli ver (herkes görür)"}">⭐</button>
+        <span class="ad">${kacis(r.ad)}<small>${kacis(r.en)}</small></span><span class="s">${sayi(r.stok)}</span><span class="s">${m}</span><span class="s psf">${tl(r.psf)}</span></div>`; };
+  kutu.innerHTML = goster.map(s=>{ const b = l.filter(r=>r.sk===s.k);
+      const yakin = b.filter(x=>{ const g=gunFarki(x.en_yakin_miad); return g!==null && g>=0 && g<90; }).length, on = b.filter(x=>x.on).length;
+      return `<h2 class="nv-bolum">${s.ad} <small>${b.length} ilaç${on?` · ⭐ ${on}`:""}${yakin?` · <b style="color:var(--kirmizi)">${yakin} tanesi 3 aydan az</b>`:""}</small></h2>
+      <div class="tablo"><div class="nv-satir bas"><span>⭐</span><span>İlaç</span><span class="s">Stok</span><span class="s">En yakın miat</span><span class="s psf">PSF</span></div>${b.map(satir).join("")}</div>`; }).join("")
+    + `<p class="alt-not" style="margin-top:12px">⭐ ile işaretlenen ilaç kendi bölümünde hep en üstte çıkar (elinde fazla olan, kârlı olan…). Herkes işaretleyip kaldırabilir. Miat: kırmızı 3 aydan az, sarı 6 aydan az. “—”: karekod kaydı yok. “GEÇMİŞ”: kayıtlı miadı dolmuş, rafı kontrol edin.</p>`;
 }
 async function nvTikla(e){
   const y = e.target.closest("[data-yildiz]");
@@ -1343,7 +1402,8 @@ async function nvTikla(e){
     if(onc[k]) delete onc[k]; else onc[k] = new Date().toISOString();
     const { error } = await db.from("ayar").upsert({ anahtar:"oncelikli_ver", deger: JSON.stringify(onc), guncelleme: new Date().toISOString() });
     if(error){ y.disabled = false; return alert("Kaydedilemedi: " + hataMetni(error)); }
-    const inp = $("#nvAra"); return nvListele(inp ? inp.value : "");
+    if(nvSon){ for(const r of nvSon.l) if(r.k===k) r.on = !!onc[k]; nvSon.l.sort((a,b)=> (a.gec - b.gec) || (b.on - a.on) || (a.en_yakin_miad||"9999").localeCompare(b.en_yakin_miad||"9999") || (b.stok - a.stok)); nvCiz(); }
+    return;
   }
   const s = e.target.closest("[data-barkod]"); if(s) location.hash = "urun/" + s.dataset.barkod;
 }
