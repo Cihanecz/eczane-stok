@@ -716,7 +716,9 @@ function gunlukGrafik(g){
 /* ---------- ana ekran ---------- */
 async function anaEkran(){
   yukleniyor();
-  const [a, pn] = await Promise.all([db.rpc("ana_ekran"), db.rpc("panel"), eczaneAdiYukle()]);
+  const [a, pn, , olu, hic] = await Promise.all([db.rpc("ana_ekran"), db.rpc("panel"), eczaneAdiYukle(),
+    stokToplam(()=>db.from("urun_ozet").select("stok_maliyet").gt("stok",0).or(OLU_FILTRE())),
+    stokToplam(()=>db.from("urun_ozet").select("stok_maliyet").gt("stok",0).is("son_satis",null).or(HIC_FILTRE()))]);
   if(a.error) return hataGoster(a.error);
   const o = a.data, P = pn.error ? null : pn.data;
   if(!o.stok_tarihi){
@@ -735,7 +737,8 @@ async function anaEkran(){
 
   const isler = [
     {k:"miad", renk:"var(--kirmizi)", ad:"Miadı 3 ay içinde dolacak", ac:"Önce bunları ver ya da iade et", sayi:o.miad_90_kutu, birim:"kutu", tl:o.miad_90_tl, tlNot:"PSF"},
-    {k:"olu", renk:"var(--amber)", ad:"6 aydır hiç satmayan", ac:"Rafta duran para", sayi:o.olu_kalem, birim:"ürün", tl:o.olu_tl, tlNot:"maliyet", gizli:true},
+    {k:"olu", renk:"var(--amber)", ad:"6 aydır hiç satmayan", ac:"Rafta duran para", sayi:olu?olu.kalem:o.olu_kalem, birim:"ürün", tl:olu?olu.tl:o.olu_tl, tlNot:"maliyet", gizli:true},
+    {k:"hic", renk:"#C2410C", ad:"Hiç satmayanlar", ac:"1 aydan uzun süredir elde, hiç satılmamış", sayi:hic?hic.kalem:null, birim:"ürün", tl:hic?hic.tl:null, tlNot:"maliyet", gizli:true},
     {k:"fazla", renk:"#D9A400", ad:"6 aydan uzun yetecek stok", ac:"Gereğinden fazla alınmış", sayi:o.fazla_kalem, birim:"ürün", tl:o.fazla_tl, tlNot:"maliyet", gizli:true},
     {k:"depo", renk:"#B48CF2", ad:"MF fırsatları", ac:"Çok sattığın ve stoğu azalan ürünlerde depoda MF var", sayi:null},
     {k:"kalacak", renk:"#F07FA8", ad:"Bu hızla elde kalacak kutular", ac:"Satış hızına göre miadına kadar satılamayacaklar", sayi:null},
@@ -855,11 +858,16 @@ const LISTELER = {
     satir:r=>[`${kacis(r.ad||r.barkod)}<span class="kucuk">Parti ${kacis(r.parti_no||"—")}</span>`,
       `<span class="etiket ${miadSinifi(r.miad)||"ilk"}">${tarih(r.miad)}</span>`, sayi(r.kutu), tl(r.tutar_psf)],
     csv:r=>[r.ad,r.barkod,r.parti_no,r.miad,r.kutu,r.tutar_psf], csvBas:["Ürün","Barkod","Parti","Miat","Kutu","Tutar PSF"]},
-  olu:{ad:"6 aydır satmayanlar", ac:"Stokta olup son 6 ayda hiç satılmamış ürünler, en çok para bağlayan üstte.",
+  olu:{ad:"6 aydır satmayanlar", ac:"Stokta olup son 6 ayda hiç satılmamış ürünler, en çok para bağlayan üstte. Son 6 ayda alınıp henüz satılmamış olanlar burada değil, “Hiç satmayanlar” listesinde.",
     sutun:["Stok","Son satış","Maliyet"],
-    sorgu:()=>db.from("urun_ozet").select("*").gt("stok",0).or(`son_satis.is.null,son_satis.lt.${gunSonra(-180)}`).order("stok_maliyet",{ascending:false}).limit(500),
-    satir:r=>[urunHucre(r), sayi(r.stok), r.son_satis?tarih(r.son_satis):"Hiç", para(r.stok_maliyet)],
+    sorgu:()=>db.from("urun_ozet").select("*").gt("stok",0).or(OLU_FILTRE()).order("stok_maliyet",{ascending:false}).limit(500),
+    satir:r=>[urunHucre(r), sayi(r.stok), r.son_satis?tarih(r.son_satis):`Hiç <small style="color:var(--soluk)">(alış ${r.son_alis?tarih(r.son_alis):"kaydı yok"})</small>`, para(r.stok_maliyet)],
     csv:r=>[r.ad,r.barkod,r.stok,r.son_satis,paraCsv(r.stok_maliyet)], csvBas:["Ürün","Barkod","Stok","Son satış","Maliyet"]},
+  hic:{ad:"Hiç satmayanlar", ac:"Stokta olup kayıtlı satış verisinde (1 Ekim 2025'ten beri) hiç satılmamış, en az 1 aydır elde duran ürünler. En çok para bağlayan üstte.",
+    sutun:["Stok","Kaç gündür elde","Maliyet"],
+    sorgu:()=>db.from("urun_ozet").select("*").gt("stok",0).is("son_satis",null).or(HIC_FILTRE()).order("stok_maliyet",{ascending:false}).limit(500),
+    satir:r=>[urunHucre(r), sayi(r.stok), r.son_alis?`${sayi(-gunFarki(r.son_alis))} gün <small style="color:var(--soluk)">(${tarih(r.son_alis)})</small>`:"Eski stok", para(r.stok_maliyet)],
+    csv:r=>[r.ad,r.barkod,r.stok,r.son_alis||"",r.son_alis?-gunFarki(r.son_alis):"",paraCsv(r.stok_maliyet)], csvBas:["Ürün","Barkod","Stok","Son alış","Kaç gündür elde","Maliyet"]},
   fazla:{ad:"Fazla stok", ac:"Mevcut satış hızıyla 6 aydan uzun yetecek ürünler.",
     sutun:["Stok","Kaç ay yeter","Maliyet"],
     sorgu:()=>db.from("urun_ozet").select("*").gt("stok",0).gt("kac_ay_yeter",6).order("stok_maliyet",{ascending:false}).limit(500),
@@ -873,7 +881,7 @@ const LISTELER = {
   kalacak:{ad:"Bu hızla elde kalacak kutular", ac:"Satış hızına (mevsime göre) bakarak miadı dolana kadar satılamayacak kutular. Önce miadı en yakın olan satılır varsayılır. Tahmindir; iade ya da kampanya için erken uyarıdır.",
     sutun:["Miat","Kalacak / partide","Ayda satış","Tutar"],
     sorgu:()=>kalacakHesapla(),
-    satir:r=>[`${kacis(r.ad||r.barkod)}<span class="kucuk">Parti ${kacis(r.parti_no||"—")} · miada kadar ~${sayi(r.satilir)} satılır${r.mevsim?" (mevsime göre)":""}</span>`,
+    satir:r=>[`${kacis(r.ad||r.barkod)}<span class="kucuk">Parti ${kacis(r.parti_no||"—")} (${sayi(r.kutu)} kutu) · miada kadar ~${sayi(r.kutu-r.kalacak)} kutu satarsın, <b style="color:var(--kirmizi)">${sayi(r.kalacak)} kutu elinde kalır</b>${r.mevsim?" (mevsime göre)":""}</span>`,
       `<span class="etiket ${miadSinifi(r.miad)||"ilk"}">${tarih(r.miad)}</span>`, `<b>${sayi(r.kalacak)}</b> / ${sayi(r.kutu)}`, sayi(r.aylik), r.maliyet!=null?para(r.kalacak*r.maliyet):tl(r.kalacak*(r.psf||0))+" <small>PSF</small>"],
     csv:r=>[r.ad,r.barkod,r.parti_no,r.miad,r.kutu,r.kalacak,Number(r.aylik).toFixed(1),r.maliyet!=null?paraCsv(r.kalacak*r.maliyet):""], csvBas:["Ürün","Barkod","Parti","Miat","Partideki kutu","Kalacak kutu","Aylık satış","Maliyet tutarı"]},
   kazandiran:{ad:"En çok kazandıranlar", ac:"Son 12 ayda en çok kâr bırakan ürünler.", kilitli:true,
@@ -882,6 +890,17 @@ const LISTELER = {
     satir:r=>[urunHucre(r), sayi(r.adet_365), tl(r.ciro_365), `<b>${tl(r.kar_365)}</b>`],
     csv:r=>[r.ad,r.barkod,r.adet_365,r.ciro_365,r.kar_365], csvBas:["Ürün","Barkod","Satılan","Ciro","Kâr"]},
 };
+// 6 aydır satmayan: son satışı 6 aydan eski, ya da hiç satmamış ve 6 aydan önce alınmış (alış kaydı yoksa eski stok)
+const OLU_FILTRE = () => `son_satis.lt.${gunSonra(-180)},and(son_satis.is.null,or(son_alis.is.null,son_alis.lt.${gunSonra(-180)}))`;
+// Hiç satmayan: hiç satış yok ve en az 1 aydır elde (alış kaydı yoksa eski stok)
+const HIC_FILTRE = () => `son_alis.is.null,son_alis.lt.${gunSonra(-30)}`;
+// Ana ekran kartları için kalem ve maliyet toplamı (sayfa sayfa okur)
+async function stokToplam(sorgu){
+  let kalem = 0, tl = 0;
+  for(let i=0;i<20000;i+=1000){ const { data, error } = await sorgu().range(i, i+999); if(error) return null;
+    for(const r of data){ kalem++; tl += Number(r.stok_maliyet)||0; } if(data.length < 1000) break; }
+  return { kalem, tl };
+}
 // Miadına kadar satılamayacak kutu tahmini: önce miadı en yakın parti satılır (FEFO).
 // Aylık hız: son 3 ay ortalaması; yeterli satış varsa son 12 ayın aylık dağılımıyla mevsime göre düzeltilir.
 async function kalacakHesapla(){
