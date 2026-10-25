@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Eczane Stok</title>
-<meta name="theme-color" content="#0B1210">
+<meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="ikon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="ikon-192.png">
@@ -13,13 +13,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#0B1210; --yuzey:#121C19; --yuzey2:#172420; --murekkep:#E7EFEB; --soluk:#8EA39A; --cizgi:#22322D; --hover:#1A2925;
-  --yesil:#3FBF8F; --yesil-koyu:#0F3B2E; --yesil-acik:#173A2E; --amber:#E3A33B; --amber-acik:#3A2C14;
-  --kirmizi:#F0645A; --kirmizi-acik:#3D1B19; --mavi:#5AA9F0; --mor:#B48CF2; --odak:#7FB8FF; --giris:#0E1715;
+  --bg:#F3F6F5; --yuzey:#FFFFFF; --yuzey2:#F6F9F8; --murekkep:#1C2B33; --soluk:#66767E; --cizgi:#E0E7E4; --hover:#EEF4F1;
+  --yesil:#0F8A5F; --yesil-koyu:#B9DFCD; --yesil-acik:#E7F5EE; --amber:#B26A00; --amber-acik:#FFF3DF;
+  --kirmizi:#D3433B; --kirmizi-acik:#FDECEB; --mavi:#2B78C8; --mor:#7A52C4; --odak:#2B78C8; --giris:#EAF2EE;
+  --golge:0 1px 2px rgba(20,40,32,.06),0 2px 8px rgba(20,40,32,.05);
 }
 *{box-sizing:border-box}
 html,body{margin:0}
-html{color-scheme:dark}
+html{color-scheme:light}
 body{background:var(--bg);color:var(--murekkep);font:16px/1.45 "Onest",system-ui,sans-serif;
   font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;min-height:100vh}
 button,input{font:inherit;color:inherit}
@@ -28,7 +29,7 @@ a{color:inherit}
 .gizli{display:none!important}
 
 /* ---------- üst çubuk ---------- */
-.ust{position:sticky;top:0;z-index:5;background:rgba(11,18,16,.86);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+.ust{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   border-bottom:1px solid var(--cizgi);padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top))}
 .ust-ic{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:12px}
 .marka{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;white-space:nowrap;
@@ -47,6 +48,15 @@ a{color:inherit}
 .tarayici .t-ust{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;color:#fff;font-weight:600}
 .tarayici .t-ust button{background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:8px 14px;font-size:15px}
 .tarayici .t-alt{position:absolute;bottom:0;left:0;right:0;padding:16px 16px 26px;text-align:center;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.75));font-size:15px}
+.dl{display:flex;flex-direction:column;gap:10px}
+.dl-s{display:block;width:100%;text-align:left;background:var(--yuzey);border:1px solid var(--cizgi);border-radius:14px;padding:12px 16px;cursor:pointer;box-shadow:var(--golge)}
+.dl-s:hover{border-color:var(--yesil-koyu);background:var(--hover)}
+.dl-ust{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+.dl-ad{font-weight:600;font-size:15px}
+.dl-meta{font-size:13px;color:var(--soluk);white-space:nowrap}
+.dl-oneri{margin-top:6px;font-size:14px;line-height:1.45}
+.dl-fiyat{margin-top:4px;font-size:12.5px;color:var(--soluk)}
+.dl-fiyat b{color:var(--murekkep);font-weight:600}
 .da-dugme{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--yesil-acik);border:1px solid var(--yesil-koyu);color:var(--yesil);border-radius:14px;padding:12px 16px;margin:0 0 14px;font-size:15px;font-weight:600;cursor:pointer}
 .da-dugme small{font-weight:400;color:var(--soluk)}
 .da-blok{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:16px;padding:14px 16px;margin-bottom:12px}
@@ -73,7 +83,7 @@ a{color:inherit}
 .alan{display:block;margin-bottom:14px}
 .alan span{display:block;font-size:14px;color:var(--soluk);margin-bottom:6px}
 .alan input{width:100%;padding:12px 14px;border:1px solid var(--cizgi);border-radius:10px;background:var(--giris)}
-.ana-dugme{width:100%;padding:13px;border:0;border-radius:10px;background:var(--yesil);color:#06231A;font-weight:700;cursor:pointer}
+.ana-dugme{width:100%;padding:13px;border:0;border-radius:10px;background:var(--yesil);color:#fff;font-weight:700;cursor:pointer}
 .ana-dugme:disabled{opacity:.6;cursor:default}
 .hata{color:var(--kirmizi);font-size:14px;min-height:20px;margin:4px 0 10px}
 
@@ -84,7 +94,7 @@ a{color:inherit}
 .kilitli:hover{color:var(--murekkep)}
 .kilit-kart{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .kilit-kart p{margin:0;color:var(--soluk);flex:1;min-width:200px}
-.perde{position:fixed;inset:0;background:rgba(3,8,6,.72);display:grid;place-items:center;padding:16px;z-index:50}
+.perde{position:fixed;inset:0;background:rgba(20,32,28,.45);display:grid;place-items:center;padding:16px;z-index:50}
 .perde form{width:100%;max-width:340px;background:var(--yuzey);border:1px solid var(--cizgi);border-radius:18px;padding:24px 22px}
 .perde h2{margin:0 0 6px;font-size:20px}
 .perde p{margin:0 0 16px;color:var(--soluk);font-size:14px}
@@ -94,6 +104,15 @@ a{color:inherit}
 .izgara.cift{grid-template-columns:1fr 1fr}
 @media (max-width:760px){.izgara.cift{grid-template-columns:1fr}}
 @media (max-width:520px){.ek-yazi{display:none}}
+/* telefonda üst çubuk iki satır: marka + düğmeler üstte, arama kutusu altta tam genişlik */
+@media (max-width:640px){
+  .ust-ic{flex-wrap:wrap;gap:8px}
+  .ust-ic .marka span{display:inline}
+  .ara-kutu{order:9;flex:1 1 100%;max-width:none;margin-left:0}
+  #hastaDugme{margin-left:auto}
+  .ust-dugme{padding:8px 10px}
+}
+@media (max-width:430px){ .ust-ic .marka span{display:none} }
 .ad-duzenle{background:none;border:0;color:var(--soluk);cursor:pointer;padding:0 4px;font-size:13px}
 .ad-duzenle:hover{color:var(--murekkep)}
 .metin-dugme{background:none;border:0;color:var(--soluk);text-decoration:underline;cursor:pointer;padding:8px 0 0;font-size:14px}
@@ -134,7 +153,7 @@ a{color:inherit}
 .lejant{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--soluk)}
 .lejant i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .cubuk-g rect.c{fill:var(--yesil-koyu)} .cubuk-g rect.k{fill:var(--yesil)}
-.cubuk-g:hover rect.c{fill:#185744}
+.cubuk-g:hover rect.c{fill:#93CDB2}
 .alis-cizgi{fill:none;stroke:var(--mavi);stroke-width:2}
 .alis-nokta{fill:var(--bg);stroke:var(--mavi);stroke-width:2}
 .ozet-uc{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--cizgi)}
@@ -208,7 +227,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 .bilgi span{display:block;font-size:13px;color:var(--soluk)}
 .bilgi b{display:block;font-size:20px;font-weight:600;margin-top:2px}
 .bilgi small{color:var(--soluk);font-size:13px}
-.kutu-blok{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:18px;padding:18px;margin-bottom:18px}
+.kutu-blok{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:18px;padding:18px;margin-bottom:18px;box-shadow:var(--golge)}
 .alt-not{color:var(--soluk);font-size:14px;margin-top:6px}
 
 /* Raf: her kare bir kutu, miadına göre sıralı */
@@ -311,7 +330,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 <!-- GİRİŞ -->
 <section id="girisEkrani" class="giris gizli">
   <form id="girisFormu" autocomplete="on">
-    <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#3FBF8F"/><path d="M16 9h8v7h7v8h-7v7h-8v-7H9v-8h7z" fill="#0B1210"/></svg>
+    <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#0F8A5F"/><path d="M16 9h8v7h7v8h-7v7h-8v-7H9v-8h7z" fill="#FFFFFF"/></svg>
     <h1>Eczane Stok</h1>
     <p>Devam etmek için giriş yap.</p>
     <label class="alan"><span>E-posta</span><input id="eposta" type="email" autocomplete="username" required></label>
@@ -326,7 +345,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
   <header class="ust">
     <div class="ust-ic">
       <button class="marka" id="eveDon" type="button" aria-label="Ana ekran">
-        <svg width="28" height="28" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#3FBF8F"/><path d="M16 9h8v7h7v8h-7v7h-8v-7H9v-8h7z" fill="#0B1210"/></svg>
+        <svg width="28" height="28" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#0F8A5F"/><path d="M16 9h8v7h7v8h-7v7h-8v-7H9v-8h7z" fill="#FFFFFF"/></svg>
         <span>Eczane Stok</span>
       </button>
       <div class="ara-kutu">
@@ -337,7 +356,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       <button class="ust-dugme hasta" id="hastaDugme" type="button" aria-label="Hasta takibi"><span>👥</span><span class="ek-yazi">Hastalar</span><b class="hrozet gizli" id="hastaRozet"></b></button>
       <button class="ust-dugme hasta" id="depoDugme" type="button" aria-label="Depolar"><span>🏷️</span><span class="ek-yazi">Depolar</span><b class="hrozet gizli" id="depoRozet"></b></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
-      <button class="ust-dugme" id="cikis" type="button">Çıkış</button>
+      <button class="ust-dugme" id="cikis" type="button" aria-label="Çıkış" title="Çıkış"><span>🚪</span><span class="ek-yazi">Çıkış</span></button>
     </div>
   </header>
   <main class="sayfa" id="icerik" tabindex="-1"></main>
@@ -607,7 +626,7 @@ const tlKisa = v => { v = Number(v||0); const a = Math.abs(v);
   if(a >= 1e3) return "₺" + Math.round(v/1e3).toLocaleString("tr-TR") + " bin";
   return tl(v); };
 const yuzde = (a,b) => b ? Math.round(a/b*100) : 0;
-const RENK_DEPO = ["#5AA9F0","#3FBF8F","#B48CF2","#E3A33B","#F07FA8","#6E8780"];
+const RENK_DEPO = ["#2B78C8","#1E9E6E","#B48CF2","#E3A33B","#F07FA8","#6E8780"];
 
 // Halka grafik: dilimler [{ad, deger, renk, link, ek}]
 function halka(dilimler, merkezB, merkezK, bicim){
@@ -663,9 +682,9 @@ function gunlukGrafik(g){
   const yol = p.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1)).join(" ");
   const son = p[p.length-1];
   return `<svg class="cizim gunluk" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Son 30 gün günlük ciro">
-    <defs><linearGradient id="gd" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3FBF8F" stop-opacity=".45"/><stop offset="1" stop-color="#3FBF8F" stop-opacity="0"/></linearGradient></defs>
-    <path d="${yol} L${W} ${H} L0 ${H} Z" fill="url(#gd)"/><path d="${yol}" fill="none" stroke="#3FBF8F" stroke-width="2"/>
-    <circle cx="${son[0]}" cy="${son[1]}" r="3.5" fill="#3FBF8F"/>
+    <defs><linearGradient id="gd" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0F8A5F" stop-opacity=".45"/><stop offset="1" stop-color="#0F8A5F" stop-opacity="0"/></linearGradient></defs>
+    <path d="${yol} L${W} ${H} L0 ${H} Z" fill="url(#gd)"/><path d="${yol}" fill="none" stroke="#0F8A5F" stroke-width="2"/>
+    <circle cx="${son[0]}" cy="${son[1]}" r="3.5" fill="#0F8A5F"/>
     ${g.map((x,i)=>`<rect x="${p[i][0]-W/g.length/2}" y="0" width="${W/g.length}" height="${H}" fill="transparent"><title>${tarih(x.gun)}: ${tl(x.ciro)} ciro, ${tl(x.kar)} kâr</title></rect>`).join("")}
   </svg>`;
 }
@@ -693,7 +712,7 @@ async function anaEkran(){
   const isler = [
     {k:"miad", renk:"var(--kirmizi)", ad:"Miadı 3 ay içinde dolacak", ac:"Önce bunları ver ya da iade et", sayi:o.miad_90_kutu, birim:"kutu", tl:o.miad_90_tl, tlNot:"PSF"},
     {k:"olu", renk:"var(--amber)", ad:"6 aydır hiç satmayan", ac:"Rafta duran para", sayi:o.olu_kalem, birim:"ürün", tl:o.olu_tl, tlNot:"maliyet", gizli:true},
-    {k:"fazla", renk:"#E3C04B", ad:"6 aydan uzun yetecek stok", ac:"Gereğinden fazla alınmış", sayi:o.fazla_kalem, birim:"ürün", tl:o.fazla_tl, tlNot:"maliyet", gizli:true},
+    {k:"fazla", renk:"#D9A400", ad:"6 aydan uzun yetecek stok", ac:"Gereğinden fazla alınmış", sayi:o.fazla_kalem, birim:"ürün", tl:o.fazla_tl, tlNot:"maliyet", gizli:true},
     {k:"depo", renk:"#B48CF2", ad:"MF fırsatları", ac:"Çok sattığın ve stoğu azalan ürünlerde depoda MF var", sayi:null},
     {k:"kalacak", renk:"#F07FA8", ad:"Bu hızla elde kalacak kutular", ac:"Satış hızına göre miadına kadar satılamayacaklar", sayi:null},
     {k:"bitiyor", renk:"var(--mavi)", ad:"Çok satıyor, bitmek üzere", ac:"2 haftadan az yetecek", sayi:o.bitiyor_kalem, birim:"ürün"},
@@ -706,9 +725,9 @@ async function anaEkran(){
     const ciro30 = g30.reduce((t,x)=>t+Number(x.ciro),0), kar30 = g30.reduce((t,x)=>t+Number(x.kar),0);
     const sk = kilitli() ? "kalem" : "tl";   // kilitliyken tutar yerine ürün sayısı
     const saglik = [
-      {ad:"Normal", deger:s.iyi?.[sk]||0, renk:"#3FBF8F"},
+      {ad:"Normal", deger:s.iyi?.[sk]||0, renk:"#1E9E6E"},
       {ad:"1 aydan az kaldı", deger:s.az?.[sk]||0, renk:"#5AA9F0", link:"bitiyor"},
-      {ad:"Fazla stok", deger:s.fazla?.[sk]||0, renk:"#E3C04B", link:"fazla"},
+      {ad:"Fazla stok", deger:s.fazla?.[sk]||0, renk:"#D9A400", link:"fazla"},
       {ad:"6 aydır satmayan", deger:s.olu?.[sk]||0, renk:"#E3863B", link:"olu"},
     ];
     const saglikToplam = saglik.reduce((t,d)=>t+Number(d.deger),0);
@@ -717,10 +736,10 @@ async function anaEkran(){
       {ad:"3 aydan az", deger:m.m3||0, renk:"#F0645A", link:"miad"},
       {ad:"3–6 ay", deger:m.m6||0, renk:"#E3A33B", link:"miad"},
       {ad:"6–12 ay", deger:m.m12||0, renk:"#9BCB6B"},
-      {ad:"1 yıldan fazla", deger:m.uzun||0, renk:"#3FBF8F"},
+      {ad:"1 yıldan fazla", deger:m.uzun||0, renk:"#1E9E6E"},
     ];
     const depolar = ilkN(P.depo,6).map((d,i)=>({ad:adKisalt(d.ad), deger:Number(d.tl), renk:RENK_DEPO[i%RENK_DEPO.length]}));
-    const tipler = ilkN(P.tip,5).map((d,i)=>({ad:d.ad.replace(/ Satış$/,""), deger:Number(d.tl), renk:["#3FBF8F","#5AA9F0","#B48CF2","#E3A33B","#6E8780"][i]}));
+    const tipler = ilkN(P.tip,5).map((d,i)=>({ad:d.ad.replace(/ Satış$/,""), deger:Number(d.tl), renk:["#1E9E6E","#2B78C8","#B48CF2","#E3A33B","#6E8780"][i]}));
     const miadToplam = miad.reduce((t,d)=>t+d.deger,0);
 
     const kilitKarti = `<div class="kart kilit-kart" style="margin-bottom:14px"><span style="font-size:22px">🔒</span>
@@ -1123,6 +1142,27 @@ function depoSnNot(v){
     return `<p style="color:${saat>=6?"var(--kirmizi)":"var(--amber)"};margin-top:4px">⚠️ ${yas}${kacis(neden)}</p>`;
   }).join("");
 }
+// Depolar listesinde tek ürün: ad + stok bilgisi / en mantıklı MF önerisi / depolarda tek kutu fiyatı
+function depoListeSatiri(u, aktif){
+  const aylik = (u.a90||0)/3, gun = aylik > 0 ? Math.round((u.st||0)/aylik*30) : null;
+  const gunRenk = gun==null ? "var(--soluk)" : gun < 15 ? "var(--kirmizi)" : gun < 30 ? "var(--amber)" : "var(--soluk)";
+  const h = mfOneri(u);
+  let oneri = `<span style="color:var(--soluk)">MF yok</span>`;
+  if(h){ const x = h.en, [s, ad, renk] = MF_KARAR[x.karar];
+    oneri = `<b style="color:${renk}">${s} ${ad}</b> · ${DEPO_AD[x.k]} <b>${x.a}+${x.m}</b> → kutu ${para(kdvli(x.n,u))}`
+      + (x.karar!=="satmiyor" ? ` · ${ayMetin(x.erime)} erir` : " · neredeyse hiç satmıyor")
+      + (x.kazanc>0 ? ` · kazanç ~${para(kdvli(x.kazanc,u))}` : "")
+      + (x.karar==="dikkat" ? ` <span style="color:var(--soluk)">(vadede ~${sayi(Math.ceil(x.kalan))} kutu kalır)</span>` : ""); }
+  const fiyat = aktif.map(k=>{ const d = u[k]; if(!d) return `${DEPO_AD[k]} —`;
+    if(d.s===0) return `${DEPO_AD[k]} <span style="color:var(--kirmizi)">stok yok</span>`;
+    const t = mfTaban(d); return `${DEPO_AD[k]} <b>${t ? para(kdvli(t,u)) : "—"}</b>`; }).join(" · ");
+  return `<button class="dl-s" type="button" data-barkod="${kacis(u.b)}">
+    <div class="dl-ust"><span class="dl-ad">${depoYeni(u)?'<span class="etiket yakin" style="margin-right:6px">YENİ MF</span>':""}${kacis(u.ad||u.b)}</span>
+      <span class="dl-meta">Stok ${sayi(u.st||0)} · ayda ${sayi(aylik)}${gun!=null?` · <span style="color:${gunRenk}">${gun} gün yeter</span>`:""}</span></div>
+    <div class="dl-oneri">${oneri}</div>
+    <div class="dl-fiyat">Tek kutu: ${fiyat}</div>
+  </button>`;
+}
 async function depoSayfasi(){
   yukleniyor(); $("#depoDugme").classList.add("aktif");
   let v; try { v = await depoYukle(true); } catch(e){ return hataGoster(e); }
@@ -1140,13 +1180,10 @@ async function depoSayfasi(){
     <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
     <div class="liste-ust"><div><h1>Depolar</h1><p>${kacis((v.depolar||[]).join(" · "))} · son güncelleme ${tarihSaat(v.zaman)} · en çok satan ${v.u.length} ürün</p>${depoSnNot(v)}</div></div>
     <div class="hcipler">${Object.entries(filtreler).map(([k,a])=>`<button class="hcip ${DEPO_FILTRE===k?"secili":""}" type="button" data-df="${k}">${a}</button>`).join("")}</div>
-    <div class="tablo">
-      ${l.length ? `<div class="satir bas"><span>Ürün</span><span class="s ek">Stok / ayda</span>${aktif.map(k=>`<span class="s">${DEPO_AD[k]}</span>`).join("")}</div>`
-        + l.map(u=>{ const en = depoEnIyi(u); return `<button class="satir" type="button" data-barkod="${kacis(u.b)}"><span class="ad">${depoYeni(u)?'<span class="etiket yakin" style="margin-right:6px">YENİ MF</span>':""}${kacis(u.ad||u.b)}${(()=>{ const o = depoOncelik(u); return o ? `<small style="display:block;color:${o.gun<15?"var(--kirmizi)":"var(--amber)"}">Ayda ${sayi(o.aylik)} satıyor · stok ${o.gun<999?o.gun+" gün":"—"} yeter · ${DEPO_AD[o.k]}'ta ${o.a}+${o.m} (%${Math.round(o.kazanc*100)} bedava)</small>` : ""; })()}${(()=>{ const h = mfOneri(u); return h ? `<small class="mf-h" style="display:block">${mfSatir(h.en,u)}</small>` : ""; })()}${en?`<small style="display:block;color:var(--soluk)">en ucuz: ${DEPO_AD[en.k]} ${en.m?en.a+"+"+en.m+" ile ":""}tanesi ${para(kdvli(en.n,u))} (KDV dahil)</small>`:""}</span>
-            <span class="s ek">${sayi(u.st||0)} / ${sayi((u.a90||0)/3)}</span>${aktif.map(k=>depoHucre(u[k],en,k,u)).join("")}</button>`; }).join("")
-        : `<div class="bos">Bu filtrede ürün yok.</div>`}
+    <div class="dl">
+      ${l.length ? l.map(u=>depoListeSatiri(u, aktif)).join("") : `<div class="tablo"><div class="bos">Bu filtrede ürün yok.</div></div>`}
     </div>
-    <p class="alt-not" style="margin-top:10px">MF hesabı: depolara ${VADE_AY} ay vadeyle ödendiği varsayılır; eldeki stokla birlikte ${VADE_AY} ayda satılan MF kendi parasını öder. Satış hızı son 3 ayın ortalamasıdır. Fiyatlar kutu başı geliş fiyatıdır (MF ve iskonto dahil, KDV dahil). Vade (gün) depoya göre değişir; sipariş vermeden önce depo ekranından teyit edin.</p>`;
+    <p class="alt-not" style="margin-top:12px">✅ Al: eldeki stokla birlikte ${VADE_AY} ayda (vade dolmadan) satılır, MF'nin parası satıştan çıkar. ⚠️ Dikkat: vadeyi aşar. Fiyatlar KDV dahil kutu başı geliş fiyatıdır; ayrıntı için ürüne dokunun.</p>`;
   document.querySelectorAll("[data-df]").forEach(b=>b.addEventListener("click",()=>{ DEPO_FILTRE=b.dataset.df; depoSayfasi(); }));
   document.querySelectorAll("[data-barkod]").forEach(b=>b.addEventListener("click",()=>location.hash="urun/"+b.dataset.barkod));
 }
