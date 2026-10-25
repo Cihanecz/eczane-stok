@@ -298,6 +298,21 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 /* ---------- hasta takibi ---------- */
 .ust-dugme.hasta{display:inline-flex;align-items:center;gap:6px;position:relative}
 .ust-dugme.hasta.aktif{border-color:var(--yesil);color:var(--yesil)}
+/* Ne Verelim: endikasyona göre stoktaki ilaçlar, ⭐ öncelikliler + yakın miat üstte */
+.nv-kutu{display:flex;align-items:center;gap:10px;background:var(--yuzey);border:2px solid var(--yesil);border-radius:14px;padding:4px 14px;margin:4px 0 16px;box-shadow:var(--golge)}
+.nv-kutu input{flex:1;border:0;outline:0;background:transparent;font-size:18px;padding:10px 0;color:var(--murekkep);min-width:0}
+.nv-satir{display:grid;grid-template-columns:40px 1fr 64px 118px 84px;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--cizgi);cursor:pointer}
+.nv-satir:last-child{border-bottom:0}
+.nv-satir:hover{background:var(--hover)}
+.nv-satir.bas{cursor:default;font-size:13px;color:var(--soluk);background:var(--yuzey2)}
+.nv-satir.on{background:#FFF8E1}
+.nv-satir.on:hover{background:#FFF1C9}
+.nv-satir .s{text-align:right;white-space:nowrap}
+.nv-satir .ad{font-weight:500;min-width:0}
+.nv-satir .ad small{display:block;font-weight:400;font-size:13px;color:var(--soluk)}
+.nv-yildiz{border:0;background:none;font-size:22px;line-height:1;cursor:pointer;padding:4px;filter:grayscale(1);opacity:.35}
+.nv-yildiz.on{filter:none;opacity:1}
+@media (max-width:600px){.nv-satir{grid-template-columns:36px 1fr 46px 96px}.nv-satir .psf{display:none}}
 .hrozet{background:var(--kirmizi);color:#fff;font-size:11px;font-weight:700;border-radius:999px;padding:1px 6px;min-width:18px;text-align:center}
 .hcipler{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
 .hcip{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:14px}
@@ -355,6 +370,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       </div>
       <button class="ust-dugme hasta" id="hastaDugme" type="button" aria-label="Hasta takibi"><span>👥</span><span class="ek-yazi">Hastalar</span><b class="hrozet gizli" id="hastaRozet"></b></button>
       <button class="ust-dugme hasta" id="depoDugme" type="button" aria-label="Depolar"><span>🏷️</span><span class="ek-yazi">Depolar</span><b class="hrozet gizli" id="depoRozet"></b></button>
+      <button class="ust-dugme hasta" id="nvDugme" type="button" aria-label="Ne verelim"><span>💊</span><span class="ek-yazi">Ne Verelim</span></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button" aria-label="Çıkış" title="Çıkış"><span>🚪</span><span class="ek-yazi">Çıkış</span></button>
     </div>
@@ -613,7 +629,8 @@ function yonlendir(){
   if(h.startsWith("liste/")) return liste(h.slice(6));
   if(h.startsWith("ara/")) return aramaSonucu(h.slice(4));
   if(h.startsWith("depoara/")) return depoAraSayfasi(h.slice(8));
-  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif");
+  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif");
+  if(h==="neverelim" || h.startsWith("neverelim/")) return neVerelim(h.slice(10));
   if(h==="hastalar") return hastaSayfasi();
   if(h==="depolar") return depoSayfasi();
   return anaEkran();
@@ -1251,6 +1268,87 @@ async function kategoriSonucu(q, t){
 }
 
 /* =====================================================================
+   NE VERELİM — "ağrı" yazınca endikasyonunda ağrı geçen, stokta olan ilaçlar.
+   Sıra: ⭐ öncelikli işaretliler, sonra miadı en yakın olandan uzağa.
+   Endikasyonlar Kolay Asistan etiketlerinden (ayar.kolay_etiket_veri).
+   ⭐ işaretleri ayar.oncelikli_ver'de; tutar şifresi gerekmez, herkes işaretler.
+   ===================================================================== */
+let NV = null, nvNo = 0, nvZaman;
+const nvAnahtar = b => String(b||"").replace(/^0+/,"");
+async function nvVeri(){
+  if(NV) return NV;
+  const { data, error } = await db.from("ayar").select("deger").eq("anahtar","kolay_etiket_veri").maybeSingle();
+  if(error) throw error;
+  const v = data ? JSON.parse(data.deger) : { alanlar:[], l:[] };
+  const i = n => v.alanlar.indexOf(n);
+  const ib = i("barkod"), ia = i("ad"), ie = i("endikasyon");
+  NV = v.l.map(x=>({ k:nvAnahtar(x[ib]), ad:x[ia], en:x[ie]||"", ara:" "+araMetni(x[ie]+" "+x[ia]) }));
+  NV.harita = {}; for(const x of NV) NV.harita[x.k] = x;
+  return NV;
+}
+async function nvOncelik(){
+  const { data } = await db.from("ayar").select("deger").eq("anahtar","oncelikli_ver").maybeSingle();
+  try { return data ? JSON.parse(data.deger) || {} : {}; } catch(e){ return {}; }
+}
+async function neVerelim(q){
+  $("#nvDugme").classList.add("aktif");
+  $("#icerik").innerHTML = `
+    <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
+    <div class="liste-ust"><div><h1>💊 Ne Verelim?</h1><p>Şikâyeti ya da ilaç grubunu yaz (ağrı, öksürük, tansiyon…). Stokta olanlar çıkar: önce ⭐ öncelikliler, sonra miadı en yakın olan.</p></div></div>
+    <div class="nv-kutu"><span aria-hidden="true">🔎</span><input id="nvAra" type="search" placeholder="ör. ağrı" aria-label="Şikâyet ya da ilaç grubu" autocomplete="off"></div>
+    <div id="nvSonuc"><div class="yukleniyor">Yükleniyor…</div></div>`;
+  const inp = $("#nvAra"); inp.value = q || "";
+  inp.addEventListener("input", ()=>{ clearTimeout(nvZaman); nvZaman = setTimeout(()=>{ history.replaceState(null, "", "#neverelim/"+encodeURIComponent(inp.value)); nvListele(inp.value); }, 300); });
+  $("#nvSonuc").addEventListener("click", nvTikla);
+  if(!q) inp.focus();
+  nvListele(q || "");
+}
+async function nvListele(q){
+  const benim = ++nvNo, kutu = $("#nvSonuc"); if(!kutu) return;
+  let veri, onc;
+  try { [veri, onc] = await Promise.all([nvVeri(), nvOncelik()]); } catch(e){ return hataGoster(e); }
+  if(benim !== nvNo) return;
+  if(!veri.length){ kutu.innerHTML = `<div class="tablo"><div class="bos">Endikasyon listesi henüz yüklenmemiş.</div></div>`; return; }
+  const kel = araMetni(q).split(/\s+/).filter(w=>w.length>=2);
+  let adaylar;
+  if(kel.length) adaylar = veri.filter(x=>kel.every(w=>x.ara.includes(" "+w) || x.ara.includes(w))).map(x=>x.k);
+  else adaylar = Object.keys(onc);
+  if(kel.length && !adaylar.length){ kutu.innerHTML = `<div class="tablo"><div class="bos">“${kacis(q)}” için endikasyon bulunamadı. Başka bir kelime dene (ör. ağrı, ateş, öksürük, alerji).</div></div>`; return; }
+  if(!kel.length && !adaylar.length){ kutu.innerHTML = `<div class="tablo"><div class="bos">Aramak için yukarıya yaz. ⭐ ile işaretlediğin ilaçlar burada da listelenir.</div></div>`; return; }
+  kutu.innerHTML = `<div class="yukleniyor">Stok kontrol ediliyor…</div>`;
+  const barkodlar = []; for(const k of adaylar.slice(0, 2500)) barkodlar.push(k, "0"+k);
+  const parca = []; for(let i=0;i<barkodlar.length;i+=200) parca.push(barkodlar.slice(i,i+200));
+  const cev = await Promise.all(parca.map(p=>db.from("urun_ozet").select("barkod,ad,stok,en_yakin_miad,psf").in("barkod", p).gt("stok",0)));
+  if(benim !== nvNo) return;
+  const hata = cev.find(r=>r.error); if(hata) return hataGoster(hata.error);
+  const gor = new Set(), l = [];
+  for(const r of cev.flatMap(r=>r.data||[])){ const k = nvAnahtar(r.barkod); if(gor.has(k)) continue; gor.add(k); l.push({ ...r, k, on: !!onc[k], en: (veri.harita[k]||{}).en || "" }); }
+  l.sort((a,b)=> (b.on - a.on) || (a.en_yakin_miad||"9999").localeCompare(b.en_yakin_miad||"9999") || (b.stok - a.stok));
+  const onSay = l.filter(x=>x.on).length, yakin = l.filter(x=>{ const g=gunFarki(x.en_yakin_miad); return g!==null && g<90; }).length;
+  kutu.innerHTML = l.length ? `
+    <p style="margin:0 0 10px;color:var(--soluk)">${l.length} ilaç stokta${onSay?` · ⭐ ${onSay} öncelikli`:""}${yakin?` · <b style="color:var(--kirmizi)">${yakin} tanesinin miadı 3 aydan az</b>`:""}</p>
+    <div class="tablo"><div class="nv-satir bas"><span>⭐</span><span>İlaç</span><span class="s">Stok</span><span class="s">En yakın miat</span><span class="s psf">PSF</span></div>
+    ${l.map(r=>{ const g = gunFarki(r.en_yakin_miad);
+      const m = r.en_yakin_miad ? `<span class="etiket ${g!==null&&g<90?"yakin":g!==null&&g<180?"orta":"uzak"}">${tarih(r.en_yakin_miad)}</span>` : `<span style="color:var(--soluk)">—</span>`;
+      return `<div class="nv-satir${r.on?" on":""}" data-barkod="${kacis(r.barkod)}"><button class="nv-yildiz${r.on?" on":""}" type="button" data-yildiz="${kacis(r.k)}" aria-label="${r.on?"Öncelikten çıkar":"Öncelikli yap"}" title="${r.on?"Öncelikten çıkar":"Öncelikli ver (herkes görür)"}">⭐</button>
+        <span class="ad">${kacis(r.ad)}<small>${kacis(r.en)}</small></span><span class="s">${sayi(r.stok)}</span><span class="s">${m}</span><span class="s psf">${tl(r.psf)}</span></div>`; }).join("")}</div>
+    <p class="alt-not" style="margin-top:12px">⭐ ile işaretlenen ilaç bu listede hep en üstte çıkar (elinde fazla olan, kârlı olan…). Herkes işaretleyip kaldırabilir. Miat: kırmızı 3 aydan az, sarı 6 aydan az. Miadı “—” olanların karekod kaydı yok.</p>`
+    : `<div class="tablo"><div class="bos">${kel.length ? `“${kacis(q)}” için ${adaylar.length} ilaç var ama hiçbiri stokta değil.` : "⭐ işaretli ilaçların hiçbiri şu an stokta değil."}</div></div>`;
+}
+async function nvTikla(e){
+  const y = e.target.closest("[data-yildiz]");
+  if(y){
+    e.stopPropagation(); y.disabled = true;
+    const k = y.dataset.yildiz, onc = await nvOncelik();
+    if(onc[k]) delete onc[k]; else onc[k] = new Date().toISOString();
+    const { error } = await db.from("ayar").upsert({ anahtar:"oncelikli_ver", deger: JSON.stringify(onc), guncelleme: new Date().toISOString() });
+    if(error){ y.disabled = false; return alert("Kaydedilemedi: " + hataMetni(error)); }
+    const inp = $("#nvAra"); return nvListele(inp ? inp.value : "");
+  }
+  const s = e.target.closest("[data-barkod]"); if(s) location.hash = "urun/" + s.dataset.barkod;
+}
+
+/* =====================================================================
    HASTA TAKİBİ — İlacı biten / raporu biten hastalar
    Hasta adı ve telefon şifreli saklanır: anahtar "hasta şifresi"nden
    türetilir (PBKDF2-SHA256), veri AES-CBC + HMAC-SHA256 ile şifrelidir.
@@ -1507,6 +1605,7 @@ function hSablonDuzenle(){
 }
 $("#hastaDugme").addEventListener("click", ()=>{ location.hash = "hastalar"; });
 $("#depoDugme").addEventListener("click", ()=>{ location.hash = "depolar"; });
+$("#nvDugme").addEventListener("click", ()=>{ location.hash = "neverelim"; });
 /* ---------- karekod / barkod okutma (telefon kamerası) ---------- */
 let SON_OKUTMA = null;
 // GS1 karekod: (01) GTIN 14 · (21) seri · (17) SKT YYMMDD · (10) parti
