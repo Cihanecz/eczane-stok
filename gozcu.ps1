@@ -35,13 +35,21 @@ function SepetBak {
     }
   } catch { $script:jt = $null }
 }
+# Sürekli açık sepet döngüsü (toplayici.ps1 -Asama sepetdongu): kapanırsa 15 sn içinde yeniden açılır
+function SepetDonguBak {
+  try {
+    if ($script:sepetPr -and -not $script:sepetPr.HasExited) { return }
+    if (-not (Test-Path (Join-Path $KOK "giris.dat"))) { return }
+    $script:sepetPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama sepetdongu" -WindowStyle Hidden -PassThru
+  } catch { }
+}
 Log "Gözcü başladı"
 $deneme = @{}
 $depoSon = [datetime]::MinValue
 $tur = 0
 while ($true) {
   # 60 sn'lik ana döngü; arada 15 sn'de bir sepet isteklerine bak
-  for ($k = 0; $k -lt 4; $k++) { Start-Sleep 15; SepetBak }
+  for ($k = 0; $k -lt 4; $k++) { SepetDonguBak; Start-Sleep 15 }
   # Depolar (Rx'e dokunmaz): depo bilgisi kayıtlıysa 08:00-21:00 arası saatte bir fiyat/MF çek
   $h = (Get-Date).Hour
   if ((Test-Path (Join-Path $KOK "depo.dat")) -and $h -ge 8 -and $h -lt 21 -and ((Get-Date) - $depoSon).TotalMinutes -ge 60) {
@@ -55,8 +63,8 @@ while ($true) {
   if (-not [GZ]::Var($RX_ANA)) { continue }                 # henüz giriş yapılmamış
   if (-not $deneme.ContainsKey($bugun)) { $deneme[$bugun] = @{ n = 0; son = [datetime]::MinValue } }
   $d = $deneme[$bugun]
-  if ($d.n -ge 3 -or ((Get-Date) - $d.son).TotalMinutes -lt 30) { continue }
-  if ($d.n -eq 0) { Log "Rx'e giriş görüldü, 90 sn sonra başlanacak"; Start-Sleep 90 }
+  if ($d.n -ge 6 -or ((Get-Date) - $d.son).TotalMinutes -lt 10) { continue }   # günde 6 deneme, 10 dk arayla
+  if ($d.n -eq 0) { Log "Rx'e giriş görüldü, 45 sn sonra başlanacak"; Start-Sleep 45 }
   $d.n++; $d.son = Get-Date
   $pr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama gunluk" -WindowStyle Hidden -PassThru -Wait
   Log "Toplayıcı bitti, çıkış kodu $($pr.ExitCode) (deneme $($d.n))"

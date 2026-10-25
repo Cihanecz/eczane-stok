@@ -1769,7 +1769,7 @@ async function taramaAc(){
 }
 $("#taraDugme").addEventListener("click", taramaAc);
 /* ---------- depo sepetine ekle (telefondan) ----------
-   istek ayar.sepet_istek'e yazılır; eczane bilgisayarındaki gözcü 15 sn içinde görür, Chrome eklentisi depo ekranında sepete ekler. */
+   istek ayar.sepet_istek'e yazılır; eczane bilgisayarındaki sepet döngüsü 1,5 sn içinde görür, Chrome eklentisi depo ekranında sepete ekler. */
 const SEPET_DEPOLAR = ["as","sn","bek"];
 let SEPET_SECIM = null;
 async function sepetListe(){
@@ -1810,9 +1810,9 @@ $("#sepetFormu").addEventListener("submit", async e => {
     const { error } = await db.from("ayar").upsert({ anahtar:"sepet_istek", deger: JSON.stringify({ liste: l.slice(-60) }), guncelleme: new Date().toISOString() }, { onConflict:"anahtar" });
     if(error) throw error;
   } catch(err){ return sepetNot("✗ İstek gönderilemedi: "+kacis(err.message||err), 6000); }
-  sepetNot(`⏳ ${DEPO_AD[s.depo]} sepetine ekleniyor… <small style="color:var(--soluk)">(eczane bilgisayarı yaklaşık 1 dk içinde ekler)</small>`);
-  for(let i=0;i<48;i++){
-    await new Promise(r=>setTimeout(r,5000));
+  sepetNot(`⏳ ${DEPO_AD[s.depo]} sepetine ekleniyor… <small style="color:var(--soluk)">(birkaç saniye)</small>`);
+  for(let i=0;i<90;i++){
+    await new Promise(r=>setTimeout(r, i<40 ? 1000 : 5000));
     try { const x = (await sepetListe()).find(y=>y.id===id); if(!x || x.durum==="bekliyor") continue;
       if(x.durum==="sepette") sepetNot(`✓ ${DEPO_AD[s.depo]} sepetine eklendi: ${kacis(s.ad)} ${s.m? (s.a*kat)+"+"+(s.m*kat) : (s.a*kat)+" adet"}`, 8000);
       else sepetNot(`✗ ${DEPO_AD[s.depo]} sepetine eklenemedi: ${kacis(x.mesaj||"")}`, 10000);
@@ -1862,7 +1862,7 @@ async function depoAraSayfasi(q){
   const no = ++DEPO_ARA_NO;
   $("#depoDugme").classList.remove("aktif"); $("#hastaDugme").classList.remove("aktif");
   $("#icerik").innerHTML = `<button class="geri" type="button" onclick="history.length>1?history.back():location.hash=''">‹ Geri</button>
-    <div class="liste-ust"><div><h1>Depolarda: “${kacis(q)}”</h1><p id="daDurum">⏳ Eczane bilgisayarına soruluyor… genelde 30 sn – 1 dk sürer.</p></div></div>
+    <div class="liste-ust"><div><h1>Depolarda: “${kacis(q)}”</h1><p id="daDurum">⏳ Eczane bilgisayarına soruluyor… genelde birkaç saniye sürer.</p></div></div>
     <div id="daSonuc"></div>`;
   const id = "a" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
   try {
@@ -1872,8 +1872,8 @@ async function depoAraSayfasi(q){
     if(error) throw error;
   } catch(err){ $("#daDurum").textContent = "✗ İstek gönderilemedi: " + (err.message||err); return; }
   let benim = null;
-  for(let i=0;i<80;i++){
-    await new Promise(r=>setTimeout(r,3000));
+  for(let i=0;i<120;i++){
+    await new Promise(r=>setTimeout(r, i<40 ? 1500 : 3000));
     if(no!==DEPO_ARA_NO || !decodeURIComponent(location.hash).startsWith("#depoara/")) return;
     let s; try { s = await depoAraSonucOku(id); } catch(e){ continue; }
     if(!s) continue;

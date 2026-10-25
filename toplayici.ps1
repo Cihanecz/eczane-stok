@@ -1028,8 +1028,7 @@ function SepetKopru([string]$depo, $kalemler) {
 # tek "kendi cep" şubesi dönerse SiparisEkle ile o şubeden eklenir; birden çok şube seçeneği çıkarsa eczacıya bırakılır.
 function SepetAS($kalemler) {
   $sonuc = @{}
-  $ses = DepoGiris "as"
-  $null = Invoke-WebRequest "https://webdepo.asecza.com.tr/Siparis/hizlisiparis.aspx" -WebSession $ses -UseBasicParsing -TimeoutSec 60
+  $ses = AsOturum
   $tr = [Globalization.CultureInfo]::GetCultureInfo("tr-TR")
   foreach ($k in $kalemler) {
     try {
@@ -1058,14 +1057,61 @@ function SepetAS($kalemler) {
   }
   $sonuc
 }
-function AsamaSepet {
-  $j = Jeton
+# AS oturumu süreç içinde saklanır (sepet döngüsünde her istekte yeniden giriş yapılmaz).
+# 4 dk'dan eskiyse sayfa açılarak yoklanır; oturum düşmüşse yeniden giriş yapılır.
+function AsOturum([switch]$Yeni) {
+  $sayfa = $DEPOLAR["as"].giris.TrimEnd('/') + "/Siparis/hizlisiparis.aspx"
+  if (-not $Yeni -and $script:asOt -and ((Get-Date) - $script:asOtZaman).TotalMinutes -lt 4) { return $script:asOt }
+  if (-not $Yeni -and $script:asOt) {
+    try { $r = Invoke-WebRequest $sayfa -WebSession $script:asOt -UseBasicParsing -TimeoutSec 30
+      if ($r.Content -notmatch '(?i)type\s*=\s*["'']?password') { $script:asOtZaman = Get-Date; return $script:asOt } } catch { }
+  }
+  $ses = DepoGiris "as"
+  $null = Invoke-WebRequest $sayfa -WebSession $ses -UseBasicParsing -TimeoutSec 60
+  $script:asOt = $ses; $script:asOtZaman = Get-Date
+  return $ses
+}
+# Aynı anda tek sepet işleyici: sürekli açık döngü ya da tek seferlik "-Asama sepet" (aynı isteği iki kez sepete eklememek için)
+function SepetKilitAl { $script:sKilit = New-Object Threading.Mutex($false, "Global\EczaneStokSepet"); try { return $script:sKilit.WaitOne(0) } catch [Threading.AbandonedMutexException] { return $true } }
+# Sürekli açık sepet döngüsü (gözcü başlatır): 1,5 sn'de bir sitedeki "sepete ekle" / "depolarda ara" isteklerine bakar.
+# Bulut jetonu ve AS oturumu açık tutulur → istek 2-3 sn'de işlenir. toplayici.ps1 güncellenince kendini kapatır, gözcü yenisini açar.
+function SepetDongu {
+  if (-not (SepetKilitAl)) { Log "Sepet döngüsü zaten çalışıyor."; return }
+  $dosya = Join-Path $KOK "toplayici.ps1"; $surum = (Get-Item $dosya).LastWriteTimeUtc
+  $j = $null; $jz = [datetime]::MinValue; $bas = Get-Date; $asYokla = [datetime]::MinValue; $asVar = $true; $hata = 0
+  Log "Sepet döngüsü başladı"
+  while ($true) {
+    try {
+      if ((Get-Item $dosya).LastWriteTimeUtc -ne $surum) { Log "toplayici.ps1 güncellendi, sepet döngüsü yeniden başlayacak"; break }
+      if (((Get-Date) - $bas).TotalHours -ge 12) { break }
+      if (-not $j -or ((Get-Date) - $jz).TotalMinutes -gt 40) { $j = Jeton; $jz = Get-Date }
+      $o = BulutOku "ayar?anahtar=eq.sepet_istek&select=deger" $j
+      if ($o -and "$($o[0].deger)" -match '"durum":"bekliyor"') { AsamaSepet $j }
+      # AS oturumunu sıcak tut (mesai saatlerinde 4 dk'da bir)
+      $h = (Get-Date).Hour
+      if ($asVar -and $h -ge 8 -and $h -lt 23 -and ((Get-Date) - $asYokla).TotalMinutes -ge 4) {
+        $asYokla = Get-Date
+        try { $null = AsOturum } catch { if ($_.Exception.Message -like "*kayıtlı değil*") { $asVar = $false } else { $script:asOt = $null } }
+      }
+      $hata = 0
+    } catch { $hata++; Log ("Sepet döngüsü hata: " + $_.Exception.Message); $j = $null; Start-Sleep ([Math]::Min(30, 3 * $hata)) }
+    Start-Sleep -Milliseconds 1500
+  }
+  try { $script:sKilit.ReleaseMutex() } catch { }
+}
+function AsamaSepet([string]$j) {
+  if (-not $j) { $j = Jeton }
   $o = BulutOku "ayar?anahtar=eq.sepet_istek&select=deger" $j
   if (-not $o) { return }
   $liste = @((($o[0].deger | ConvertFrom-Json).liste) | Where-Object { $_ })
   $bek = @($liste | Where-Object { $_.durum -eq "bekliyor" })
-  if (-not $bek.Count) { return }
+  # Aynı süreçte işlenmiş bir istek tekrar "bekliyor" görünürse (site listeyi aynı anda yazdıysa) yeniden sepete EKLENMEZ, eski sonucu tekrar yazılır
+  if (-not $script:islenen) { $script:islenen = @{} }
+  $tekrar = @($bek | Where-Object { $script:islenen.ContainsKey("$($_.id)") })
+  $bek = @($bek | Where-Object { -not $script:islenen.ContainsKey("$($_.id)") })
+  if (-not $bek.Count -and -not $tekrar.Count) { return }
   $sonuclar = @{}
+  foreach ($x in $tekrar) { $sonuclar["$($x.id)"] = $script:islenen["$($x.id)"] }
   # "Depolarda ara" istekleri (sitedeki arama): önce bunlar, hızlı cevap beklenir
   foreach ($a in @($bek | Where-Object { $_.tip -eq "ara" })) {
     $yas = 0; try { $yas = ((Get-Date) - [datetime]$a.zaman).TotalMinutes } catch { }
@@ -1086,6 +1132,7 @@ function AsamaSepet {
                          else { @{ tamam = $false; mesaj = $(switch ($r.durum) { "eklenti_yok" { "Eczane bilgisayarındaki Chrome/eklenti cevap vermedi" } "giris" { "Depo oturumu kapalı" } default { "Eklenemedi: $($r.mesaj)" } }) } }
     }
   }
+  foreach ($k in @($sonuclar.Keys)) { $script:islenen["$k"] = $sonuclar[$k] }
   # en güncel listeyi tekrar oku, sadece işlenenleri güncelle (bu arada yeni istek gelmiş olabilir)
   $o = BulutOku "ayar?anahtar=eq.sepet_istek&select=deger" $j
   $liste = @((($o[0].deger | ConvertFrom-Json).liste) | Where-Object { $_ })
@@ -1111,8 +1158,7 @@ function AraSonucYaz($sonuc, [string]$j) {
   BulutEkle "ayar" @([ordered]@{ anahtar = "depo_ara_sonuc"; deger = (ConvertTo-Json ([ordered]@{ liste = $liste }) -Depth 12 -Compress); guncelleme = (Get-Date).ToString("o") }) $j "anahtar"
 }
 function AsAra([string]$q) {
-  $ses = DepoGiris "as"
-  $null = Invoke-WebRequest "https://webdepo.asecza.com.tr/Siparis/hizlisiparis.aspx" -WebSession $ses -UseBasicParsing -TimeoutSec 60
+  $ses = AsOturum
   $u = DepoPost $ses "https://webdepo.asecza.com.tr/Siparis/hizlisiparis-ajax.aspx" @{ action = "GetUrunler"; searchText = $q; isInculude = "true"; isStoktakiler = "false"; siralama = "ilacASC"; marka = ""; baslangicSayfasi = "0"; topRowNum = "0"; sayfaMaxRowAdet = "10"; s = "s" }
   $out = New-Object System.Collections.ArrayList
   if ($Asama -eq "aratest") { Log ("  ham cevap: " + ((ConvertTo-Json $u -Depth 3 -Compress) -replace '^(.{0,600}).*$', '$1')) }
@@ -1316,7 +1362,8 @@ try {
   if ($HastaKur) { HastaKur; return }
   if ($DepoKur) { DepoKur; return }
   if ($Asama -eq "depo") { AsamaDepo; Log "Bitti."; $script:KOD = 0; return }
-  if ($Asama -eq "sepet") { AsamaSepet; $script:KOD = 0; return }
+  if ($Asama -eq "sepet") { if (SepetKilitAl) { AsamaSepet } else { Log "Sepet döngüsü çalışıyor, atlandı." }; $script:KOD = 0; return }
+  if ($Asama -eq "sepetdongu") { SepetDongu; $script:KOD = 0; return }
   if ($Asama -eq "kolay") { AsamaKolay; Log "Bitti."; $script:KOD = 0; return }
   if ($Asama -eq "yukle") { StokYukle; Log "Bitti."; return }
   if ($Asama -eq "kkyukle") { KarekodYukle; Log "Bitti."; return }
