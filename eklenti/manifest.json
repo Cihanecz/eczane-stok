@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Eczane Stok - Depo Köprüsü",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Açık depo sekmelerinden (Sancak, BEK) fiyat ve MF bilgisini okuyup Eczane Stok toplayıcısına verir. Sadece okur: sepet/sipariş yok.",
   "permissions": [
     "alarms",

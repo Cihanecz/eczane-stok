@@ -13,6 +13,18 @@ chrome.alarms.onAlarm.addListener(a => { if (a.name === "yokla") { yokla(); sepe
 // Açık depo sekmesi 1,5 sn'de bir "nabız" gönderir: sepet ve arama işlerine 30 sn beklemeden hemen bakılır
 let sonNabiz = 0;
 chrome.runtime.onMessage.addListener(m => { if (m && m.tip === "nabiz") { const s = Date.now(); if (s - sonNabiz < 1200) return; sonNabiz = s; sepetYokla(); araYokla(); } });
+// Hızlı döngü: arka plan çalıştığı sürece saniyede bir sepet / arama işine bakar (sekme zamanlayıcıları Chrome'da yavaşlatılır,
+// arka plan betiği yavaşlatılmaz). Her turda bir eklenti API çağrısı arka planı uyanık tutar; kapanırsa 30 sn'lik alarm yeniden başlatır.
+let hizli = false;
+async function hizliDongu() {
+  if (hizli) return; hizli = true;
+  try { for (;;) { sepetYokla(); araYokla(); await bekle(1000); await chrome.runtime.getPlatformInfo(); } }
+  finally { hizli = false; }
+}
+chrome.runtime.onStartup.addListener(hizliDongu);
+chrome.runtime.onInstalled.addListener(hizliDongu);
+chrome.alarms.onAlarm.addListener(hizliDongu);
+hizliDongu();
 
 const bekle = ms => new Promise(r => setTimeout(r, ms));
 
