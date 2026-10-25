@@ -278,6 +278,17 @@ function SekmeKapat($p) {
   } catch { if ($_.Exception.Message -like "*Durdur*") { throw }; Log ("  sekme kapatılamadı: " + $_.Exception.Message) }
 }
 
+# Toplama bitince (ya da yarıda kalınca) öne gelen rapor sekmelerini kapatır: etkin sekme "Raporlar" olduğu sürece.
+# Başka bir ekran (Giriş, Genel Gider…) öne gelince durur; sekme kapanmazsa sonsuz döngüye girmez.
+function RaporSekmeleriniTemizle($p) {
+  $kos = New-Object System.Windows.Automation.PropertyCondition($A::NameProperty, "Raporlar")
+  $bul = { param($rx) @($rx.FindAll($TS::Descendants, $kos) | Where-Object { -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 500 }) | Select-Object -First 1 }
+  for ($i = 0; $i -lt 8; $i++) {
+    try { $rx = $A::FromHandle((AnaPencere $p)); $pn = & $bul $rx; if (-not $pn) { break }; $id = ($pn.GetRuntimeId() -join '.') } catch { break }
+    SekmeKapat $p; Start-Sleep 1
+    try { $pn2 = & $bul $rx; if ($pn2 -and (($pn2.GetRuntimeId() -join '.') -eq $id)) { Log "  rapor sekmesi kapanmadı, temizlik durdu"; break } } catch { break }
+  }
+}
 # Ürün Bazlı Satış: tarih aralığı yazılır, Sorgula, Yazdır → CSV. Hasta sütunu dosyadan okunurken atılır.
 # Rx tarih kutusu noktayı ayraç saymıyor: sadece rakamlar yazılır (01.02.2026 -> 01022026)
 function TarihYaz($ad, [string]$t) { K $ad; Tus "^a"; Tus ($t -replace '\D', ''); Tus "{TAB}"; Start-Sleep -Milliseconds 500 }
@@ -777,8 +788,10 @@ function Gunluk {
     AsamaAlis $p $ab.ToString("dd.MM.yyyy") (Get-Date).ToString("dd.MM.yyyy") "alis.csv"
     AlisYukle "alis.csv"
     AsamaHasta $p
+    try { RaporSekmeleriniTemizle $p } catch { Log ("  sekme temizliği: " + $_.Exception.Message) }
     Kayit "gunluk" "tamam" 0 "" (Jeton)
   } catch {
+    if ($p -and $_.Exception.Message -notlike "*Durdur*") { try { Tus "{ESC}"; Start-Sleep -Milliseconds 500; Tus "{ESC}"; Start-Sleep 1; RaporSekmeleriniTemizle $p } catch { } }
     Kayit "gunluk" "hata" 0 $_.Exception.Message (Jeton)
     throw
   }
