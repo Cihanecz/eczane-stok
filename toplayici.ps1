@@ -278,10 +278,15 @@ function SekmeKapat($p) {
   } catch { if ($_.Exception.Message -like "*Durdur*") { throw }; Log ("  sekme kapatılamadı: " + $_.Exception.Message) }
 }
 
+function OnizlemeKapat($p) {
+  try { foreach ($w in @(Pencereler $p.Id | Where-Object { $_.Ad -eq "Yazdır" })) { [void][W2]::PostMessage($w.H, 0x10, [IntPtr]::Zero, [IntPtr]::Zero); Log "  açık kalan Yazdır önizlemesi kapatıldı"; Start-Sleep 1 } } catch { }
+}
 # Toplama bitince (ya da yarıda kalınca) öne gelen rapor sekmelerini kapatır: etkin sekme "Raporlar" olduğu sürece.
 # Başka bir ekran (Giriş, Genel Gider…) öne gelince durur; sekme kapanmazsa sonsuz döngüye girmez.
 function RaporSekmeleriniTemizle($p) {
   $kos = New-Object System.Windows.Automation.PropertyCondition($A::NameProperty, "Raporlar")
+  # açık kalmış "Yazdır" önizlemesi ana pencereyi kilitler, sekmeler kapanmaz: önce onu kapat (Vazgeç ile aynı, yazdırmaz)
+  OnizlemeKapat $p
   $bul = { param($rx) @($rx.FindAll($TS::Descendants, $kos) | Where-Object { -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 500 }) | Select-Object -First 1 }
   for ($i = 0; $i -lt 8; $i++) {
     try { $rx = $A::FromHandle((AnaPencere $p)); $pn = & $bul $rx; if (-not $pn) { break }; $id = ($pn.GetRuntimeId() -join '.') } catch { break }
@@ -775,6 +780,7 @@ function Gunluk {
   BannerAc
   try {
     $p = RxSureci
+    OnizlemeKapat $p
     AsamaEnvanter $p; AsamaUrunDokum $p; StokYukle
     AsamaKarekod $p; KarekodYukle
     # satış: buluttaki son satış gününden 2 gün öncesinden bugüne
