@@ -626,6 +626,25 @@ $("#girisFormu").addEventListener("submit", async e => {
 });
 $("#cikis").addEventListener("click", async () => { kilitle(); hUnut(); await db.auth.signOut(); location.hash=""; girisiAc(); });
 $("#eveDon").addEventListener("click", () => { $("#ara").value=""; location.hash = ""; });
+// Oturum bekçisi: bilgisayar uykudan uyanınca / pencere öne gelince / 5 dk'da bir oturum tazelenir.
+// Tazelenemiyorsa (oturum düşmüş) eski ekranda sessizce takılmak yerine giriş ekranına dönülür.
+async function oturumKontrol(){
+  if($("#program").classList.contains("gizli")) return true;
+  try {
+    const { data:{ session } } = await db.auth.getSession();
+    if(session && session.expires_at*1000 > Date.now() + 60000) return true;
+    const { data, error } = await db.auth.refreshSession();
+    if(!error && data && data.session) return true;
+    if(!error || /fetch|network|failed|timeout/i.test(error.message||"")) return true;   // internet yoksa dokunma
+  } catch(e){ return true; }
+  try { await db.auth.signOut({ scope:"local" }); } catch(e){}
+  girisiAc(); $("#girisHata").textContent = "Oturum süresi dolmuş, lütfen tekrar giriş yap.";
+  return false;
+}
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") oturumKontrol(); });
+window.addEventListener("focus", ()=>oturumKontrol());
+setInterval(oturumKontrol, 5*60*1000);
+db.auth.onAuthStateChange(ev=>{ if(ev==="SIGNED_OUT" && !$("#program").classList.contains("gizli")) girisiAc(); });
 
 /* ---------- yönlendirme ---------- */
 window.addEventListener("hashchange", yonlendir);
@@ -1417,6 +1436,7 @@ async function nvTikla(e){
   const y = e.target.closest("[data-yildiz]");
   if(y){
     e.stopPropagation(); y.disabled = true;
+    if(!(await oturumKontrol())) return;
     const k = y.dataset.yildiz, onc = await nvOncelik();
     if(onc[k]) delete onc[k]; else onc[k] = new Date().toISOString();
     const { error } = await db.from("ayar").upsert({ anahtar:"oncelikli_ver", deger: JSON.stringify(onc), guncelleme: new Date().toISOString() });
@@ -1804,6 +1824,7 @@ $("#sepetFormu").addEventListener("submit", async e => {
   const kat = Math.max(1, Math.min(99, parseInt($("#sepetKat").value||"1",10)||1));
   $("#sepetPerde").classList.add("gizli");
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  if(!(await oturumKontrol())) return;
   try {
     const l = await sepetListe();
     l.push({ id, depo:s.depo, barkod:s.barkod, ad:s.ad, a:s.a, m:s.m, kat, adet:s.a*kat, durum:"bekliyor", zaman:new Date().toISOString() });
@@ -1865,6 +1886,7 @@ async function depoAraSayfasi(q){
     <div class="liste-ust"><div><h1>Depolarda: “${kacis(q)}”</h1><p id="daDurum">⏳ Eczane bilgisayarına soruluyor… genelde birkaç saniye sürer.</p></div></div>
     <div id="daSonuc"></div>`;
   const id = "a" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  if(!(await oturumKontrol())) return;
   try {
     const l = await sepetListe();
     l.push({ id, tip:"ara", q, durum:"bekliyor", zaman:new Date().toISOString() });
