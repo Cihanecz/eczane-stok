@@ -320,6 +320,32 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 .nv-cip.on b{color:#fff}
 .nv-bolum{font-size:17px;margin:22px 0 8px}
 .nv-bolum small{font-weight:400;font-size:13px;color:var(--soluk);margin-left:6px}
+/* Bu İlaç Neydi? */
+.ib-filtre{margin:-4px 0 14px}
+.ib-grup{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.ib-bas{font-size:12px;color:var(--soluk);min-width:44px;padding-top:9px;font-weight:600}
+.ib-cipler{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+.ib-cip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--cizgi);background:var(--yuzey);color:var(--murekkep);border-radius:999px;padding:6px 11px;font-size:13.5px;cursor:pointer}
+.ib-cip:hover{background:var(--hover)}
+.ib-cip.on{background:var(--yesil);border-color:var(--yesil);color:#fff}
+.ib-boya{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.18);display:inline-block;flex:none}
+.ib-boya.buyuk{width:22px;height:22px}
+.ib-boya.ib-bos{background:repeating-linear-gradient(45deg,var(--yuzey2),var(--yuzey2) 3px,var(--cizgi) 3px,var(--cizgi) 6px)}
+.ib-liste{display:flex;flex-direction:column;gap:10px}
+.ib-kart{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:14px;padding:12px 14px;box-shadow:var(--golge)}
+.ib-kart-ust{display:flex;align-items:center;gap:10px}
+.ib-kart-ad{flex:1;min-width:0}
+.ib-kart-ad b{display:block;font-size:15px;line-height:1.3}
+.ib-kart-ad small{color:var(--soluk);font-size:12.5px}
+.ib-stok{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap;flex:none}
+.ib-var{background:var(--yesil-acik);color:var(--yesil)}
+.ib-yok{background:var(--yuzey2);color:var(--soluk)}
+.ib-bekle{background:var(--yuzey2);color:var(--soluk);opacity:.7}
+.ib-nitelik{margin-top:7px;font-size:13.5px;color:var(--murekkep)}
+.ib-amac{margin-top:3px;font-size:13px;color:var(--yesil);font-weight:600}
+.ib-baski{margin-top:3px;font-size:13px;color:var(--soluk)}
+.ib-gorunum{margin-top:5px;font-size:12.5px;color:var(--soluk);line-height:1.45}
+@media (max-width:600px){.ib-bas{min-width:100%;padding-top:0}}
 .hrozet{background:var(--kirmizi);color:#fff;font-size:11px;font-weight:700;border-radius:999px;padding:1px 6px;min-width:18px;text-align:center}
 .hcipler{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
 .hcip{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:14px}
@@ -378,6 +404,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       <button class="ust-dugme hasta" id="hastaDugme" type="button" aria-label="Hasta takibi"><span>👥</span><span class="ek-yazi">Hastalar</span><b class="hrozet gizli" id="hastaRozet"></b></button>
       <button class="ust-dugme hasta" id="depoDugme" type="button" aria-label="Depolar"><span>🏷️</span><span class="ek-yazi">Depolar</span><b class="hrozet gizli" id="depoRozet"></b></button>
       <button class="ust-dugme hasta" id="nvDugme" type="button" aria-label="Ne verelim"><span>💊</span><span class="ek-yazi">Ne Verelim</span></button>
+      <button class="ust-dugme hasta" id="ibDugme" type="button" aria-label="Bu ilaç neydi"><span>🔎</span><span class="ek-yazi">Bu İlaç Neydi?</span></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button" aria-label="Çıkış" title="Çıkış"><span>🚪</span><span class="ek-yazi">Çıkış</span></button>
     </div>
@@ -655,8 +682,9 @@ function yonlendir(){
   if(h.startsWith("liste/")) return liste(h.slice(6));
   if(h.startsWith("ara/")) return aramaSonucu(h.slice(4));
   if(h.startsWith("depoara/")) return depoAraSayfasi(h.slice(8));
-  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif");
+  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif"); $("#ibDugme").classList.remove("aktif");
   if(h==="neverelim" || h.startsWith("neverelim/")) return neVerelim(h.slice(10));
+  if(h==="ilacbul" || h.startsWith("ilacbul/")) return ilacBul(h.slice(8));
   if(h==="hastalar") return hastaSayfasi();
   if(h==="depolar") return depoSayfasi();
   return anaEkran();
@@ -1448,6 +1476,154 @@ async function nvTikla(e){
 }
 
 /* =====================================================================
+   BU İLAÇ NEYDİ? — Hastanın tarif ettiği hapı (renk/şekil/baskı/ad) bulma.
+   Veri: ilac-gorunum.json (TİTCK KÜB + Kolay, sabit katalog). Şifresiz.
+   Stok "var/yok": urun_ozet'teki adlarla (marka + doz) eşleşmeyle.
+   SADECE ECZANE 1'de. Supabase'e yazmaz.
+   ===================================================================== */
+let IB = null, ibNo = 0, ibZaman, ibStok = null, ibSecim = { renk:"", sekil:"", form:"", centik:false };
+const IB_RENK = [["Beyaz","#FFFFFF"],["Sarı","#F4D23C"],["Pembe","#F5A9C0"],["Mavi","#5B9BD5"],["Turuncu","#ED8B3C"],["Kırmızı","#D3433B"],["Kahverengi","#8A5A32"],["Yeşil","#5BB97E"],["Krem","#F3E9C8"],["Siyah","#2B2B2B"],["Şeffaf","#DDE6EA"],["Gri","#AEB6BA"],["Mor","#8667C4"],["Bej","#D8C3A0"]];
+const IB_SEKIL = ["Yuvarlak","Oval","Uzun","Badem","Üçgen","Kare","Dikdörtgen","Baklava","Altıgen","Beşgen","Kalp"];
+const IB_FORM = ["Film kaplı tablet","Tablet","Kapsül","Çiğneme tableti","Ağızda dağılan","Draje","Dil altı"];
+// tarif kelimesi -> aranacak çekirdek kelimeler (ilaç metninde)
+const IB_ES = {
+  toparlak:["yuvarlak"], yumru:["yuvarlak"], daire:["yuvarlak"], top:["yuvarlak"], degirmi:["yuvarlak"], tombul:["yuvarlak"], yuvarlak:["yuvarlak"],
+  oval:["oval"], badem:["badem","oval"], elips:["oval"], yumurta:["oval"], bikonveks:["bikonveks"],
+  uzun:["uzun","oblong"], oblong:["uzun"], cubuk:["uzun","kapsul"], uzunca:["uzun"], kapsul:["kapsul","uzun"],
+  ucgen:["ucgen"], kare:["kare"], dikdortgen:["dikdortgen"], baklava:["baklava","elmas"], elmas:["baklava"], altigen:["altigen"], besgen:["besgen"], kalp:["kalp"],
+  cizgili:["centikli","cizik","centik"], centikli:["centikli","centik"], centik:["centikli"], bolunen:["centikli"], kirilan:["centikli"], cizik:["centikli","cizik"], ortadan:["centikli"],
+  ak:["beyaz"], beyaz:["beyaz"], sari:["sari"], pembe:["pembe"], mavi:["mavi"], turuncu:["turuncu"], portakal:["turuncu"], kirmizi:["kirmizi"], kahverengi:["kahverengi"], kahve:["kahverengi"], yesil:["yesil"], krem:["krem"], siyah:["siyah"], seffaf:["seffaf"], renksiz:["seffaf"], gri:["gri"], mor:["mor"], bej:["bej"]
+};
+const IB_BOYA = Object.fromEntries(IB_RENK.map(x=>[araMetni(x[0]), x[1]]));
+const IB_KUCUK = ["kucuk","minik","ufak","minicik","ufacik","kucukce"], IB_BUYUK = ["buyuk","iri","kocaman","buyukce","koca"];
+const IB_DOLGU = new Set(["ustunde","uzerinde","uzeri","uzerine","ustune","ustu","yazan","yaziyor","yazili","yaziyordu","yazanlar","yazar","vardi","variyor","birsey","bisey","sey","seyler","gibi","renkli","renginde","rengi","biraz","galiba","sanirim","herhalde","hani","ilac","hap","tane","adet","boyutunda","boyunda","seklinde","falan","filan","vs","olan","ol, an","bir","ile","icin"]);
+const IB_GENEL = new Set(["film","kapli","tablet","tablets","kapsul","kaps","draje","efervesan","cigneme","agizda","dagilan","dil","alti","mg","ml","mcg","gr","g","mikrogram","sase","ampul","flakon","oral","surup","liquid","fort","tb","adet","mikrog","iu","ui"]);
+function ibKelimeler(ad){ return String(ad||"").toLocaleUpperCase("tr-TR").replace(/Ç/g,"C").replace(/Ğ/g,"G").replace(/İ/g,"I").replace(/Ö/g,"O").replace(/Ş/g,"S").replace(/Ü/g,"U").replace(/Â/g,"A").replace(/Î/g,"I").replace(/Û/g,"U").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().split(/\s+/).filter(Boolean); }
+function ibAnahtar(ad){ // marka alfa kelimeleri + ilk sayı (doz)
+  const k = ibKelimeler(ad); const marka = []; let doz = "";
+  for(const t of k){ if(/^\d+$/.test(t)){ if(!doz) doz = t; } else if(!IB_GENEL.has(t) && !/^\d/.test(t)) marka.push(t); }
+  return { marka, doz };
+}
+async function ibVeri(){
+  if(IB) return IB;
+  const r = await fetch("./ilac-gorunum.json", { cache:"force-cache" });
+  if(!r.ok) throw new Error("İlaç görünüm listesi yüklenemedi");
+  const j = await r.json(); const a = j.alanlar, i = n=>a.indexOf(n);
+  const ia={ad:i("ad"),et:i("etken"),am:i("amac"),rn:i("renk"),sk:i("sekil"),fm:i("form"),cn:i("centik"),bs:i("baski"),by:i("boyut"),gr:i("gorunum")};
+  IB = j.l.map(x=>({
+    ad:x[ia.ad], et:x[ia.et], am:x[ia.am], rn:x[ia.rn], sk:x[ia.sk], fm:x[ia.fm], cn:x[ia.cn], bs:x[ia.bs], by:parseFloat((x[ia.by]||"").replace(",",".")) || 0, gr:x[ia.gr],
+    ara:" " + araMetni([x[ia.ad],x[ia.et],x[ia.am],x[ia.rn],x[ia.sk],x[ia.fm],(x[ia.cn]?"centikli cizik":""),x[ia.bs],x[ia.gr]].join(" ")) + " "
+  }));
+  return IB;
+}
+// Stoktaki ilaçların "marka+doz" indeksini kurar (var/yok için). Sadece okur.
+async function ibStokKur(){
+  if(ibStok) return ibStok;
+  const idx = {};
+  for(let s=0;s<20000;s+=1000){
+    const { data, error } = await db.from("urun_ozet").select("ad").gt("stok",0).range(s, s+999);
+    if(error) break;
+    for(const r of data){ const k = ibKelimeler(r.ad||""); const set = new Set(k); const ilk = k.find(t=>!IB_GENEL.has(t) && !/^\d/.test(t));
+      if(ilk){ (idx[ilk] = idx[ilk] || []).push(set); } }
+    if(data.length < 1000) break;
+  }
+  ibStok = idx; return idx;
+}
+function ibStokta(ad){
+  if(!ibStok) return null;
+  const { marka, doz } = ibAnahtar(ad); if(!marka.length) return false;
+  const liste = ibStok[marka[0]]; if(!liste) return false;
+  for(const set of liste){ if(marka.every(m=>set.has(m)) && (!doz || set.has(doz))) return true; }
+  return false;
+}
+async function ilacBul(q){
+  $("#ibDugme").classList.add("aktif");
+  $("#icerik").innerHTML = `
+    <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
+    <div class="liste-ust"><div><h1>💊 Bu İlaç Neydi?</h1><p>Hastanın tarif ettiğini yaz: renk, şekil, üstündeki yazı, aklında kalan isim… Her kelime aramayı daraltır. Aşağıdan renk/şekil de seçebilirsin.</p></div></div>
+    <div class="nv-kutu"><span aria-hidden="true">🔎</span><input id="ibAra" type="search" placeholder="ör. beyaz yuvarlak çentikli ağrı kesici" aria-label="İlaç tarifi" autocomplete="off"></div>
+    <div class="ib-filtre">
+      <div class="ib-grup"><span class="ib-bas">Renk</span><div class="ib-cipler" id="ibRenk">${IB_RENK.map(([a,h])=>`<button type="button" class="ib-cip" data-tur="renk" data-deger="${a}"><span class="ib-boya" style="background:${h}"></span>${a}</button>`).join("")}</div></div>
+      <div class="ib-grup"><span class="ib-bas">Şekil</span><div class="ib-cipler" id="ibSekil">${IB_SEKIL.map(a=>`<button type="button" class="ib-cip" data-tur="sekil" data-deger="${a}">${a}</button>`).join("")}</div></div>
+      <div class="ib-grup"><span class="ib-bas">Form</span><div class="ib-cipler" id="ibForm">${IB_FORM.map(a=>`<button type="button" class="ib-cip" data-tur="form" data-deger="${a}">${a}</button>`).join("")}<button type="button" class="ib-cip" data-tur="centik" data-deger="1">Çentikli / çizgili</button></div></div>
+    </div>
+    <div id="ibSonuc"><div class="yukleniyor">Yükleniyor…</div></div>`;
+  const inp = $("#ibAra"); inp.value = q || "";
+  inp.addEventListener("input", ()=>{ clearTimeout(ibZaman); ibZaman = setTimeout(()=>{ history.replaceState(null,"","#ilacbul/"+encodeURIComponent(inp.value)); ibListele(); }, 250); });
+  $("#ibFiltre"); document.querySelectorAll("#ibRenk,#ibSekil,#ibForm").forEach(k=>k.addEventListener("click", ibCipTik));
+  ibSecim = { renk:"", sekil:"", form:"", centik:false };
+  ibStokKur().then(()=>{ if($("#ibSonuc")) ibListele(); });   // stok arka planda
+  if(!q) inp.focus();
+  ibListele();
+}
+function ibCipTik(e){
+  const c = e.target.closest("[data-tur]"); if(!c) return;
+  const tur = c.dataset.tur, deger = c.dataset.deger;
+  if(tur==="centik") ibSecim.centik = !ibSecim.centik;
+  else ibSecim[tur] = (ibSecim[tur]===deger) ? "" : deger;
+  document.querySelectorAll(`[data-tur="${tur}"]`).forEach(b=>{
+    const on = tur==="centik" ? ibSecim.centik : (ibSecim[tur]===b.dataset.deger);
+    b.classList.toggle("on", on);
+  });
+  ibListele();
+}
+async function ibListele(){
+  const benim = ++ibNo, kutu = $("#ibSonuc"); if(!kutu) return;
+  let veri; try { veri = await ibVeri(); } catch(e){ return hataGoster(e); }
+  if(benim !== ibNo) return;
+  const q = araMetni($("#ibAra") ? $("#ibAra").value : "");
+  const ham = q.split(/\s+/).filter(Boolean);
+  const kelimeler = [], boySart = [];
+  for(const w of ham){
+    if(IB_KUCUK.includes(w)){ boySart.push("k"); continue; }
+    if(IB_BUYUK.includes(w)){ boySart.push("b"); continue; }
+    if(IB_DOLGU.has(w) || w.length<2) continue;
+    kelimeler.push(IB_ES[w] || [w]);
+  }
+  const s = ibSecim;
+  if(!kelimeler.length && !s.renk && !s.sekil && !s.form && !s.centik && !boySart.length){
+    kutu.innerHTML = `<div class="tablo"><div class="bos">Yukarıya tarif yaz ya da renk/şekil seç. Örn: “pembe oval”, “üstünde 20 yazan beyaz”, “majezik”.</div></div>`; return;
+  }
+  const srn = araMetni(s.renk), ssk = araMetni(s.sekil), sfm = araMetni(s.form);
+  let l = veri.filter(d=>{
+    if(s.renk && !araMetni(d.rn).includes(srn)) return false;
+    if(s.sekil && !araMetni(d.sk).includes(ssk)) return false;
+    if(s.form && !araMetni(d.fm).includes(sfm)) return false;
+    if(s.centik && !d.cn) return false;
+    for(const alt of kelimeler){ if(!alt.some(t=>/^\d+$/.test(t) ? d.ara.includes(" "+t+" ") : (t.length<=2 ? d.ara.includes(" "+t) : d.ara.includes(t)))) return false; }
+    return true;
+  });
+  // boyut tercihi: eleme yapmaz, sıralamada öne alır
+  const boyPuan = d=>{ if(!boySart.length || !d.by) return 0; let p=0; for(const b of boySart){ if(b==="k"&&d.by<=7)p++; if(b==="k"&&d.by>10)p--; if(b==="b"&&d.by>=12)p++; if(b==="b"&&d.by<8)p--; } return p; };
+  l.sort((a,b)=> (boyPuan(b)-boyPuan(a)) || ((b.rn&&b.sk?1:0)-(a.rn&&a.sk?1:0)) || a.ad.localeCompare(b.ad,"tr"));
+  const toplam = l.length, goster = l.slice(0,80);
+  if(!toplam){ kutu.innerHTML = `<div class="tablo"><div class="bos">Bu tarife uyan ilaç bulunamadı. Daha az kelimeyle dene ya da rengi/şekli değiştir.</div></div>`; return; }
+  kutu.innerHTML = `
+    <p style="margin:0 0 10px;color:var(--soluk)">${toplam} ilaç uyuyor${toplam>80?" (ilk 80)":""}. ${toplam>25?"Daraltmak için kelime ekle ya da renk/şekil seç.":""}</p>
+    <div class="ib-liste">${goster.map(ibKart).join("")}</div>`;
+}
+function ibRozet(ad){
+  const v = ibStokta(ad);
+  if(v===null) return `<span class="ib-stok ib-bekle">stok…</span>`;
+  return v ? `<span class="ib-stok ib-var">✓ stokta var</span>` : `<span class="ib-stok ib-yok">✗ stokta yok</span>`;
+}
+function ibKart(d){
+  const boya = IB_BOYA[araMetni((d.rn||"").split(",")[0].trim())];
+  const nitelik = [d.rn, d.sk, d.fm, d.cn?"çentikli":"", d.by?`${sayi(d.by)} mm`:""].filter(Boolean).join(" · ");
+  return `<div class="ib-kart">
+    <div class="ib-kart-ust">
+      ${boya?`<span class="ib-boya buyuk" style="background:${boya}" title="${kacis(d.rn)}"></span>`:`<span class="ib-boya buyuk ib-bos"></span>`}
+      <div class="ib-kart-ad"><b>${kacis(d.ad)}</b>${d.et?`<small>${kacis(d.et)}</small>`:""}</div>
+      ${ibRozet(d.ad)}
+    </div>
+    ${nitelik?`<div class="ib-nitelik">${kacis(nitelik)}</div>`:""}
+    ${d.am?`<div class="ib-amac">${kacis(d.am)}</div>`:""}
+    ${d.bs?`<div class="ib-baski">Üzerinde: <b>${kacis(d.bs)}</b></div>`:""}
+    ${d.gr?`<div class="ib-gorunum">${kacis(d.gr)}</div>`:""}
+  </div>`;
+}
+
+/* =====================================================================
    HASTA TAKİBİ — İlacı biten / raporu biten hastalar
    Hasta adı ve telefon şifreli saklanır: anahtar "hasta şifresi"nden
    türetilir (PBKDF2-SHA256), veri AES-CBC + HMAC-SHA256 ile şifrelidir.
@@ -1705,6 +1881,7 @@ function hSablonDuzenle(){
 $("#hastaDugme").addEventListener("click", ()=>{ location.hash = "hastalar"; });
 $("#depoDugme").addEventListener("click", ()=>{ location.hash = "depolar"; });
 $("#nvDugme").addEventListener("click", ()=>{ location.hash = "neverelim"; });
+$("#ibDugme").addEventListener("click", ()=>{ location.hash = "ilacbul"; });
 /* ---------- karekod / barkod okutma (telefon kamerası) ---------- */
 let SON_OKUTMA = null;
 // GS1 karekod: (01) GTIN 14 · (21) seri · (17) SKT YYMMDD · (10) parti

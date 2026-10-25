@@ -1,5 +1,5 @@
 // Sadece uygulama kabuğunu önbelleğe alır; veriler her zaman canlı okunur.
-const KABUK = "eczane-stok-v29";
+const KABUK = "eczane-stok-v30";
 const DOSYALAR = ["./eczane-stok.html", "./manifest.webmanifest", "./ikon.svg", "./ikon-192.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(KABUK).then(c => c.addAll(DOSYALAR))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== KABUK).map(x => caches.delete(x))))); self.clients.claim(); });
