@@ -1322,17 +1322,17 @@ async function nvListele(q){
   if(benim !== nvNo) return;
   const hata = cev.find(r=>r.error); if(hata) return hataGoster(hata.error);
   const gor = new Set(), l = [];
-  for(const r of cev.flatMap(r=>r.data||[])){ const k = nvAnahtar(r.barkod); if(gor.has(k)) continue; gor.add(k); l.push({ ...r, k, on: !!onc[k], en: (veri.harita[k]||{}).en || "" }); }
-  l.sort((a,b)=> (b.on - a.on) || (a.en_yakin_miad||"9999").localeCompare(b.en_yakin_miad||"9999") || (b.stok - a.stok));
-  const onSay = l.filter(x=>x.on).length, yakin = l.filter(x=>{ const g=gunFarki(x.en_yakin_miad); return g!==null && g<90; }).length;
+  for(const r of cev.flatMap(r=>r.data||[])){ const k = nvAnahtar(r.barkod); if(gor.has(k)) continue; gor.add(k); const g = gunFarki(r.en_yakin_miad); l.push({ ...r, k, on: !!onc[k], en: (veri.harita[k]||{}).en || "", gec: g!==null && g<0 }); }
+  l.sort((a,b)=> (a.gec - b.gec) || (b.on - a.on) || (a.en_yakin_miad||"9999").localeCompare(b.en_yakin_miad||"9999") || (b.stok - a.stok));
+  const onSay = l.filter(x=>x.on).length, gecSay = l.filter(x=>x.gec).length, yakin = l.filter(x=>{ const g=gunFarki(x.en_yakin_miad); return g!==null && g>=0 && g<90; }).length;
   kutu.innerHTML = l.length ? `
-    <p style="margin:0 0 10px;color:var(--soluk)">${l.length} ilaç stokta${onSay?` · ⭐ ${onSay} öncelikli`:""}${yakin?` · <b style="color:var(--kirmizi)">${yakin} tanesinin miadı 3 aydan az</b>`:""}</p>
+    <p style="margin:0 0 10px;color:var(--soluk)">${l.length} ilaç stokta${onSay?` · ⭐ ${onSay} öncelikli`:""}${yakin?` · <b style="color:var(--kirmizi)">${yakin} tanesinin miadı 3 aydan az</b>`:""}${gecSay?` · ${gecSay} tanesinin kayıtlı miadı geçmiş (en altta)`:""}</p>
     <div class="tablo"><div class="nv-satir bas"><span>⭐</span><span>İlaç</span><span class="s">Stok</span><span class="s">En yakın miat</span><span class="s psf">PSF</span></div>
     ${l.map(r=>{ const g = gunFarki(r.en_yakin_miad);
-      const m = r.en_yakin_miad ? `<span class="etiket ${g!==null&&g<90?"yakin":g!==null&&g<180?"orta":"uzak"}">${tarih(r.en_yakin_miad)}</span>` : `<span style="color:var(--soluk)">—</span>`;
+      const m = r.gec ? `<span class="etiket yakin" title="Kayıtlı en yakın miat geçmiş — rafı kontrol edin">GEÇMİŞ ${tarih(r.en_yakin_miad)}</span>` : r.en_yakin_miad ? `<span class="etiket ${g!==null&&g<90?"yakin":g!==null&&g<180?"orta":"uzak"}">${tarih(r.en_yakin_miad)}</span>` : `<span style="color:var(--soluk)">—</span>`;
       return `<div class="nv-satir${r.on?" on":""}" data-barkod="${kacis(r.barkod)}"><button class="nv-yildiz${r.on?" on":""}" type="button" data-yildiz="${kacis(r.k)}" aria-label="${r.on?"Öncelikten çıkar":"Öncelikli yap"}" title="${r.on?"Öncelikten çıkar":"Öncelikli ver (herkes görür)"}">⭐</button>
         <span class="ad">${kacis(r.ad)}<small>${kacis(r.en)}</small></span><span class="s">${sayi(r.stok)}</span><span class="s">${m}</span><span class="s psf">${tl(r.psf)}</span></div>`; }).join("")}</div>
-    <p class="alt-not" style="margin-top:12px">⭐ ile işaretlenen ilaç bu listede hep en üstte çıkar (elinde fazla olan, kârlı olan…). Herkes işaretleyip kaldırabilir. Miat: kırmızı 3 aydan az, sarı 6 aydan az. Miadı “—” olanların karekod kaydı yok.</p>`
+    <p class="alt-not" style="margin-top:12px">⭐ ile işaretlenen ilaç bu listede hep en üstte çıkar (elinde fazla olan, kârlı olan…). Herkes işaretleyip kaldırabilir. Miat: kırmızı 3 aydan az, sarı 6 aydan az. Miadı “—” olanların karekod kaydı yok. “GEÇMİŞ” yazanların kayıtlı miadı dolmuş, rafı kontrol edin.</p>`
     : `<div class="tablo"><div class="bos">${kel.length ? `“${kacis(q)}” için ${adaylar.length} ilaç var ama hiçbiri stokta değil.` : "⭐ işaretli ilaçların hiçbiri şu an stokta değil."}</div></div>`;
 }
 async function nvTikla(e){
