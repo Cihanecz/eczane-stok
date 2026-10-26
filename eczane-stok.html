@@ -21,6 +21,24 @@
 *{box-sizing:border-box}
 html,body{margin:0}
 html{color-scheme:light}
+/* açılış görseli + dokunma/geçiş animasyonları */
+.acilis{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:linear-gradient(150deg,#12A06E,#0b6e4c);color:#fff}
+.acilis.gizli{display:none}
+.ac-ic{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;padding:24px}
+.ac-ic svg{width:74px;height:74px;filter:drop-shadow(0 8px 20px rgba(0,0,0,.28))}
+.ac-ad{font-size:29px;font-weight:800;letter-spacing:.3px;line-height:1.2;max-width:90vw}
+.ac-alt{font-size:13px;opacity:.85;letter-spacing:3px;text-transform:uppercase}
+.ac-gir{animation:acFadeIn .35s ease}
+.ac-gir .ac-ic{animation:acIc .7s cubic-bezier(.2,.8,.2,1)}
+.ac-cik{animation:acFadeOut .5s ease forwards}
+@keyframes acFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes acFadeOut{to{opacity:0}}
+@keyframes acIc{0%{opacity:0;transform:translateY(16px) scale(.95)}100%{opacity:1;transform:none}}
+#icerik.gir{animation:icerikGir .22s ease}
+@keyframes icerikGir{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.ripple{position:absolute;border-radius:50%;background:currentColor;opacity:.16;transform:scale(0);animation:rip .55s ease-out;pointer-events:none}
+@keyframes rip{to{transform:scale(2.2);opacity:0}}
+@media (prefers-reduced-motion:reduce){.ac-gir,.ac-gir .ac-ic,.ac-cik,#icerik.gir,.ripple{animation:none!important}}
 body{background:var(--bg);color:var(--murekkep);font:16px/1.45 "Onest",system-ui,sans-serif;
   font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;min-height:100vh}
 button,input{font:inherit;color:inherit}
@@ -389,12 +407,13 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 </section>
 
 <!-- PROGRAM -->
+<div id="acilis" class="acilis gizli" aria-hidden="true"><div class="ac-ic"><svg width="74" height="74" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#FFFFFF"/><path d="M16 9h8v7h7v8h-7v7h-8v-7H9v-8h7z" fill="#12A06E"/></svg><div class="ac-ad" id="acilisAd"></div><div class="ac-alt">ECZANE STOK</div></div></div>
 <div id="program" class="gizli">
   <header class="ust">
     <div class="ust-ic">
       <button class="marka" id="eveDon" type="button" aria-label="Ana ekran">
         <svg width="28" height="28" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#0F8A5F"/><path d="M16 9h8v7h7v8h-7v7h-8v-7H9v-8h7z" fill="#FFFFFF"/></svg>
-        <span>Eczane Stok</span>
+        <span id="markaAd">Eczane Stok</span>
       </button>
       <div class="ara-kutu">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
@@ -533,15 +552,45 @@ async function pinKaydet(pin){
 }
 
 /* ---------- eczane adı (ayar tablosunda "eczane_adi") ---------- */
+const VARSAYILAN_AD = "Cihan Eczanesi";
+function markaYaz(){ const e=document.getElementById("markaAd"); if(e) e.textContent = ECZANE_ADI || "Eczane Stok"; }
+let acilisYapildi=false;
+function acilisGoster(){
+  if(acilisYapildi) return; acilisYapildi=true;
+  const o=document.getElementById("acilis"); if(!o) return;
+  document.getElementById("acilisAd").textContent = ECZANE_ADI || VARSAYILAN_AD || "Eczane Stok";
+  o.classList.remove("gizli","ac-cik"); o.classList.add("ac-gir");
+  let bitti=false; const kapat=()=>{ if(bitti) return; bitti=true; o.classList.add("ac-cik"); setTimeout(()=>{ o.classList.add("gizli"); o.classList.remove("ac-gir","ac-cik"); }, 520); };
+  const t=setTimeout(kapat, 2600); o.addEventListener("click", ()=>{ clearTimeout(t); kapat(); }, { once:true });
+}
+
 let ECZANE_ADI = null;
 try { ECZANE_ADI = localStorage.getItem(ANAHTAR("eczaneAdi")); } catch(e){}
 async function eczaneAdiYukle(){
   const { data, error } = await db.from("ayar").select("deger").eq("anahtar","eczane_adi").maybeSingle();
   if(error) return ECZANE_ADI;               // ayar tablosu yoksa eski davranış
-  ECZANE_ADI = data ? data.deger : null;
+  const vardi = data && data.deger;
+  ECZANE_ADI = vardi ? data.deger : (VARSAYILAN_AD || null);
+  if(!vardi && VARSAYILAN_AD){ try { await db.from("ayar").upsert({ anahtar:"eczane_adi", deger: VARSAYILAN_AD, guncelleme:new Date().toISOString() }, { onConflict:"anahtar" }); } catch(e){} }
   try { ECZANE_ADI ? localStorage.setItem(ANAHTAR("eczaneAdi"), ECZANE_ADI) : localStorage.removeItem(ANAHTAR("eczaneAdi")); } catch(e){}
+  markaYaz();
   return ECZANE_ADI;
 }
+markaYaz();
+(function(){
+  const ic=document.getElementById("icerik");
+  if(ic){ let gt; new MutationObserver(()=>{ clearTimeout(gt); gt=setTimeout(()=>{ ic.classList.remove("gir"); void ic.offsetWidth; ic.classList.add("gir"); },0); }).observe(ic,{childList:true}); }
+  document.addEventListener("pointerdown", e=>{
+    const t = e.target.closest(".kart,.satir,.dl-s,.nv-satir,.ib-kart,.ib-cip,.nv-cip,.ana-dugme,.ikincil,.geri,.da-dugme,[data-liste],[data-git],.cip");
+    if(!t) return;
+    const r=t.getBoundingClientRect(), d=Math.max(r.width,r.height);
+    const s=document.createElement("span"); s.className="ripple";
+    s.style.width=s.style.height=d+"px"; s.style.left=(e.clientX-r.left-d/2)+"px"; s.style.top=(e.clientY-r.top-d/2)+"px";
+    if(getComputedStyle(t).position==="static") t.style.position="relative";
+    const eski=t.style.overflow; t.style.overflow="hidden"; t.appendChild(s);
+    setTimeout(()=>{ s.remove(); if(eski!==undefined) t.style.overflow=eski; }, 560);
+  }, { passive:true });
+})();
 function adPerdeAc(){
   $("#adGiris").value = ECZANE_ADI || ""; $("#adHata").textContent = "";
   $("#adVazgec").classList.toggle("gizli", !ECZANE_ADI);
@@ -638,7 +687,7 @@ async function basla(){
   if(session){ programiAc(); } else { girisiAc(); }
 }
 function girisiAc(){ $("#program").classList.add("gizli"); $("#girisEkrani").classList.remove("gizli"); $("#eposta").focus(); }
-function programiAc(){ $("#girisEkrani").classList.add("gizli"); $("#program").classList.remove("gizli"); kilitDugmesi(); yonlendir(); setTimeout(()=>{ if(typeof hRozetArkaPlan==="function") hRozetArkaPlan(); depoRozet(); }, 0); }
+function programiAc(){ $("#girisEkrani").classList.add("gizli"); $("#program").classList.remove("gizli"); markaYaz(); acilisGoster(); kilitDugmesi(); yonlendir(); setTimeout(()=>{ if(typeof hRozetArkaPlan==="function") hRozetArkaPlan(); depoRozet(); }, 0); }
 
 $("#girisFormu").addEventListener("submit", async e => {
   e.preventDefault();
@@ -928,7 +977,7 @@ const LISTELER = {
   kalacak:{ad:"Bu hızla elde kalacak kutular", ac:"Satış hızına (mevsime göre) bakarak miadı dolana kadar satılamayacak kutular. Önce miadı en yakın olan satılır varsayılır. Tahmindir; iade ya da kampanya için erken uyarıdır.",
     sutun:["Miat","Kalacak / partide","Ayda satış","Tutar"],
     sorgu:()=>kalacakHesapla(),
-    satir:r=>[`${kacis(r.ad||r.barkod)}<span class="kucuk">Parti ${kacis(r.parti_no||"—")} (${sayi(r.kutu)} kutu) · miada kadar ~${sayi(r.kutu-r.kalacak)} kutu satarsın, <b style="color:var(--kirmizi)">${sayi(r.kalacak)} kutu elinde kalır</b>${r.mevsim?" (mevsime göre)":""}</span>`,
+    satir:r=>[`${kacis(r.ad||r.barkod)}<span class="kucuk"><b style="color:var(--murekkep)">Miat ${tarih(r.miad)}</b> · Parti ${kacis(r.parti_no||"—")} (${sayi(r.kutu)} kutu) · miada kadar ~${sayi(r.kutu-r.kalacak)} kutu satarsın, <b style="color:var(--kirmizi)">${sayi(r.kalacak)} kutu elinde kalır</b>${r.mevsim?" (mevsime göre)":""}</span>`,
       `<span class="etiket ${miadSinifi(r.miad)||"ilk"}">${tarih(r.miad)}</span>`, `<b>${sayi(r.kalacak)}</b> / ${sayi(r.kutu)}`, sayi(r.aylik), r.maliyet!=null?para(r.kalacak*r.maliyet):tl(r.kalacak*(r.psf||0))+" <small>PSF</small>"],
     csv:r=>[r.ad,r.barkod,r.parti_no,r.miad,r.kutu,r.kalacak,Number(r.aylik).toFixed(1),r.maliyet!=null?paraCsv(r.kalacak*r.maliyet):""], csvBas:["Ürün","Barkod","Parti","Miat","Partideki kutu","Kalacak kutu","Aylık satış","Maliyet tutarı"]},
   kazandiran:{ad:"En çok kazandıranlar", ac:"Son 12 ayda en çok kâr bırakan ürünler.", kilitli:true,
