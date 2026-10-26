@@ -1617,11 +1617,11 @@ async function ilacBul(q){
     <div class="liste-ust"><div><h1>💊 Bu İlaç Neydi?</h1><p>Hastanın tarif ettiğini yaz: renk, kutu rengi, şekil, üstündeki yazı, aklında kalan isim, form (krem/jel/merhem/şurup…). Her kelime aramayı daraltır. Aşağıdan renk/şekil/form da seçebilirsin.</p></div></div>
     <div class="nv-kutu"><span aria-hidden="true">🔎</span><input id="ibAra" type="search" placeholder="ör. sarı merhem · mavi kutu krem · üstünde 20 yazan beyaz · majezik" aria-label="İlaç tarifi" autocomplete="off"></div>
     <div class="ib-filtre">
-      <div class="ib-grup"><span class="ib-bas">İçerik rengi</span><div class="ib-cipler" id="ibIRenk">${IB_RENK_IC.map(([tok,ad,h])=>`<button type="button" class="ib-cip" data-tur="irenk" data-deger="${tok}"><span class="ib-boya" style="background:${h}"></span>${ad}</button>`).join("")}</div></div>
+      <div class="ib-grup"><span class="ib-bas">İlacın rengi</span><div class="ib-cipler" id="ibIRenk">${IB_RENK_IC.map(([tok,ad,h])=>`<button type="button" class="ib-cip" data-tur="irenk" data-deger="${tok}"><span class="ib-boya" style="background:${h}"></span>${ad}</button>`).join("")}</div></div>
       <div class="ib-grup"><span class="ib-bas">Kutu rengi</span><div class="ib-cipler" id="ibKRenk">${IB_RENK_KT.map(([tok,ad,h])=>`<button type="button" class="ib-cip" data-tur="krenk" data-deger="${tok}"><span class="ib-boya" style="background:${h}"></span>${ad}</button>`).join("")}</div></div>
-      <div class="ib-grup"><span class="ib-bas">Şekil</span><div class="ib-cipler" id="ibSekil">${IB_SEKIL.map(([tok,ad])=>`<button type="button" class="ib-cip" data-tur="sekil" data-deger="${tok}">${ad}</button>`).join("")}</div></div>
+      <div class="ib-grup"><span class="ib-bas">İlacın şekli</span><div class="ib-cipler" id="ibSekil">${IB_SEKIL.map(([tok,ad])=>`<button type="button" class="ib-cip" data-tur="sekil" data-deger="${tok}">${ad}</button>`).join("")}</div></div>
       <div class="ib-grup"><span class="ib-bas">Form</span><div class="ib-cipler" id="ibForm">${IB_FORM_CIP.map(c=>`<button type="button" class="ib-cip" data-tur="form" data-deger="${c}">${ibFormEt(c)}</button>`).join("")}<button type="button" class="ib-cip" data-tur="centik" data-deger="1">Çentikli / çizgili</button></div></div>
-      <div class="ib-grup"><span class="ib-bas">Amaç</span><div class="ib-cipler" id="ibAmac">${IB_AMAC.map((a,i)=>`<button type="button" class="ib-cip" data-tur="amac" data-deger="${i}">${a[0]}</button>`).join("")}</div></div>
+      <div class="ib-grup"><span class="ib-bas">Ne için</span><div class="ib-cipler" id="ibAmac">${IB_AMAC.map((a,i)=>`<button type="button" class="ib-cip" data-tur="amac" data-deger="${i}">${a[0]}</button>`).join("")}</div></div>
     </div>
     <div id="ibSonuc"><div class="yukleniyor">Yükleniyor…</div></div>`;
   const inp = $("#ibAra"); inp.value = q || "";
