@@ -343,9 +343,10 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 .nv-bolum{font-size:17px;margin:22px 0 8px}
 .nv-bolum small{font-weight:400;font-size:13px;color:var(--soluk);margin-left:6px}
 /* Bu İlaç Neydi? */
-.ib-filtre{margin:-4px 0 14px}
-.ib-grup{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap}
-.ib-bas{font-size:12px;color:var(--soluk);min-width:44px;padding-top:9px;font-weight:600}
+.ib-filtre{margin:-2px 0 16px;background:var(--yuzey);border:1px solid var(--cizgi);border-radius:14px;padding:12px 14px;box-shadow:var(--golge)}
+.ib-grup{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--cizgi);flex-wrap:wrap}
+.ib-grup:last-child{margin-bottom:0;padding-bottom:0;border-bottom:0}
+.ib-bas{font-size:11px;color:var(--yesil);min-width:96px;padding-top:8px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
 .ib-cipler{display:flex;flex-wrap:wrap;gap:6px;flex:1}
 .ib-cip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--cizgi);background:var(--yuzey);color:var(--murekkep);border-radius:999px;padding:6px 11px;font-size:13.5px;cursor:pointer}
 .ib-cip:hover{background:var(--hover)}
@@ -1537,9 +1538,11 @@ async function nvTikla(e){
    Stok "var/yok": urun_ozet'teki adlarla (marka + doz) eşleşmeyle.
    SADECE ECZANE 1'de. Supabase'e yazmaz.
    ===================================================================== */
-let IB = null, ibNo = 0, ibZaman, ibStok = null, ibSecim = { renk:"", sekil:"", form:"", centik:false };
+let IB = null, ibNo = 0, ibZaman, ibStok = null, ibSecim = { irenk:"", krenk:"", sekil:"", form:"", centik:false };
 // token -> [etiket, hex]  (hem içerik hem kutu rengi için ortak palet)
 const IB_RENK = [["beyaz","Beyaz","#FFFFFF"],["sari","Sarı","#F4D23C"],["pembe","Pembe","#F5A9C0"],["mavi","Mavi","#5B9BD5"],["turuncu","Turuncu","#ED8B3C"],["kirmizi","Kırmızı","#D3433B"],["kahverengi","Kahverengi","#8A5A32"],["yesil","Yeşil","#5BB97E"],["krem","Krem","#F3E9C8"],["siyah","Siyah","#2B2B2B"],["seffaf","Şeffaf","#DDE6EA"],["gri","Gri","#AEB6BA"],["mor","Mor","#8667C4"],["bej","Bej","#D8C3A0"],["turkuaz","Turkuaz","#3FBDBD"],["lacivert","Lacivert","#243B82"],["haki","Haki","#8A8A4C"],["bordo","Bordo","#7B2733"]];
+const IB_RENK_IC = IB_RENK.slice(0,14);   // içerik rengi (ilacın kendi rengi)
+const IB_RENK_KT = IB_RENK;               // kutu rengi (turkuaz/lacivert/haki/bordo dahil)
 const IB_SEKIL = [["yuvarlak","Yuvarlak"],["oval","Oval"],["oblong","Uzun/Oblong"],["badem","Badem"],["ucgen","Üçgen"],["kare","Kare"],["dikdortgen","Dikdörtgen"],["baklava","Baklava"],["torpido","Torpido"],["altigen","Altıgen"],["besgen","Beşgen"],["sekizgen","Sekizgen"],["kalp","Kalp"]];
 // form kodu -> [etiket, ...eşanlamlar(arama için)]
 const IB_FORMLAR = {film:["Film tablet","kapli","tablet"],tablet:["Tablet"],kapsul:["Kapsül"],surup:["Şurup"],suspansiyon:["Süspansiyon"],solusyon:["Solüsyon","cozelti"],damla:["Damla"],sprey:["Sprey"],ampul:["Ampul","enjeksiyon","iğne"],efervesan:["Efervesan"],krem:["Krem","pomad"],jel:["Jel"],merhem:["Merhem","pomat","pomad"],toz:["Toz","sase"],ovul:["Ovül","vajinal"],supozituvar:["Supozituvar","fitil","makat"],draje:["Draje"],cigneme:["Çiğneme"],agizda:["Ağızda dağılan","odt","dilde"],losyon:["Losyon"],flaster:["Flaster/Bant","bant","yaki"],pastil:["Pastil"],sampuan:["Şampuan"],kopuk:["Köpük"],dilalti:["Dil altı"],diger:["Diğer"]};
@@ -1610,15 +1613,16 @@ async function ilacBul(q){
     <div class="liste-ust"><div><h1>💊 Bu İlaç Neydi?</h1><p>Hastanın tarif ettiğini yaz: renk, kutu rengi, şekil, üstündeki yazı, aklında kalan isim, form (krem/jel/merhem/şurup…). Her kelime aramayı daraltır. Aşağıdan renk/şekil/form da seçebilirsin.</p></div></div>
     <div class="nv-kutu"><span aria-hidden="true">🔎</span><input id="ibAra" type="search" placeholder="ör. sarı merhem · mavi kutu krem · üstünde 20 yazan beyaz · majezik" aria-label="İlaç tarifi" autocomplete="off"></div>
     <div class="ib-filtre">
-      <div class="ib-grup"><span class="ib-bas">Renk</span><div class="ib-cipler" id="ibRenk">${IB_RENK.map(([tok,ad,h])=>`<button type="button" class="ib-cip" data-tur="renk" data-deger="${tok}"><span class="ib-boya" style="background:${h}"></span>${ad}</button>`).join("")}</div></div>
+      <div class="ib-grup"><span class="ib-bas">İçerik rengi</span><div class="ib-cipler" id="ibIRenk">${IB_RENK_IC.map(([tok,ad,h])=>`<button type="button" class="ib-cip" data-tur="irenk" data-deger="${tok}"><span class="ib-boya" style="background:${h}"></span>${ad}</button>`).join("")}</div></div>
+      <div class="ib-grup"><span class="ib-bas">Kutu rengi</span><div class="ib-cipler" id="ibKRenk">${IB_RENK_KT.map(([tok,ad,h])=>`<button type="button" class="ib-cip" data-tur="krenk" data-deger="${tok}"><span class="ib-boya" style="background:${h}"></span>${ad}</button>`).join("")}</div></div>
       <div class="ib-grup"><span class="ib-bas">Şekil</span><div class="ib-cipler" id="ibSekil">${IB_SEKIL.map(([tok,ad])=>`<button type="button" class="ib-cip" data-tur="sekil" data-deger="${tok}">${ad}</button>`).join("")}</div></div>
       <div class="ib-grup"><span class="ib-bas">Form</span><div class="ib-cipler" id="ibForm">${IB_FORM_CIP.map(c=>`<button type="button" class="ib-cip" data-tur="form" data-deger="${c}">${ibFormEt(c)}</button>`).join("")}<button type="button" class="ib-cip" data-tur="centik" data-deger="1">Çentikli / çizgili</button></div></div>
     </div>
     <div id="ibSonuc"><div class="yukleniyor">Yükleniyor…</div></div>`;
   const inp = $("#ibAra"); inp.value = q || "";
   inp.addEventListener("input", ()=>{ clearTimeout(ibZaman); ibZaman = setTimeout(()=>{ history.replaceState(null,"","#ilacbul/"+encodeURIComponent(inp.value)); ibListele(); }, 250); });
-  document.querySelectorAll("#ibRenk,#ibSekil,#ibForm").forEach(k=>k.addEventListener("click", ibCipTik));
-  ibSecim = { renk:"", sekil:"", form:"", centik:false };
+  document.querySelectorAll("#ibIRenk,#ibKRenk,#ibSekil,#ibForm").forEach(k=>k.addEventListener("click", ibCipTik));
+  ibSecim = { irenk:"", krenk:"", sekil:"", form:"", centik:false };
   ibStokKur().then(()=>{ if($("#ibSonuc")) ibListele(); });   // stok arka planda
   if(!q) inp.focus();
   ibListele();
@@ -1646,12 +1650,13 @@ async function ibListele(){
     if(IB_DOLGU.has(w) || w.length<2) continue;
     kelimeler.push(IB_ES[w] || [w]);
   }
-  const s = ibSecim, srn = s.renk, ssk = s.sekil, sfm = s.form;
-  if(!kelimeler.length && !srn && !ssk && !sfm && !s.centik){
+  const s = ibSecim, sir = s.irenk, skr = s.krenk, ssk = s.sekil, sfm = s.form;
+  if(!kelimeler.length && !sir && !skr && !ssk && !sfm && !s.centik){
     kutu.innerHTML = `<div class="tablo"><div class="bos">Yukarıya tarif yaz ya da renk/şekil/form seç. Örn: “sarı merhem”, “mavi kutu krem”, “üstünde 20 yazan beyaz”, “majezik”.</div></div>`; return;
   }
   let l = veri.filter(d=>{
-    if(srn && !(d.rn.includes(srn) || d.kt.includes(srn))) return false;
+    if(sir && !d.rn.includes(sir)) return false;
+    if(skr && !d.kt.includes(skr)) return false;
     if(ssk && !d.sk.includes(ssk)) return false;
     if(sfm && d.f!==sfm) return false;
     if(s.centik && !d.cn) return false;
