@@ -63,6 +63,7 @@ a{color:inherit}
 .ara-kutu input::placeholder{color:var(--soluk)}
 .ara-kutu svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--soluk)}
 .ara-kutu input{padding-right:48px}
+@media (max-width:640px){body[data-ekran="ilacbul"] .ara-kutu{display:none}}
 .tara-dugme{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:var(--yesil-acik);border:1px solid var(--yesil-koyu);color:var(--yesil);border-radius:9px;width:38px;height:32px;font-size:17px;cursor:pointer;display:grid;place-items:center}
 .tarayici{position:fixed;inset:0;z-index:60;background:#000;display:flex;flex-direction:column}
 .tarayici video{flex:1;width:100%;object-fit:cover;min-height:0}
@@ -734,6 +735,7 @@ db.auth.onAuthStateChange(ev=>{ if(ev==="SIGNED_OUT" && !$("#program").classList
 window.addEventListener("hashchange", yonlendir);
 function yonlendir(){
   const h = decodeURIComponent(location.hash.slice(1));
+  document.body.dataset.ekran = (h.split("/")[0] || "ana");
   window.scrollTo(0,0);
   if(h.startsWith("urun/")) return urunKarti(h.slice(5));
   if(h.startsWith("liste/")) return liste(h.slice(6));
@@ -1538,7 +1540,7 @@ async function nvTikla(e){
    Stok "var/yok": urun_ozet'teki adlarla (marka + doz) eşleşmeyle.
    SADECE ECZANE 1'de. Supabase'e yazmaz.
    ===================================================================== */
-let IB = null, ibNo = 0, ibZaman, ibStok = null, ibSecim = { irenk:"", krenk:"", sekil:"", form:"", centik:false };
+let IB = null, ibNo = 0, ibZaman, ibStok = null, ibSecim = { irenk:"", krenk:"", sekil:"", form:"", amac:"", centik:false };
 // token -> [etiket, hex]  (hem içerik hem kutu rengi için ortak palet)
 const IB_RENK = [["beyaz","Beyaz","#FFFFFF"],["sari","Sarı","#F4D23C"],["pembe","Pembe","#F5A9C0"],["mavi","Mavi","#5B9BD5"],["turuncu","Turuncu","#ED8B3C"],["kirmizi","Kırmızı","#D3433B"],["kahverengi","Kahverengi","#8A5A32"],["yesil","Yeşil","#5BB97E"],["krem","Krem","#F3E9C8"],["siyah","Siyah","#2B2B2B"],["seffaf","Şeffaf","#DDE6EA"],["gri","Gri","#AEB6BA"],["mor","Mor","#8667C4"],["bej","Bej","#D8C3A0"],["turkuaz","Turkuaz","#3FBDBD"],["lacivert","Lacivert","#243B82"],["haki","Haki","#8A8A4C"],["bordo","Bordo","#7B2733"]];
 const IB_RENK_IC = IB_RENK.slice(0,14);   // içerik rengi (ilacın kendi rengi)
@@ -1547,6 +1549,8 @@ const IB_SEKIL = [["yuvarlak","Yuvarlak"],["oval","Oval"],["oblong","Uzun/Oblong
 // form kodu -> [etiket, ...eşanlamlar(arama için)]
 const IB_FORMLAR = {film:["Film tablet","kapli","tablet"],tablet:["Tablet"],kapsul:["Kapsül"],surup:["Şurup"],suspansiyon:["Süspansiyon"],solusyon:["Solüsyon","cozelti"],damla:["Damla"],sprey:["Sprey"],ampul:["Ampul","enjeksiyon","iğne"],efervesan:["Efervesan"],krem:["Krem","pomad"],jel:["Jel"],merhem:["Merhem","pomat","pomad"],toz:["Toz","sase"],ovul:["Ovül","vajinal"],supozituvar:["Supozituvar","fitil","makat"],draje:["Draje"],cigneme:["Çiğneme"],agizda:["Ağızda dağılan","odt","dilde"],losyon:["Losyon"],flaster:["Flaster/Bant","bant","yaki"],pastil:["Pastil"],sampuan:["Şampuan"],kopuk:["Köpük"],dilalti:["Dil altı"],diger:["Diğer"]};
 const IB_FORM_CIP = ["film","tablet","kapsul","surup","damla","krem","jel","merhem","supozituvar","ovul","sprey","ampul","efervesan","cigneme","agizda"];
+// amaç/kategori çipleri: [etiket, [araMetni-normalize eşleşme kelimeleri]]
+const IB_AMAC = [["Ağrı kesici",["agri kesici"]],["Ateş düşürücü",["ates dusurucu"]],["Antibiyotik",["antibiyotik"]],["Soğuk algınlığı",["soguk alginligi","grip","nezle"]],["Alerji",["alerji"]],["Öksürük/balgam",["balgam","oksuruk"]],["Mide/reflü",["reflu","mide","gastrit"]],["Tansiyon",["tansiyon"]],["Kalp",["kalp"]],["Kolesterol",["kolesterol"]],["Diyabet/şeker",["diyabet","seker"]],["Kan sulandırıcı",["kan sulandirici","pihti"]],["Astım/KOAH",["astim","koah"]],["Depresyon/psikiyatri",["antidepresan","psikiyatrik"]],["Kas gevşetici",["kas gevsetici"]],["Romatizma",["romatizma"]],["Kaşıntı/cilt",["kasinti","kizariklik","egzama"]],["Mantar",["mantar"]],["Kortizon",["kortizon"]],["Vitamin",["vitamin"]]];
 const IB_AD = Object.fromEntries(IB_RENK.map(x=>[x[0],x[1]]));            // renk token -> etiket
 const IB_BOYA = Object.fromEntries(IB_RENK.map(x=>[x[0],x[2]]));         // renk token -> hex
 const IB_SAD = Object.fromEntries(IB_SEKIL.map(x=>[x[0],x[1]]));         // sekil token -> etiket
@@ -1580,7 +1584,7 @@ async function ibVeri(){
   IB = j.map(x=>{
     const f = x.f||"", rn = x.r||[], sk = x.s||[], kt = x.kt||[];
     const fet = ibFormEt(f), fsyn = (IB_FORMLAR[f]||[]).slice(1).join(" ");
-    return { ad:x.n||"", et:x.m||"", am:x.k||"", gr:x.g||"", bs:x.b||"",
+    return { ad:x.n||"", et:x.m||"", am:x.k||"", amn:" "+araMetni(x.k||"")+" ", gr:x.g||"", bs:x.b||"",
       rn, sk, f, fet, cn:x.c?1:0, kt, img:x.img||"", bar:x.bar||"",
       ara:" " + araMetni([x.n,x.m,x.k, rn.join(" "), sk.join(" "), fet, fsyn, x.b, x.g, kt.join(" ")].join(" ")) + " " };
   });
@@ -1617,12 +1621,13 @@ async function ilacBul(q){
       <div class="ib-grup"><span class="ib-bas">Kutu rengi</span><div class="ib-cipler" id="ibKRenk">${IB_RENK_KT.map(([tok,ad,h])=>`<button type="button" class="ib-cip" data-tur="krenk" data-deger="${tok}"><span class="ib-boya" style="background:${h}"></span>${ad}</button>`).join("")}</div></div>
       <div class="ib-grup"><span class="ib-bas">Şekil</span><div class="ib-cipler" id="ibSekil">${IB_SEKIL.map(([tok,ad])=>`<button type="button" class="ib-cip" data-tur="sekil" data-deger="${tok}">${ad}</button>`).join("")}</div></div>
       <div class="ib-grup"><span class="ib-bas">Form</span><div class="ib-cipler" id="ibForm">${IB_FORM_CIP.map(c=>`<button type="button" class="ib-cip" data-tur="form" data-deger="${c}">${ibFormEt(c)}</button>`).join("")}<button type="button" class="ib-cip" data-tur="centik" data-deger="1">Çentikli / çizgili</button></div></div>
+      <div class="ib-grup"><span class="ib-bas">Amaç</span><div class="ib-cipler" id="ibAmac">${IB_AMAC.map((a,i)=>`<button type="button" class="ib-cip" data-tur="amac" data-deger="${i}">${a[0]}</button>`).join("")}</div></div>
     </div>
     <div id="ibSonuc"><div class="yukleniyor">Yükleniyor…</div></div>`;
   const inp = $("#ibAra"); inp.value = q || "";
   inp.addEventListener("input", ()=>{ clearTimeout(ibZaman); ibZaman = setTimeout(()=>{ history.replaceState(null,"","#ilacbul/"+encodeURIComponent(inp.value)); ibListele(); }, 250); });
-  document.querySelectorAll("#ibIRenk,#ibKRenk,#ibSekil,#ibForm").forEach(k=>k.addEventListener("click", ibCipTik));
-  ibSecim = { irenk:"", krenk:"", sekil:"", form:"", centik:false };
+  document.querySelectorAll("#ibIRenk,#ibKRenk,#ibSekil,#ibForm,#ibAmac").forEach(k=>k.addEventListener("click", ibCipTik));
+  ibSecim = { irenk:"", krenk:"", sekil:"", form:"", amac:"", centik:false };
   ibStokKur().then(()=>{ if($("#ibSonuc")) ibListele(); });   // stok arka planda
   if(!q) inp.focus();
   ibListele();
@@ -1650,8 +1655,8 @@ async function ibListele(){
     if(IB_DOLGU.has(w) || w.length<2) continue;
     kelimeler.push(IB_ES[w] || [w]);
   }
-  const s = ibSecim, sir = s.irenk, skr = s.krenk, ssk = s.sekil, sfm = s.form;
-  if(!kelimeler.length && !sir && !skr && !ssk && !sfm && !s.centik){
+  const s = ibSecim, sir = s.irenk, skr = s.krenk, ssk = s.sekil, sfm = s.form, sam = s.amac;
+  if(!kelimeler.length && !sir && !skr && !ssk && !sfm && !sam && !s.centik){
     kutu.innerHTML = `<div class="tablo"><div class="bos">Yukarıya tarif yaz ya da renk/şekil/form seç. Örn: “sarı merhem”, “mavi kutu krem”, “üstünde 20 yazan beyaz”, “majezik”.</div></div>`; return;
   }
   let l = veri.filter(d=>{
@@ -1659,6 +1664,7 @@ async function ibListele(){
     if(skr && !d.kt.includes(skr)) return false;
     if(ssk && !d.sk.includes(ssk)) return false;
     if(sfm && d.f!==sfm) return false;
+    if(sam && !IB_AMAC[+sam][1].some(w=>d.amn.includes(w))) return false;
     if(s.centik && !d.cn) return false;
     for(const alt of kelimeler){ if(!alt.some(t=>(/^\d+$/.test(t)||IB_VOKAB.has(t)) ? d.ara.includes(" "+t+" ") : (t.length<=2 ? d.ara.includes(" "+t) : d.ara.includes(t)))) return false; }
     return true;
