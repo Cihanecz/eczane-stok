@@ -351,8 +351,9 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 .ib-cip:hover{background:var(--hover)}
 .ib-cip.on{background:var(--yesil);border-color:var(--yesil);color:#fff}
 .ib-boya{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.18);display:inline-block;flex:none}
-.ib-boya.buyuk{width:22px;height:22px}
+.ib-boya.buyuk{width:44px;height:44px;border-radius:10px}
 .ib-boya.ib-bos{background:repeating-linear-gradient(45deg,var(--yuzey2),var(--yuzey2) 3px,var(--cizgi) 3px,var(--cizgi) 6px)}
+.ib-resim{width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--cizgi);flex:none}
 .ib-liste{display:flex;flex-direction:column;gap:10px}
 .ib-kart{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:14px;padding:12px 14px;box-shadow:var(--golge)}
 .ib-kart-ust{display:flex;align-items:center;gap:10px}
@@ -364,7 +365,9 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 .ib-yok{background:var(--yuzey2);color:var(--soluk)}
 .ib-bekle{background:var(--yuzey2);color:var(--soluk);opacity:.7}
 .ib-nitelik{margin-top:7px;font-size:13.5px;color:var(--murekkep)}
-.ib-amac{margin-top:3px;font-size:13px;color:var(--yesil);font-weight:600}
+.ib-kutu{margin-top:5px;font-size:12.5px;color:var(--soluk);display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.ib-kutu .ib-boya{width:13px;height:13px}
+.ib-amac{margin-top:4px;font-size:13px;color:var(--yesil);font-weight:600}
 .ib-baski{margin-top:3px;font-size:13px;color:var(--soluk)}
 .ib-gorunum{margin-top:5px;font-size:12.5px;color:var(--soluk);line-height:1.45}
 @media (max-width:600px){.ib-bas{min-width:100%;padding-top:0}}
@@ -1535,21 +1538,30 @@ async function nvTikla(e){
    SADECE ECZANE 1'de. Supabase'e yazmaz.
    ===================================================================== */
 let IB = null, ibNo = 0, ibZaman, ibStok = null, ibSecim = { renk:"", sekil:"", form:"", centik:false };
-const IB_RENK = [["Beyaz","#FFFFFF"],["Sarı","#F4D23C"],["Pembe","#F5A9C0"],["Mavi","#5B9BD5"],["Turuncu","#ED8B3C"],["Kırmızı","#D3433B"],["Kahverengi","#8A5A32"],["Yeşil","#5BB97E"],["Krem","#F3E9C8"],["Siyah","#2B2B2B"],["Şeffaf","#DDE6EA"],["Gri","#AEB6BA"],["Mor","#8667C4"],["Bej","#D8C3A0"]];
-const IB_SEKIL = ["Yuvarlak","Oval","Uzun","Badem","Üçgen","Kare","Dikdörtgen","Baklava","Altıgen","Beşgen","Kalp"];
-const IB_FORM = ["Film kaplı tablet","Tablet","Kapsül","Çiğneme tableti","Ağızda dağılan","Draje","Dil altı"];
+// token -> [etiket, hex]  (hem içerik hem kutu rengi için ortak palet)
+const IB_RENK = [["beyaz","Beyaz","#FFFFFF"],["sari","Sarı","#F4D23C"],["pembe","Pembe","#F5A9C0"],["mavi","Mavi","#5B9BD5"],["turuncu","Turuncu","#ED8B3C"],["kirmizi","Kırmızı","#D3433B"],["kahverengi","Kahverengi","#8A5A32"],["yesil","Yeşil","#5BB97E"],["krem","Krem","#F3E9C8"],["siyah","Siyah","#2B2B2B"],["seffaf","Şeffaf","#DDE6EA"],["gri","Gri","#AEB6BA"],["mor","Mor","#8667C4"],["bej","Bej","#D8C3A0"],["turkuaz","Turkuaz","#3FBDBD"],["lacivert","Lacivert","#243B82"],["haki","Haki","#8A8A4C"],["bordo","Bordo","#7B2733"]];
+const IB_SEKIL = [["yuvarlak","Yuvarlak"],["oval","Oval"],["oblong","Uzun/Oblong"],["badem","Badem"],["ucgen","Üçgen"],["kare","Kare"],["dikdortgen","Dikdörtgen"],["baklava","Baklava"],["torpido","Torpido"],["altigen","Altıgen"],["besgen","Beşgen"],["sekizgen","Sekizgen"],["kalp","Kalp"]];
+// form kodu -> [etiket, ...eşanlamlar(arama için)]
+const IB_FORMLAR = {film:["Film tablet","kapli","tablet"],tablet:["Tablet"],kapsul:["Kapsül"],surup:["Şurup"],suspansiyon:["Süspansiyon"],solusyon:["Solüsyon","cozelti"],damla:["Damla"],sprey:["Sprey"],ampul:["Ampul","enjeksiyon","iğne"],efervesan:["Efervesan"],krem:["Krem","pomad"],jel:["Jel"],merhem:["Merhem","pomat","pomad"],toz:["Toz","sase"],ovul:["Ovül","vajinal"],supozituvar:["Supozituvar","fitil","makat"],draje:["Draje"],cigneme:["Çiğneme"],agizda:["Ağızda dağılan","odt","dilde"],losyon:["Losyon"],flaster:["Flaster/Bant","bant","yaki"],pastil:["Pastil"],sampuan:["Şampuan"],kopuk:["Köpük"],dilalti:["Dil altı"],diger:["Diğer"]};
+const IB_FORM_CIP = ["film","tablet","kapsul","surup","damla","krem","jel","merhem","supozituvar","ovul","sprey","ampul","efervesan","cigneme","agizda"];
+const IB_AD = Object.fromEntries(IB_RENK.map(x=>[x[0],x[1]]));            // renk token -> etiket
+const IB_BOYA = Object.fromEntries(IB_RENK.map(x=>[x[0],x[2]]));         // renk token -> hex
+const IB_SAD = Object.fromEntries(IB_SEKIL.map(x=>[x[0],x[1]]));         // sekil token -> etiket
+function ibFormEt(f){ return (IB_FORMLAR[f]||[f])[0]; }
 // tarif kelimesi -> aranacak çekirdek kelimeler (ilaç metninde)
 const IB_ES = {
   toparlak:["yuvarlak"], yumru:["yuvarlak"], daire:["yuvarlak"], top:["yuvarlak"], degirmi:["yuvarlak"], tombul:["yuvarlak"], yuvarlak:["yuvarlak"],
   oval:["oval"], badem:["badem","oval"], elips:["oval"], yumurta:["oval"], bikonveks:["bikonveks"],
-  uzun:["uzun","oblong"], oblong:["uzun"], cubuk:["uzun","kapsul"], uzunca:["uzun"], kapsul:["kapsul","uzun"],
-  ucgen:["ucgen"], kare:["kare"], dikdortgen:["dikdortgen"], baklava:["baklava","elmas"], elmas:["baklava"], altigen:["altigen"], besgen:["besgen"], kalp:["kalp"],
+  uzun:["uzun","oblong"], oblong:["oblong","uzun"], cubuk:["oblong","kapsul"], uzunca:["oblong"], kapsul:["kapsul"],
+  torpido:["torpido"], ucgen:["ucgen"], kare:["kare"], dikdortgen:["dikdortgen"], baklava:["baklava","elmas"], elmas:["baklava"], altigen:["altigen"], besgen:["besgen"], sekizgen:["sekizgen"], kalp:["kalp"],
   cizgili:["centikli","cizik","centik"], centikli:["centikli","centik"], centik:["centikli"], bolunen:["centikli"], kirilan:["centikli"], cizik:["centikli","cizik"], ortadan:["centikli"],
-  ak:["beyaz"], beyaz:["beyaz"], sari:["sari"], pembe:["pembe"], mavi:["mavi"], turuncu:["turuncu"], portakal:["turuncu"], kirmizi:["kirmizi"], kahverengi:["kahverengi"], kahve:["kahverengi"], yesil:["yesil"], krem:["krem"], siyah:["siyah"], seffaf:["seffaf"], renksiz:["seffaf"], gri:["gri"], mor:["mor"], bej:["bej"]
+  ak:["beyaz"], beyaz:["beyaz"], sari:["sari"], pembe:["pembe"], mavi:["mavi"], turuncu:["turuncu"], portakal:["turuncu"], kirmizi:["kirmizi"], kahverengi:["kahverengi"], kahve:["kahverengi"], yesil:["yesil"], krem:["krem"], siyah:["siyah"], seffaf:["seffaf"], renksiz:["seffaf"], gri:["gri"], mor:["mor"], bej:["bej"], turkuaz:["turkuaz"], lacivert:["lacivert"], haki:["haki"], bordo:["bordo"],
+  fitil:["fitil","supozituvar"], pomat:["pomat","merhem"], pomad:["pomad","krem","merhem"], krem:["krem"], merhem:["merhem"], jel:["jel"], surup:["surup"], damla:["damla"], sprey:["sprey"], ampul:["ampul"], igne:["ampul"], efervesan:["efervesan"], sase:["toz","sase"]
 };
-const IB_BOYA = Object.fromEntries(IB_RENK.map(x=>[araMetni(x[0]), x[1]]));
 const IB_KUCUK = ["kucuk","minik","ufak","minicik","ufacik","kucukce"], IB_BUYUK = ["buyuk","iri","kocaman","buyukce","koca"];
-const IB_DOLGU = new Set(["ustunde","uzerinde","uzeri","uzerine","ustune","ustu","yazan","yaziyor","yazili","yaziyordu","yazanlar","yazar","vardi","variyor","birsey","bisey","sey","seyler","gibi","renkli","renginde","rengi","biraz","galiba","sanirim","herhalde","hani","ilac","hap","tane","adet","boyutunda","boyunda","seklinde","falan","filan","vs","olan","ol, an","bir","ile","icin"]);
+// bilinen sözlük (renk+şekil+form): bunlar tam kelime eşleşir ("jel" -> "jelatin"e takılmasın)
+const IB_VOKAB = new Set([...Object.keys(IB_AD), ...Object.keys(IB_SAD), ...Object.keys(IB_FORMLAR), "uzun","oblong","fitil","pomat","pomad","cozelti","odt","bant","sase","igne","enjeksiyon","vajinal","makat","dilde","yaki","bikonveks","elmas","centikli","centik","cizik","film","tablet","kapsul"]);
+const IB_DOLGU = new Set(["ustunde","uzerinde","uzeri","uzerine","ustune","ustu","yazan","yaziyor","yazili","yaziyordu","yazanlar","yazar","vardi","variyor","birsey","bisey","sey","seyler","gibi","renkli","renginde","rengi","renk","biraz","galiba","sanirim","herhalde","hani","ilac","hap","tane","adet","boyutunda","boyunda","seklinde","falan","filan","vs","olan","bir","ile","icin","kutu","kutusu","kutulu","kutunun","ici","ici","dis","disi"]);
 const IB_GENEL = new Set(["film","kapli","tablet","tablets","kapsul","kaps","draje","efervesan","cigneme","agizda","dagilan","dil","alti","mg","ml","mcg","gr","g","mikrogram","sase","ampul","flakon","oral","surup","liquid","fort","tb","adet","mikrog","iu","ui"]);
 function ibKelimeler(ad){ return String(ad||"").toLocaleUpperCase("tr-TR").replace(/Ç/g,"C").replace(/Ğ/g,"G").replace(/İ/g,"I").replace(/Ö/g,"O").replace(/Ş/g,"S").replace(/Ü/g,"U").replace(/Â/g,"A").replace(/Î/g,"I").replace(/Û/g,"U").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().split(/\s+/).filter(Boolean); }
 function ibAnahtar(ad){ // marka alfa kelimeleri + ilk sayı (doz)
@@ -1559,14 +1571,16 @@ function ibAnahtar(ad){ // marka alfa kelimeleri + ilk sayı (doz)
 }
 async function ibVeri(){
   if(IB) return IB;
-  const r = await fetch("./ilac-gorunum.json", { cache:"force-cache" });
+  const r = await fetch("./ilac-gorunum.json?s=34", { cache:"force-cache" });
   if(!r.ok) throw new Error("İlaç görünüm listesi yüklenemedi");
-  const j = await r.json(); const a = j.alanlar, i = n=>a.indexOf(n);
-  const ia={ad:i("ad"),et:i("etken"),am:i("amac"),rn:i("renk"),sk:i("sekil"),fm:i("form"),cn:i("centik"),bs:i("baski"),by:i("boyut"),gr:i("gorunum")};
-  IB = j.l.map(x=>({
-    ad:x[ia.ad], et:x[ia.et], am:x[ia.am], rn:x[ia.rn], sk:x[ia.sk], fm:x[ia.fm], cn:x[ia.cn], bs:x[ia.bs], by:parseFloat((x[ia.by]||"").replace(",",".")) || 0, gr:x[ia.gr],
-    ara:" " + araMetni([x[ia.ad],x[ia.et],x[ia.am],x[ia.rn],x[ia.sk],x[ia.fm],(x[ia.cn]?"centikli cizik":""),x[ia.bs],x[ia.gr]].join(" ")) + " "
-  }));
+  const j = await r.json();
+  IB = j.map(x=>{
+    const f = x.f||"", rn = x.r||[], sk = x.s||[], kt = x.kt||[];
+    const fet = ibFormEt(f), fsyn = (IB_FORMLAR[f]||[]).slice(1).join(" ");
+    return { ad:x.n||"", et:x.m||"", am:x.k||"", gr:x.g||"", bs:x.b||"",
+      rn, sk, f, fet, cn:x.c?1:0, kt, img:x.img||"", bar:x.bar||"",
+      ara:" " + araMetni([x.n,x.m,x.k, rn.join(" "), sk.join(" "), fet, fsyn, x.b, x.g, kt.join(" ")].join(" ")) + " " };
+  });
   return IB;
 }
 // Stoktaki ilaçların "marka+doz" indeksini kurar (var/yok için). Sadece okur.
@@ -1593,17 +1607,17 @@ async function ilacBul(q){
   $("#ibDugme").classList.add("aktif");
   $("#icerik").innerHTML = `
     <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
-    <div class="liste-ust"><div><h1>💊 Bu İlaç Neydi?</h1><p>Hastanın tarif ettiğini yaz: renk, şekil, üstündeki yazı, aklında kalan isim… Her kelime aramayı daraltır. Aşağıdan renk/şekil de seçebilirsin.</p></div></div>
-    <div class="nv-kutu"><span aria-hidden="true">🔎</span><input id="ibAra" type="search" placeholder="ör. beyaz yuvarlak çentikli ağrı kesici" aria-label="İlaç tarifi" autocomplete="off"></div>
+    <div class="liste-ust"><div><h1>💊 Bu İlaç Neydi?</h1><p>Hastanın tarif ettiğini yaz: renk, kutu rengi, şekil, üstündeki yazı, aklında kalan isim, form (krem/jel/merhem/şurup…). Her kelime aramayı daraltır. Aşağıdan renk/şekil/form da seçebilirsin.</p></div></div>
+    <div class="nv-kutu"><span aria-hidden="true">🔎</span><input id="ibAra" type="search" placeholder="ör. sarı merhem · mavi kutu krem · üstünde 20 yazan beyaz · majezik" aria-label="İlaç tarifi" autocomplete="off"></div>
     <div class="ib-filtre">
-      <div class="ib-grup"><span class="ib-bas">Renk</span><div class="ib-cipler" id="ibRenk">${IB_RENK.map(([a,h])=>`<button type="button" class="ib-cip" data-tur="renk" data-deger="${a}"><span class="ib-boya" style="background:${h}"></span>${a}</button>`).join("")}</div></div>
-      <div class="ib-grup"><span class="ib-bas">Şekil</span><div class="ib-cipler" id="ibSekil">${IB_SEKIL.map(a=>`<button type="button" class="ib-cip" data-tur="sekil" data-deger="${a}">${a}</button>`).join("")}</div></div>
-      <div class="ib-grup"><span class="ib-bas">Form</span><div class="ib-cipler" id="ibForm">${IB_FORM.map(a=>`<button type="button" class="ib-cip" data-tur="form" data-deger="${a}">${a}</button>`).join("")}<button type="button" class="ib-cip" data-tur="centik" data-deger="1">Çentikli / çizgili</button></div></div>
+      <div class="ib-grup"><span class="ib-bas">Renk</span><div class="ib-cipler" id="ibRenk">${IB_RENK.map(([tok,ad,h])=>`<button type="button" class="ib-cip" data-tur="renk" data-deger="${tok}"><span class="ib-boya" style="background:${h}"></span>${ad}</button>`).join("")}</div></div>
+      <div class="ib-grup"><span class="ib-bas">Şekil</span><div class="ib-cipler" id="ibSekil">${IB_SEKIL.map(([tok,ad])=>`<button type="button" class="ib-cip" data-tur="sekil" data-deger="${tok}">${ad}</button>`).join("")}</div></div>
+      <div class="ib-grup"><span class="ib-bas">Form</span><div class="ib-cipler" id="ibForm">${IB_FORM_CIP.map(c=>`<button type="button" class="ib-cip" data-tur="form" data-deger="${c}">${ibFormEt(c)}</button>`).join("")}<button type="button" class="ib-cip" data-tur="centik" data-deger="1">Çentikli / çizgili</button></div></div>
     </div>
     <div id="ibSonuc"><div class="yukleniyor">Yükleniyor…</div></div>`;
   const inp = $("#ibAra"); inp.value = q || "";
   inp.addEventListener("input", ()=>{ clearTimeout(ibZaman); ibZaman = setTimeout(()=>{ history.replaceState(null,"","#ilacbul/"+encodeURIComponent(inp.value)); ibListele(); }, 250); });
-  $("#ibFiltre"); document.querySelectorAll("#ibRenk,#ibSekil,#ibForm").forEach(k=>k.addEventListener("click", ibCipTik));
+  document.querySelectorAll("#ibRenk,#ibSekil,#ibForm").forEach(k=>k.addEventListener("click", ibCipTik));
   ibSecim = { renk:"", sekil:"", form:"", centik:false };
   ibStokKur().then(()=>{ if($("#ibSonuc")) ibListele(); });   // stok arka planda
   if(!q) inp.focus();
@@ -1626,33 +1640,29 @@ async function ibListele(){
   if(benim !== ibNo) return;
   const q = araMetni($("#ibAra") ? $("#ibAra").value : "");
   const ham = q.split(/\s+/).filter(Boolean);
-  const kelimeler = [], boySart = [];
+  const kelimeler = [];
   for(const w of ham){
-    if(IB_KUCUK.includes(w)){ boySart.push("k"); continue; }
-    if(IB_BUYUK.includes(w)){ boySart.push("b"); continue; }
+    if(IB_KUCUK.includes(w) || IB_BUYUK.includes(w)) continue;
     if(IB_DOLGU.has(w) || w.length<2) continue;
     kelimeler.push(IB_ES[w] || [w]);
   }
-  const s = ibSecim;
-  if(!kelimeler.length && !s.renk && !s.sekil && !s.form && !s.centik && !boySart.length){
-    kutu.innerHTML = `<div class="tablo"><div class="bos">Yukarıya tarif yaz ya da renk/şekil seç. Örn: “pembe oval”, “üstünde 20 yazan beyaz”, “majezik”.</div></div>`; return;
+  const s = ibSecim, srn = s.renk, ssk = s.sekil, sfm = s.form;
+  if(!kelimeler.length && !srn && !ssk && !sfm && !s.centik){
+    kutu.innerHTML = `<div class="tablo"><div class="bos">Yukarıya tarif yaz ya da renk/şekil/form seç. Örn: “sarı merhem”, “mavi kutu krem”, “üstünde 20 yazan beyaz”, “majezik”.</div></div>`; return;
   }
-  const srn = araMetni(s.renk), ssk = araMetni(s.sekil), sfm = araMetni(s.form);
   let l = veri.filter(d=>{
-    if(s.renk && !araMetni(d.rn).includes(srn)) return false;
-    if(s.sekil && !araMetni(d.sk).includes(ssk)) return false;
-    if(s.form && !araMetni(d.fm).includes(sfm)) return false;
+    if(srn && !(d.rn.includes(srn) || d.kt.includes(srn))) return false;
+    if(ssk && !d.sk.includes(ssk)) return false;
+    if(sfm && d.f!==sfm) return false;
     if(s.centik && !d.cn) return false;
-    for(const alt of kelimeler){ if(!alt.some(t=>/^\d+$/.test(t) ? d.ara.includes(" "+t+" ") : (t.length<=2 ? d.ara.includes(" "+t) : d.ara.includes(t)))) return false; }
+    for(const alt of kelimeler){ if(!alt.some(t=>(/^\d+$/.test(t)||IB_VOKAB.has(t)) ? d.ara.includes(" "+t+" ") : (t.length<=2 ? d.ara.includes(" "+t) : d.ara.includes(t)))) return false; }
     return true;
   });
-  // boyut tercihi: eleme yapmaz, sıralamada öne alır
-  const boyPuan = d=>{ if(!boySart.length || !d.by) return 0; let p=0; for(const b of boySart){ if(b==="k"&&d.by<=7)p++; if(b==="k"&&d.by>10)p--; if(b==="b"&&d.by>=12)p++; if(b==="b"&&d.by<8)p--; } return p; };
-  l.sort((a,b)=> (boyPuan(b)-boyPuan(a)) || ((b.rn&&b.sk?1:0)-(a.rn&&a.sk?1:0)) || a.ad.localeCompare(b.ad,"tr"));
+  l.sort((a,b)=> ((b.img?1:0)-(a.img?1:0)) || (((b.rn.length&&b.sk.length)?1:0)-((a.rn.length&&a.sk.length)?1:0)) || a.ad.localeCompare(b.ad,"tr"));
   const toplam = l.length, goster = l.slice(0,80);
-  if(!toplam){ kutu.innerHTML = `<div class="tablo"><div class="bos">Bu tarife uyan ilaç bulunamadı. Daha az kelimeyle dene ya da rengi/şekli değiştir.</div></div>`; return; }
+  if(!toplam){ kutu.innerHTML = `<div class="tablo"><div class="bos">Bu tarife uyan ilaç bulunamadı. Daha az kelimeyle dene ya da rengi/şekli/formu değiştir.</div></div>`; return; }
   kutu.innerHTML = `
-    <p style="margin:0 0 10px;color:var(--soluk)">${toplam} ilaç uyuyor${toplam>80?" (ilk 80)":""}. ${toplam>25?"Daraltmak için kelime ekle ya da renk/şekil seç.":""}</p>
+    <p style="margin:0 0 10px;color:var(--soluk)">${toplam} ilaç uyuyor${toplam>80?" (ilk 80)":""}. ${toplam>25?"Daraltmak için kelime ekle ya da renk/şekil/form seç.":""}</p>
     <div class="ib-liste">${goster.map(ibKart).join("")}</div>`;
 }
 function ibRozet(ad){
@@ -1661,15 +1671,20 @@ function ibRozet(ad){
   return v ? `<span class="ib-stok ib-var">✓ stokta var</span>` : `<span class="ib-stok ib-yok">✗ stokta yok</span>`;
 }
 function ibKart(d){
-  const boya = IB_BOYA[araMetni((d.rn||"").split(",")[0].trim())];
-  const nitelik = [d.rn, d.sk, d.fm, d.cn?"çentikli":"", d.by?`${sayi(d.by)} mm`:""].filter(Boolean).join(" · ");
+  const boya = IB_BOYA[d.rn[0]];
+  const kutuSwatch = d.kt.map(t=>`<span class="ib-boya" style="background:${IB_BOYA[t]||'#ccc'}" title="${IB_AD[t]||t}"></span>`).join("");
+  const nitelik = [ d.rn.map(t=>IB_AD[t]||t).join("/"), d.sk.map(t=>IB_SAD[t]||t).join("/"), d.fet, d.cn?"çentikli":"" ].filter(Boolean).join(" · ");
+  const gorsel = d.img
+    ? `<img class="ib-resim" loading="lazy" src="${kacis(d.img)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ib-boya buyuk ib-bos'}))">`
+    : (boya?`<span class="ib-boya buyuk" style="background:${boya}" title="${kacis(d.rn.map(t=>IB_AD[t]||t).join(', '))}"></span>`:`<span class="ib-boya buyuk ib-bos"></span>`);
   return `<div class="ib-kart">
     <div class="ib-kart-ust">
-      ${boya?`<span class="ib-boya buyuk" style="background:${boya}" title="${kacis(d.rn)}"></span>`:`<span class="ib-boya buyuk ib-bos"></span>`}
+      ${gorsel}
       <div class="ib-kart-ad"><b>${kacis(d.ad)}</b>${d.et?`<small>${kacis(d.et)}</small>`:""}</div>
       ${ibRozet(d.ad)}
     </div>
     ${nitelik?`<div class="ib-nitelik">${kacis(nitelik)}</div>`:""}
+    ${d.kt.length?`<div class="ib-kutu">Kutu: ${kutuSwatch}<span>${kacis(d.kt.map(t=>IB_AD[t]||t).join(", "))}</span></div>`:""}
     ${d.am?`<div class="ib-amac">${kacis(d.am)}</div>`:""}
     ${d.bs?`<div class="ib-baski">Üzerinde: <b>${kacis(d.bs)}</b></div>`:""}
     ${d.gr?`<div class="ib-gorunum">${kacis(d.gr)}</div>`:""}
