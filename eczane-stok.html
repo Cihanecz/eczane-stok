@@ -36,9 +36,13 @@ html{color-scheme:light}
 @keyframes acIc{0%{opacity:0;transform:translateY(16px) scale(.95)}100%{opacity:1;transform:none}}
 #icerik.gir{animation:icerikGir .22s ease}
 @keyframes icerikGir{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-.ripple{position:absolute;border-radius:50%;background:currentColor;opacity:.16;transform:scale(0);animation:rip .55s ease-out;pointer-events:none}
-@keyframes rip{to{transform:scale(2.2);opacity:0}}
-@media (prefers-reduced-motion:reduce){.ac-gir,.ac-gir .ac-ic,.ac-cik,#icerik.gir,.ripple{animation:none!important}}
+.ripple{position:absolute;border-radius:50%;background:currentColor;opacity:.3;transform:scale(0);animation:rip .5s ease-out;pointer-events:none}
+@keyframes rip{to{transform:scale(2.6);opacity:0}}
+/* basınca içeri çökme hissi */
+.kart,.satir,.dl-s,.nv-satir,.ib-kart,.ib-cip,.nv-cip,.ust-dugme,.ana-dugme,.ikincil,.geri,.da-dugme,[data-liste],[data-git]{transition:transform .13s ease}
+.kart:active,.satir:active,.dl-s:active,.nv-satir:active,.ib-kart:active,.ib-cip:active,.nv-cip:active,.ust-dugme:active,.ana-dugme:active,.ikincil:active,.geri:active,.da-dugme:active,[data-liste]:active,[data-git]:active{transform:scale(.96)}
+@media (prefers-reduced-motion:reduce){.ac-gir,.ac-gir .ac-ic,.ac-cik,#icerik.gir,.ripple{animation:none!important}
+  .kart:active,.satir:active,.dl-s:active,.nv-satir:active,.ib-kart:active,.ib-cip:active,.nv-cip:active,.ust-dugme:active,.ana-dugme:active,.ikincil:active,.geri:active,.da-dugme:active,[data-liste]:active,[data-git]:active{transform:none}}
 body{background:var(--bg);color:var(--murekkep);font:16px/1.45 "Onest",system-ui,sans-serif;
   font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;min-height:100vh}
 button,input{font:inherit;color:inherit}
