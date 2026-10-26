@@ -63,7 +63,7 @@ a{color:inherit}
 .ara-kutu input::placeholder{color:var(--soluk)}
 .ara-kutu svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--soluk)}
 .ara-kutu input{padding-right:48px}
-@media (max-width:640px){body[data-ekran="ilacbul"] .ara-kutu{display:none}}
+@media (max-width:640px){body[data-ekran="ilacbul"] .ara-kutu,body[data-ekran="neverelim"] .ara-kutu{display:none}}
 .tara-dugme{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:var(--yesil-acik);border:1px solid var(--yesil-koyu);color:var(--yesil);border-radius:9px;width:38px;height:32px;font-size:17px;cursor:pointer;display:grid;place-items:center}
 .tarayici{position:fixed;inset:0;z-index:60;background:#000;display:flex;flex-direction:column}
 .tarayici video{flex:1;width:100%;object-fit:cover;min-height:0}
@@ -1550,7 +1550,7 @@ const IB_SEKIL = [["yuvarlak","Yuvarlak"],["oval","Oval"],["oblong","Uzun/Oblong
 const IB_FORMLAR = {film:["Film tablet","kapli","tablet"],tablet:["Tablet"],kapsul:["Kapsül"],surup:["Şurup"],suspansiyon:["Süspansiyon"],solusyon:["Solüsyon","cozelti"],damla:["Damla"],sprey:["Sprey"],ampul:["Ampul","enjeksiyon","iğne"],efervesan:["Efervesan"],krem:["Krem","pomad"],jel:["Jel"],merhem:["Merhem","pomat","pomad"],toz:["Toz","sase"],ovul:["Ovül","vajinal"],supozituvar:["Supozituvar","fitil","makat"],draje:["Draje"],cigneme:["Çiğneme"],agizda:["Ağızda dağılan","odt","dilde"],losyon:["Losyon"],flaster:["Flaster/Bant","bant","yaki"],pastil:["Pastil"],sampuan:["Şampuan"],kopuk:["Köpük"],dilalti:["Dil altı"],diger:["Diğer"]};
 const IB_FORM_CIP = ["film","tablet","kapsul","surup","damla","krem","jel","merhem","supozituvar","ovul","sprey","ampul","efervesan","cigneme","agizda"];
 // amaç/kategori çipleri: [etiket, [araMetni-normalize eşleşme kelimeleri]]
-const IB_AMAC = [["Ağrı kesici",["agri kesici"]],["Ateş düşürücü",["ates dusurucu"]],["Antibiyotik",["antibiyotik"]],["Soğuk algınlığı",["soguk alginligi","grip","nezle"]],["Alerji",["alerji"]],["Öksürük/balgam",["balgam","oksuruk"]],["Mide/reflü",["reflu","mide","gastrit"]],["Tansiyon",["tansiyon"]],["Kalp",["kalp"]],["Kolesterol",["kolesterol"]],["Diyabet/şeker",["diyabet","seker"]],["Kan sulandırıcı",["kan sulandirici","pihti"]],["Astım/KOAH",["astim","koah"]],["Depresyon/psikiyatri",["antidepresan","psikiyatrik"]],["Kas gevşetici",["kas gevsetici"]],["Romatizma",["romatizma"]],["Kaşıntı/cilt",["kasinti","kizariklik","egzama"]],["Mantar",["mantar"]],["Kortizon",["kortizon"]],["Vitamin",["vitamin"]]];
+const IB_AMAC = [["Ağrı kesici",["agri kesic"]],["Ateş düşürücü",["ates dusur"]],["Antibiyotik",["antibiyot"]],["Soğuk algınlığı",["soguk algin","grip","nezle"]],["Alerji",["alerji"]],["Öksürük/balgam",["balgam","oksuru"]],["Mide/reflü",["reflu","mide","gastrit"]],["Tansiyon",["tansiyo"]],["Kalp",["kalp"]],["Kolesterol",["kolester"]],["Diyabet/şeker",["diyabet","seker"]],["Kan sulandırıcı",["kan suland","pihti"]],["Astım/KOAH",["astim","koah"]],["Depresyon/psikiyatri",["antidepres","psikiyatr"]],["Kas gevşetici",["kas gevset"]],["Romatizma",["romatizm"]],["Kaşıntı/cilt",["kasint","kizarik","egzama"]],["Mantar",["mantar"]],["Kortizon",["kortiz"]],["Vitamin",["vitamin"]]];
 const IB_AD = Object.fromEntries(IB_RENK.map(x=>[x[0],x[1]]));            // renk token -> etiket
 const IB_BOYA = Object.fromEntries(IB_RENK.map(x=>[x[0],x[2]]));         // renk token -> hex
 const IB_SAD = Object.fromEntries(IB_SEKIL.map(x=>[x[0],x[1]]));         // sekil token -> etiket
