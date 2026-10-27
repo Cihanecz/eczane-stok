@@ -27,6 +27,8 @@ html{color-scheme:light}
 .ac-ic{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;padding:24px}
 .ac-ic svg{width:74px;height:74px;filter:drop-shadow(0 8px 20px rgba(0,0,0,.28))}
 .ac-ad{font-size:29px;font-weight:800;letter-spacing:.3px;line-height:1.2;max-width:90vw}
+.ac-eczaci{font-size:16px;font-weight:600;opacity:.92;margin-top:-6px;max-width:90vw}
+.ac-eczaci:empty{display:none}
 .ac-alt{font-size:13px;opacity:.85;letter-spacing:3px;text-transform:uppercase}
 .acilis:not(.gizli){opacity:1}
 .ac-gir .ac-ic{animation:acIc .7s cubic-bezier(.2,.8,.2,1)}
@@ -78,6 +80,11 @@ a{color:inherit}
 .dl-ad{font-weight:600;font-size:15px}
 .dl-meta{font-size:13px;color:var(--soluk);white-space:nowrap}
 .dl-oneri{margin-top:6px;font-size:14px;line-height:1.45}
+.gebelik{display:block;margin-top:3px;font-size:12.5px;line-height:1.35;color:var(--mor)}
+.gebelik b{font-weight:800}
+.gebelik .gb-ac{color:var(--soluk);font-weight:400}
+.gebelik-k{font-size:11.5px;color:var(--mor)}
+.gebelik-k b{font-weight:800}
 .dl-fiyat{margin-top:4px;font-size:12.5px;color:var(--soluk)}
 .dl-fiyat b{color:var(--murekkep);font-weight:600}
 .da-dugme{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--yesil-acik);border:1px solid var(--yesil-koyu);color:var(--yesil);border-radius:14px;padding:12px 16px;margin:0 0 14px;font-size:15px;font-weight:600;cursor:pointer}
@@ -416,7 +423,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 </section>
 
 <!-- PROGRAM -->
-<div id="acilis" class="acilis gizli" aria-hidden="true"><div class="ac-ic"><svg width="74" height="74" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#FFFFFF"/><path d="M16 9h8v7h7v8h-7v7h-8v-7H9v-8h7z" fill="#12A06E"/></svg><div class="ac-ad" id="acilisAd"></div><div class="ac-alt">ECZANE STOK</div></div></div>
+<div id="acilis" class="acilis gizli" aria-hidden="true"><div class="ac-ic"><svg width="74" height="74" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#FFFFFF"/><path d="M16 9h8v7h7v8h-7v7h-8v-7H9v-8h7z" fill="#12A06E"/></svg><div class="ac-ad" id="acilisAd"></div><div class="ac-eczaci" id="acilisEczaci"></div><div class="ac-alt">ECZANE STOK</div></div></div>
 <div id="program" class="gizli">
   <header class="ust">
     <div class="ust-ic">
@@ -446,6 +453,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
     <h2>Eczanenin adı</h2>
     <p>Ana ekranda görünecek. Sonradan adın yanındaki ✎ ile değiştirebilirsin.</p>
     <label class="alan"><span>Eczane adı</span><input id="adGiris" type="text" maxlength="60" style="letter-spacing:0;font-size:16px" placeholder="Örn. Yıldız Eczanesi"></label>
+    <label class="alan"><span>Eczacı adı <small style="color:var(--soluk);font-weight:400">(açılışta eczane adının altında görünür)</small></span><input id="eczaciGiris" type="text" maxlength="60" style="letter-spacing:0;font-size:16px" placeholder="Örn. Ecz. Cihan Sarıoğlu"></label>
     <div class="hata" id="adHata" role="alert"></div>
     <button class="ana-dugme" id="adDugme" type="submit">Kaydet</button>
     <div class="yan"><button class="ikincil" type="button" id="adVazgec">Vazgeç</button></div>
@@ -568,6 +576,7 @@ function acilisGoster(){
   if(acilisYapildi) return; acilisYapildi=true;
   const o=document.getElementById("acilis"); if(!o) return;
   document.getElementById("acilisAd").textContent = ECZANE_ADI || VARSAYILAN_AD || "Eczane Stok";
+  { const ez=document.getElementById("acilisEczaci"); if(ez) ez.textContent = ECZACI_ADI || ""; }
   o.classList.remove("gizli","ac-cik"); o.classList.add("ac-gir");
   let bitti=false; const kapat=()=>{ if(bitti) return; bitti=true; o.classList.add("ac-cik"); setTimeout(()=>{ o.classList.add("gizli"); o.classList.remove("ac-gir","ac-cik"); }, 520); };
   const t=setTimeout(kapat, 2600); o.addEventListener("click", ()=>{ clearTimeout(t); kapat(); }, { once:true });
@@ -575,6 +584,17 @@ function acilisGoster(){
 
 let ECZANE_ADI = null;
 try { ECZANE_ADI = localStorage.getItem(ANAHTAR("eczaneAdi")); } catch(e){}
+let ECZACI_ADI = null;
+try { ECZACI_ADI = localStorage.getItem(ANAHTAR("eczaciAdi")); } catch(e){}
+async function eczaciAdiYukle(){
+  try {
+    const { data, error } = await db.from("ayar").select("deger").eq("anahtar","eczaci_adi").maybeSingle();
+    if(error) return ECZACI_ADI;
+    ECZACI_ADI = (data && data.deger) ? data.deger : null;
+    try { ECZACI_ADI ? localStorage.setItem(ANAHTAR("eczaciAdi"), ECZACI_ADI) : localStorage.removeItem(ANAHTAR("eczaciAdi")); } catch(e){}
+  } catch(e){}
+  return ECZACI_ADI;
+}
 async function eczaneAdiYukle(){
   const { data, error } = await db.from("ayar").select("deger").eq("anahtar","eczane_adi").maybeSingle();
   if(error) return ECZANE_ADI;               // ayar tablosu yoksa eski davranış
@@ -602,6 +622,7 @@ markaYaz();
 })();
 function adPerdeAc(){
   $("#adGiris").value = ECZANE_ADI || ""; $("#adHata").textContent = "";
+  if($("#eczaciGiris")) $("#eczaciGiris").value = ECZACI_ADI || "";
   $("#adVazgec").classList.toggle("gizli", !ECZANE_ADI);
   $("#adPerde").classList.remove("gizli"); setTimeout(()=>$("#adGiris").focus(), 30);
 }
@@ -610,11 +631,14 @@ $("#adFormu").addEventListener("submit", async e => {
   e.preventDefault();
   const ad = $("#adGiris").value.trim().replace(/\s+/g," ");
   if(ad.length < 2){ $("#adHata").textContent = "Eczane adını yaz."; return; }
+  const eczaci = ($("#eczaciGiris") ? $("#eczaciGiris").value : "").trim().replace(/\s+/g," ");
   const d = $("#adDugme"); d.disabled = true;
   const { error } = await db.from("ayar").upsert({ anahtar:"eczane_adi", deger: ad, guncelleme: new Date().toISOString() });
+  if(!error){ try { await db.from("ayar").upsert({ anahtar:"eczaci_adi", deger: eczaci, guncelleme: new Date().toISOString() }); } catch(e){} }
   d.disabled = false;
   if(error){ $("#adHata").textContent = hataMetni(error); return; }
   ECZANE_ADI = ad; try{ localStorage.setItem(ANAHTAR("eczaneAdi"), ad); }catch(e){}
+  ECZACI_ADI = eczaci || null; try{ ECZACI_ADI ? localStorage.setItem(ANAHTAR("eczaciAdi"), ECZACI_ADI) : localStorage.removeItem(ANAHTAR("eczaciAdi")); }catch(e){}
   $("#adPerde").classList.add("gizli"); yonlendir();
 });
 document.addEventListener("click", e => {
@@ -822,7 +846,7 @@ function gunlukGrafik(g){
 /* ---------- ana ekran ---------- */
 async function anaEkran(){
   yukleniyor();
-  const [a, pn, , olu, hic] = await Promise.all([db.rpc("ana_ekran"), db.rpc("panel"), eczaneAdiYukle(),
+  const [a, pn, , , olu, hic] = await Promise.all([db.rpc("ana_ekran"), db.rpc("panel"), eczaneAdiYukle(), eczaciAdiYukle(),
     stokToplam(()=>db.from("urun_ozet").select("stok_maliyet").gt("stok",0).or(OLU_FILTRE())),
     stokToplam(()=>db.from("urun_ozet").select("stok_maliyet").gt("stok",0).is("son_satis",null).or(HIC_FILTRE()))]);
   if(a.error) return hataGoster(a.error);
@@ -1125,12 +1149,14 @@ async function aramaSonucu(q){
 /* ---------- ürün kartı ---------- */
 async function urunKarti(barkod){
   yukleniyor();
-  const [oz, kk, ay] = await Promise.all([
+  const [oz, kk, ay, gb] = await Promise.all([
     db.from("urun_ozet").select("*").eq("barkod", barkod).maybeSingle(),
     db.from("karekod").select("miad,parti_no,ilk_gorulme").eq("barkod", barkod).eq("aktif", true).order("miad"),
     db.rpc("urun_aylik", { p_barkod: barkod }),
+    db.from("gebelik_ozet").select("gebelik").eq("barkod", barkod).maybeSingle(),
   ]);
   const hata = oz.error || kk.error || ay.error; if(hata) return hataGoster(hata);
+  const geb = (gb && !gb.error && gb.data && gb.data.gebelik) ? gb.data.gebelik : "";
   const r = oz.data;
   if(!r){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="history.back()">‹ Geri</button><button class="da-dugme" type="button" onclick="location.hash='depoara/${kacis(barkod)}'">🏷️ Depolarda ara <small>bu barkod stok listende yok</small></button><div class="tablo"><div class="bos">Bu barkodla ürün bulunamadı.</div></div>`; return; }
 
@@ -1148,7 +1174,7 @@ async function urunKarti(barkod){
 
   $("#icerik").innerHTML = `
     <button class="geri" type="button" onclick="history.length>1?history.back():location.hash=''">‹ Geri</button>
-    ${okutmaBandi(barkod)}<div class="urun-bas"><h1>${kacis(r.ad||barkod)}</h1><p>${kacis(barkod)}${r.uretici?" · "+kacis(r.uretici):""}</p></div>
+    ${okutmaBandi(barkod)}<div class="urun-bas"><h1>${kacis(r.ad||barkod)}</h1><p>${kacis(barkod)}${r.uretici?" · "+kacis(r.uretici):""}</p>${gebelikKisa(geb)?`<div style="margin-top:4px">${gebelikKisa(geb)}</div>`:""}</div>
     <div class="bilgiler">
       <div class="bilgi"><span>Stok</span><b>${sayi(r.stok)} kutu</b><small>${kilitli()?"&nbsp;":tl(r.stok_maliyet)+" maliyet"}</small></div>
       <div class="bilgi"><span>Ayda ortalama satış</span><b>${sayi(aylik)}</b><small>son 3 aya göre</small></div>
@@ -1452,6 +1478,39 @@ async function nvOncelik(){
   const { data } = await db.from("ayar").select("deger").eq("anahtar","oncelikli_ver").maybeSingle();
   try { return data ? JSON.parse(data.deger) || {} : {}; } catch(e){ return {}; }
 }
+/* ---------- gebelik kategorisi (Rx: A/B/C/D/X + C1C2D3 trimester kodu) ---------- */
+const GEBELIK = {
+  A:["güvenli","insanda çalışma var, en güvenli"],
+  B:["zararı kanıtlanmamış","hayvanda risk yok ya da insanda gösterilmemiş"],
+  C:["yarar/zarar oranına göre","hayvanda risk var, gerekirse kullanılır"],
+  D:["kanıtlı risk, yarara göre","insanda risk var ama bazı durumlarda gerekebilir"],
+  X:["gebelikte kesin yasak","risk her zaman yarardan fazla"]
+};
+function gebelikCoz(g){
+  if(!g) return null; g=String(g).trim().toUpperCase().replace(/\s+/g,""); if(!g) return null;
+  const m=[...g.matchAll(/([ABCDX])([123])/g)];
+  if(m.length){ const tri=m.map(x=>({t:+x[2],h:x[1]})); const hs=new Set(tri.map(x=>x.h));
+    if(hs.size===1) return {tek:[...hs][0]}; return {tri}; }
+  const s=g.match(/[ABCDX]/); return s?{tek:s[0]}:null;
+}
+function gebelikTam(g){ const c=gebelikCoz(g); if(!c) return "";
+  if(c.tek){ const [k,f]=GEBELIK[c.tek]; return `<span class="gebelik">🤰 <b>${c.tek}</b> · ${k} <span class="gb-ac">(${f})</span></span>`; }
+  return `<span class="gebelik">🤰 Trimester'e göre:`+c.tri.map(x=>{const[k]=GEBELIK[x.h];return `<br>${x.t}. trimester → <b>${x.h}</b> · ${k}`;}).join("")+`</span>`;
+}
+function gebelikKisa(g){ const c=gebelikCoz(g); if(!c) return "";
+  if(c.tek){ const [k]=GEBELIK[c.tek]; return `<span class="gebelik-k">🤰 <b>${c.tek}</b> · ${k}</span>`; }
+  const sira={A:1,B:2,C:3,D:4,X:5}; const en=c.tri.reduce((a,b)=>sira[b.h]>sira[a.h]?b:a);
+  const [k]=GEBELIK[en.h]; return `<span class="gebelik-k">🤰 <b>${en.h}</b>* · ${k}</span>`;
+}
+async function gebelikHarita(barkodlar){
+  const m = {}; if(!barkodlar || !barkodlar.length) return m;
+  const uniq = [...new Set(barkodlar.filter(Boolean).map(b=>String(b)))];
+  for(let i=0;i<uniq.length;i+=300){
+    try { const { data } = await db.from("gebelik_ozet").select("barkod,gebelik").in("barkod", uniq.slice(i,i+300));
+      if(data) for(const r of data){ if(r.gebelik) m[r.barkod]=r.gebelik; } } catch(e){}
+  }
+  return m;
+}
 async function neVerelim(q){
   $("#nvDugme").classList.add("aktif");
   $("#icerik").innerHTML = `
@@ -1495,6 +1554,9 @@ async function nvListele(q){
     const v = veri.harita[k] || {}, g = gunFarki(r.en_yakin_miad);
     l.push({ ...r, k, on: !!onc[k], en: v.en || "", sk: v.sk || nvSekil(r.ad, ""), gec: g!==null && g<0 }); }
   l.sort((a,b)=> (a.gec - b.gec) || (b.on - a.on) || (a.en_yakin_miad||"9999").localeCompare(b.en_yakin_miad||"9999") || (b.stok - a.stok));
+  const gm = await gebelikHarita(l.map(r=>r.barkod));
+  if(benim !== nvNo) return;
+  for(const r of l){ r.gebelik = gm[r.barkod] || ""; }
   nvSon = { q, l, bos: kel.length ? `“${kacis(q)}” için ${adaylar.length} ilaç var ama hiçbiri stokta değil.` : yazilanSekil.size ? "Bu bölümde stokta ilaç yok." : "⭐ işaretli ilaçların hiçbiri şu an stokta değil." };
   nvSecili = new Set(yazilanSekil);
   nvCiz();
@@ -1512,7 +1574,7 @@ function nvCiz(){
   const satir = r => { const g = gunFarki(r.en_yakin_miad);
     const m = r.gec ? `<span class="etiket yakin" title="Kayıtlı en yakın miat geçmiş — rafı kontrol edin">GEÇMİŞ ${tarih(r.en_yakin_miad)}</span>` : r.en_yakin_miad ? `<span class="etiket ${g!==null&&g<90?"yakin":g!==null&&g<180?"orta":"uzak"}">${tarih(r.en_yakin_miad)}</span>` : `<span style="color:var(--soluk)">—</span>`;
     return `<div class="nv-satir${r.on?" on":""}" data-barkod="${kacis(r.barkod)}"><button class="nv-yildiz${r.on?" on":""}" type="button" data-yildiz="${kacis(r.k)}" aria-label="${r.on?"Öncelikten çıkar":"Öncelikli yap"}" title="${r.on?"Öncelikten çıkar":"Öncelikli ver (herkes görür)"}">⭐</button>
-        <span class="ad">${kacis(r.ad)}<small>${kacis(r.en)}</small></span><span class="s">${sayi(r.stok)}</span><span class="s">${m}</span><span class="s psf">${tl(r.psf)}</span></div>`; };
+        <span class="ad">${kacis(r.ad)}<small>${kacis(r.en)}</small>${gebelikTam(r.gebelik)}</span><span class="s">${sayi(r.stok)}</span><span class="s">${m}</span><span class="s psf">${tl(r.psf)}</span></div>`; };
   kutu.innerHTML = goster.map(s=>{ const b = l.filter(r=>r.sk===s.k);
       const yakin = b.filter(x=>{ const g=gunFarki(x.en_yakin_miad); return g!==null && g>=0 && g<90; }).length, on = b.filter(x=>x.on).length;
       return `<h2 class="nv-bolum">${s.ad} <small>${b.length} ilaç${on?` · ⭐ ${on}`:""}${yakin?` · <b style="color:var(--kirmizi)">${yakin} tanesi 3 aydan az</b>`:""}</small></h2>
