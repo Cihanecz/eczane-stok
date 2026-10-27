@@ -39,7 +39,7 @@
         hata++; sonHata = String(e.message || e);
         if (hata >= 5) return { durum: "hata", mesaj: sonHata, sonuc };
       }
-      await bekle(450);
+      await bekle(1200);   // Sancak güvenliği hızlı isteklerde engelliyor → yumuşak tempo
     }
     return { durum: "ok", sonuc };
   }

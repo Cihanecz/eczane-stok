@@ -1357,9 +1357,10 @@ function AsamaDepo {
   $as = DepoKopru "as" $barkodlar $asGiris
   $asTamam = @($as.sonuc.Keys).Count
   Log ("  {0}: {1} ürün, durum {2}" -f $DEPOLAR["as"].ad, $asTamam, $as.durum)
-  # Sancak (Chrome eklentisi üzerinden)
+  # Sancak (Chrome eklentisi üzerinden) — YUMUŞAK: Sancak güvenliği aşırı isteği engellediği için en çok satan 150 ürün
   $snGiris = $null; if ($ay["sn"]) { try { $snGiris = DpAc $ay["sn"] | ConvertFrom-Json } catch { } }
-  $sn = DepoKopru "sn" $barkodlar $snGiris
+  $snBarkodlar = @($barkodlar | Select-Object -First 150)
+  $sn = DepoKopru "sn" $snBarkodlar $snGiris
   $snTamam = @($sn.sonuc.Keys).Count
   Log ("  Sancak: {0} ürün, durum {1}" -f $snTamam, $sn.durum)
   $bekK = DepoKopru "bek" $barkodlar $null
