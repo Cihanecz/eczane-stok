@@ -1329,7 +1329,7 @@ function AsamaKolay {
   KolayYukle $j $kl -Zorla
 }
 function AsamaDepo {
-  $ay = DepoAyarOku; if (-not $ay.Count) { Log "Depo bilgisi kayıtlı değil, atlandı (toplayici.ps1 -DepoKur)."; return }
+  $ay = DepoAyarOku; if (-not $ay.Count) { Log "Depo hesabı kayıtlı değil — eklenti (açık/girişli depo sekmeleri) üzerinden denenecek. Kalıcı oturum için: toplayici.ps1 -DepoKur" }
   $j = Jeton
   # sorgulanacak ürünler: son 90 günde satılan ilaçlar (en çok satan 350) + stokta az kalan çok satanlar
   $u = @(BulutOku "urun_ozet?select=barkod,ad,stok,adet_90&adet_90=gt.0&order=adet_90.desc&limit=350" $j | ForEach-Object { $_ })
@@ -1381,7 +1381,7 @@ function AsamaDepo {
   if (-not (Test-Path (Join-Path $KOK "kolay-$((Get-Date).ToString('yyyy-MM-dd')).txt"))) {
     try { $kl = KolayListe; if ($kl) { $n = KolayKategori $kat $j $kl; KolayYukle $j $kl; Log ("  Kolay Asistan: {0} ürünün tedavi grubu eklendi" -f $n) }; Set-Content (Join-Path $KOK "kolay-$((Get-Date).ToString('yyyy-MM-dd')).txt") "ok" } catch { Log ("  Kolay Asistan listesi okunamadı: " + $_.Exception.Message) }
   }
-  if ($ay["as"]) {
+  if ($asTamam) {
     $stoklu = @(BulutOku "urun_ozet?select=barkod&stok=gt.0&limit=10000" $j | ForEach-Object { $_.barkod } | Where-Object { $_ -match '^\d{8,14}$' -and (-not $kat.ContainsKey($_) -or ($kat[$_].k -and -not $kat[$_].a)) } | Select-Object -First 150)
     if ($stoklu.Count) {
       $as2 = DepoKopru "as" $stoklu $asGiris
