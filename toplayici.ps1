@@ -843,7 +843,19 @@ function DepoKur {
     $d = $DEPOLAR[$k]
     $c = Read-Host ("{0} kurulsun mu? (e/h)" -f $d.ad); if ($c -notmatch '^[eE]') { continue }
     $ses = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-    $f = DepoForm $d.giris $ses
+    $f = $null; try { $f = DepoForm $d.giris $ses } catch { }
+    if (-not $f) {
+      # site otomatik isteği engelliyor (ör. Sancak/BEK 403): bilgiler düz sorulur, Chrome eklentisi giriş sayfasını bunlarla doldurur
+      Write-Host ("  {0} giriş sayfası buradan okunamadı; bilgileri sırayla yazın (Chrome'da giriş ekranındaki sırayla)." -f $d.ad) -ForegroundColor Yellow
+      $g = [ordered]@{}
+      $g["__kullanici"] = Read-Host ("  {0} — kullanıcı adı" -f $d.ad)
+      $ek = Read-Host ("  {0} — varsa ikinci kutu (eczane kodu vb.), yoksa boş bırakıp Enter" -f $d.ad); if ($ek) { $g["__ek"] = $ek }
+      $s2 = Read-Host ("  {0} — şifre" -f $d.ad) -AsSecureString; $g["__sifre"] = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s2))
+      $ay[$k] = DpKoru (ConvertTo-Json $g -Compress)
+      ConvertTo-Json $ay | Set-Content $DEPO_DAT -Encoding UTF8
+      Write-Host ("  {0}: kaydedildi (oturum kapanırsa Chrome'da otomatik giriş için)" -f $d.ad) -ForegroundColor Green
+      continue
+    }
     $deger = @{}
     foreach ($a in ($f.alanlar | Where-Object { $_.tip -in @("text","email","tel","number","password") })) {
       $etiket = if ($a.ipucu) { $a.ipucu } else { $a.ad }
