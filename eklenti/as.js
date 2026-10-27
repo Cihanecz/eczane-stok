@@ -64,11 +64,13 @@
         if (u.durum === "dogrulama" || u.durum === "giris") return { durum: u.durum, sonuc };
         if (u.durum === "hata") { hata++; sonHata = u.mesaj; if (hata >= 5) return { durum: "hata", mesaj: sonHata, sonuc }; await bekle(500); continue; }
         const e = (u.liste || [])[0];
+        let veri = [];
         if (e) {
           const d = await urunDetay(e);
           if (d.durum === "dogrulama" || d.durum === "giris") return { durum: d.durum, sonuc };
-          if (d.durum === "ok" && d.obj) sonuc[temizle(b)] = [{ s: e.stokDurumu, obj: d.obj }];
+          if (d.durum === "ok" && d.obj) veri = [{ s: e.stokDurumu, obj: d.obj }];
         }
+        sonuc[temizle(b)] = veri;   // AS'te olmasa bile her barkoda (boş da olsa) yaz → DepoKopru o barkodu drain edebilsin, sonsuz döngü olmasın
         hata = 0;
       } catch (e) { hata++; sonHata = String((e && e.message) || e); if (hata >= 5) return { durum: "hata", mesaj: sonHata, sonuc }; }
       await bekle(500);
