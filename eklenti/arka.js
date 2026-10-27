@@ -24,7 +24,7 @@ async function hizliDongu() {
 chrome.runtime.onStartup.addListener(hizliDongu);
 chrome.runtime.onInstalled.addListener(hizliDongu);
 chrome.alarms.onAlarm.addListener(hizliDongu);
-hizliDongu();
+// hizliDongu() ilk çağrısı dosya sonunda (tüm const/let tanımları yüklendikten sonra) — başlangıç TDZ hatası olmasın
 
 const bekle = ms => new Promise(r => setTimeout(r, ms));
 
@@ -157,3 +157,6 @@ async function araYokla() {
     }
   } finally { araCalisiyor = false; }
 }
+
+// Hizli dongu basla (tum tanimlar yuklendikten sonra)
+hizliDongu();

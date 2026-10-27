@@ -27,17 +27,15 @@
       body: new URLSearchParams(govde).toString()
     });
   }
-  // JSON cevabı ayıkla; captcha / giriş sayfası gelirse durumu bildir
+  // JSON cevabı ayıkla; captcha / giriş sayfası gelirse durumu bildir.
+  // webdepo ajax ucu JSON'u text/html content-type ile döndürebiliyor → content-type'a bakmadan önce JSON dene (PS tarafı gibi).
   async function jsonAl(r) {
     if (r.status === 401 || r.status === 403) return { durum: "giris" };
-    const ct = r.headers.get("content-type") || "";
-    if (!ct.includes("json")) {
-      const t = await r.text();
-      if (dogrulamaVar(t)) return { durum: "dogrulama" };
-      if (/type=["']?password/i.test(t) || /login|giris|account/i.test(r.url)) return { durum: "giris" };
-      return { durum: "hata", mesaj: "beklenmeyen cevap " + r.status };
-    }
-    return { durum: "ok", j: await r.json() };
+    const t = await r.text();
+    try { return { durum: "ok", j: JSON.parse(t) }; } catch { }
+    if (dogrulamaVar(t)) return { durum: "dogrulama" };
+    if (/type=["']?password/i.test(t) || /login|giris|account/i.test(r.url)) return { durum: "giris" };
+    return { durum: "hata", mesaj: "beklenmeyen cevap " + r.status };
   }
 
   async function urunAra(barkod) {
