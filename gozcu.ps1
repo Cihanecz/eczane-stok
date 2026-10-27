@@ -50,9 +50,9 @@ $tur = 0
 while ($true) {
   # 60 sn'lik ana döngü; arada 15 sn'de bir sepet isteklerine bak
   for ($k = 0; $k -lt 4; $k++) { SepetDonguBak; Start-Sleep 15 }
-  # Depolar (Rx'e dokunmaz): depo bilgisi kayıtlıysa 08:00-21:00 arası saatte bir fiyat/MF çek
+  # Depolar (Rx'e dokunmaz): depo kaydı (depo.dat) VEYA eklenti-aktif işareti (depo-aktif.txt) varsa 08:00-21:00 arası saatte bir fiyat/MF çek
   $h = (Get-Date).Hour
-  if ((Test-Path (Join-Path $KOK "depo.dat")) -and $h -ge 8 -and $h -lt 21 -and ((Get-Date) - $depoSon).TotalMinutes -ge 60) {
+  if (((Test-Path (Join-Path $KOK "depo.dat")) -or (Test-Path (Join-Path $KOK "depo-aktif.txt"))) -and $h -ge 8 -and $h -lt 21 -and ((Get-Date) - $depoSon).TotalMinutes -ge 60) {
     $depoSon = Get-Date
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama depo" -WindowStyle Hidden | Out-Null
   }
