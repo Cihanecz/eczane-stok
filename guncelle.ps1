@@ -3,7 +3,7 @@
 param([string]$Repo, [string]$Sha)
 $ErrorActionPreference = "Stop"
 $KOK = "C:\EczaneStok"
-$dosyalar = "toplayici.ps1", "gozcu.ps1", "eklenti/arka.js", "eklenti/bek.js", "eklenti/manifest.json", "eklenti/sancak.js"
+$dosyalar = "toplayici.ps1", "gozcu.ps1", "eklenti/arka.js", "eklenti/as.js", "eklenti/bek.js", "eklenti/manifest.json", "eklenti/sancak.js"
 function Surecler($desen) { @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match $desen }) }
 # Rx'ten toplama sürüyorsa bitmesini bekle (yarıda kesilmesin)
 while ((Surecler 'toplayici\.ps1.*-Asama (gunluk|depo)').Count) { "Toplama suruyor, bitmesi bekleniyor..."; Start-Sleep 10 }

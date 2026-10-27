@@ -1017,6 +1017,19 @@ function BekCoz($liste) {
 # ======================= SEPETE EKLE (telefondan istenir) =======================
 # Site ayar.sepet_istek'e istek yazar → gözcü görünce bu aşamayı çalıştırır → Chrome eklentisi depo ekranında ürünü sepete ekler.
 # Sadece sepete ekler; siparişi eczacı depo ekranından kendisi tamamlar.
+# AS/Selçuk: eklentinin döndürdüğü ham detayı ({ s=stokDurumu, obj=GetIlacDetay }) DepoAS ile aynı biçime ayıklar
+function AsCoz($liste, [string]$barkod) {
+  $e0 = @($liste | Where-Object { $_ })[0]; if (-not $e0 -or -not $e0.obj) { return $null }
+  $d = $e0.obj
+  if ($d.barkod -and "$($d.barkod)" -ne $barkod) { return $null }
+  $mf = @(); $vade = $null
+  foreach ($k in @($d.kampanyalar)) {
+    if (-not $vade) { $vade = $k.vadeGun }
+    for ($i = 0; $i -lt @($k.miktar).Count; $i++) { if ($k.miktar[$i] -gt 0) { $mf += [ordered]@{ a = $k.miktar[$i]; m = $k.mf[$i]; n = [math]::Round([double]$k.netFiyati[$i], 2); v = $k.vadeGun } } }
+  }
+  [ordered]@{ d = [double]$d.depocuFiyati; s = $(if ("$($e0.s)" -match '^[1-9]') { 1 } else { 0 }); v = $vade; mf = $mf
+              atc = $d.atc.value; atca = $d.atc.display; end = $d.endikasyon.display; etk = $d.etkenMadde.display }
+}
 function SepetKopru([string]$depo, $kalemler) {
   $sonuc = $null; $durum = "eklenti_yok"; $mesaj = ""
   try { $l = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 47812); $l.Start() } catch { return @{ durum = "hata"; mesaj = "port meşgul" } }
@@ -1196,7 +1209,7 @@ function AsAra([string]$q) {
 # Eklentili depolar (Sancak / BEK): Chrome eklentisi 127.0.0.1:47813'ten "ara" işini alır, depo sekmesinde arar
 function AraKopru([string[]]$araDepolar, [string]$q, $sonuc, [scriptblock]$yaz) {
   $sira = New-Object System.Collections.Generic.Queue[string]; foreach ($d in $araDepolar) { $sira.Enqueue($d) }
-  $snGiris = $null; try { $ay = DepoAyarOku; if ($ay["sn"]) { $snGiris = DpAc $ay["sn"] | ConvertFrom-Json } } catch { }
+  $snGiris = $null; $asGiris = $null; try { $ay = DepoAyarOku; if ($ay["sn"]) { $snGiris = DpAc $ay["sn"] | ConvertFrom-Json }; if ($ay["as"]) { $asGiris = DpAc $ay["as"] | ConvertFrom-Json } } catch { }
   try { $l = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 47813); $l.Start() } catch { foreach ($d in $araDepolar) { $sonuc.depolar[$d] = [ordered]@{ durum = "hata"; mesaj = "port meşgul"; u = @() } }; return }
   try {
     $bas = Get-Date; $verilen = $null; $verZaman = $null
@@ -1214,6 +1227,7 @@ function AraKopru([string[]]$araDepolar, [string]$q, $sonuc, [scriptblock]$yaz) 
           $verilen = $sira.Dequeue(); $verZaman = Get-Date
           $is = [ordered]@{ depo = $verilen; q = $q; adres = $DEPOLAR[$verilen].giris }
           if ($verilen -eq "sn" -and $snGiris) { $is.giris = $snGiris }
+          elseif ($verilen -eq "as" -and $asGiris) { $is.giris = $asGiris }
           HttpYaz $st 200 (ConvertTo-Json $is -Compress -Depth 4)
         } elseif ($r.satir -match '^POST /sonuc') {
           HttpYaz $st 200 '{"tamam":true}'
@@ -1226,7 +1240,9 @@ function AraKopru([string[]]$araDepolar, [string]$q, $sonuc, [scriptblock]$yaz) 
             foreach ($x in $o.u) { if ($x -is [array]) { foreach ($y in $x) { if ($y) { [void]$ham.Add($y) } } } elseif ($x) { [void]$ham.Add($x) } }
             foreach ($x in $ham) {
               try {
-                if ($k -eq "bek") {
+                if ($k -eq "as") {
+                  $v = [ordered]@{ ad = "$($x.ad)".Trim(); b = "$($x.b)"; d = [double]$x.d; s = $x.s; v = $x.v; mf = $x.mf }
+                } elseif ($k -eq "bek") {
                   $v = BekCoz @($x); if (-not $v) { continue }
                   $v["ad"] = "$($x.sm.MAKTX)".Trim(); $v["b"] = BarkodDeger $x.sm @("EAN11", "EAN", "BARKOD", "BARCODE")
                 } else {
@@ -1251,8 +1267,8 @@ function DepoAra($ist, [string]$j) {
   $q = "$($ist.q)".Trim(); if ($q -match '^\d{8,14}$') { $q = $q -replace '^0(\d{13})$', '$1' }
   Log ("Depolarda ara: '{0}'" -f $q)
   $ay = DepoAyarOku
-  $http = @($DEPOLAR.Keys | Where-Object { $_ -notin @("sn", "bek") -and $ay[$_] })
-  $ek = @($DEPOLAR.Keys | Where-Object { $_ -in @("sn", "bek") })
+  $http = @()   # AS dahil tüm depolar artık eklenti üzerinden (doğrudan sunucu isteği yok → captcha yok)
+  $ek = @($DEPOLAR.Keys | Where-Object { $_ -in @("as", "sn", "bek") })
   $sonuc = [ordered]@{ id = "$($ist.id)"; q = $q; zaman = (Get-Date).ToString("o"); bitti = $false; sira = @($http + $ek); depolar = [ordered]@{} }
   $yaz = { try { AraSonucYaz $sonuc $j } catch { Log ("  depo_ara_sonuc yazılamadı: " + $_.Exception.Message) } }   # $sonuc / $j çağıran işlevden (dinamik kapsam)
   foreach ($k in $http) {
@@ -1321,8 +1337,14 @@ function AsamaDepo {
   $bilgi = @{}; foreach ($x in $u) { $bilgi[$x.barkod] = $x }
   Log ("Depo: {0} ürün sorgulanacak" -f $barkodlar.Count)
   $sesler = @{}
-  foreach ($k in @($ay.Keys | Where-Object { $_ -notin @("sn","bek") })) { try { $sesler[$k] = DepoGiris $k; Log ("  {0}: giriş tamam" -f $DEPOLAR[$k].ad) } catch { Log ("  {0}: GİRİŞ HATASI — {1}" -f $DEPOLAR[$k].ad, $_.Exception.Message) } }
+  # AS/Sancak/BEK: hepsi Chrome eklentisi üzerinden (tarayıcı oturumu) — toplayıcı doğrudan sunucuya istek atmaz, captcha çıkmaz
+  foreach ($k in @($ay.Keys | Where-Object { $_ -notin @("as","sn","bek") })) { try { $sesler[$k] = DepoGiris $k; Log ("  {0}: giriş tamam" -f $DEPOLAR[$k].ad) } catch { Log ("  {0}: GİRİŞ HATASI — {1}" -f $DEPOLAR[$k].ad, $_.Exception.Message) } }
   $onceki = @{}; $oncekiSn = $null; $oncekiBk = $null; try { $o = BulutOku "ayar?anahtar=eq.depo_fiyat&select=deger" $j; if ($o) { $ov = $o[0].deger | ConvertFrom-Json; $oncekiSn = $ov.sn; $oncekiBk = $ov.bek; foreach ($x in $ov.u) { $onceki[$x.b] = $x } } } catch { }
+  # AS/Selçuk (Chrome eklentisi üzerinden)
+  $asGiris = $null; if ($ay["as"]) { try { $asGiris = DpAc $ay["as"] | ConvertFrom-Json } catch { } }
+  $as = DepoKopru "as" $barkodlar $asGiris
+  $asTamam = @($as.sonuc.Keys).Count
+  Log ("  {0}: {1} ürün, durum {2}" -f $DEPOLAR["as"].ad, $asTamam, $as.durum)
   # Sancak (Chrome eklentisi üzerinden)
   $snGiris = $null; if ($ay["sn"]) { try { $snGiris = DpAc $ay["sn"] | ConvertFrom-Json } catch { } }
   $sn = DepoKopru "sn" $barkodlar $snGiris
@@ -1331,18 +1353,19 @@ function AsamaDepo {
   $bekK = DepoKopru "bek" $barkodlar $null
   $bkTamam = @($bekK.sonuc.Keys).Count
   Log ("  BEK: {0} ürün, durum {1}" -f $bkTamam, $bekK.durum)
-  if (-not $sesler.Count -and -not $snTamam -and -not $bkTamam) { throw "Hiçbir depoya girilemedi." }
+  if (-not $asTamam -and -not $snTamam -and -not $bkTamam) { throw "Hiçbir depodan veri alınamadı (eklenti/oturum?)." }
   $kat = @{}; try { $o = BulutOku "ayar?anahtar=eq.ilac_kategori&select=deger" $j; if ($o) { foreach ($p in ($o[0].deger | ConvertFrom-Json).PSObject.Properties) { $y = $p.Value.yok; if ($y -and ($y -isnot [string] -or ((Get-Date) - [datetime]$y).TotalDays -gt 30)) { continue }; $kat[$p.Name] = $p.Value } } } catch { }
   $simdi = (Get-Date).ToString("o"); $sonuc = New-Object System.Collections.ArrayList; $hata = @{}; $ard = @{}
   foreach ($b in $barkodlar) {
     $s = [ordered]@{ b = $b; ad = $bilgi[$b].ad; st = $bilgi[$b].stok; a90 = $bilgi[$b].adet_90 }
-    foreach ($k in @($sesler.Keys)) {
-      try { $v = DepoAS $sesler[$k] $b
-            if ($v) { if ($k -eq "as" -and $v.atc) { $kat[$b] = [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk }; foreach ($z in "atc","atca","end","etk") { $v.Remove($z) } }; $s[$k] = $v }; $ard[$k] = 0 }
-      catch { $hata[$k] = 1 + [int]$hata[$k]; $ard[$k] = 1 + [int]$ard[$k]; if ($hata[$k] -eq 3) { Log ("  {0}: tekrarlayan hata — {1}" -f $DEPOLAR[$k].ad, $_.Exception.Message) }
-              if ($ard[$k] -ge 8) { Log ("  {0}: üst üste hata, bu çalışmada bırakıldı (depo sunucusu yorulmasın)" -f $DEPOLAR[$k].ad); $sesler.Remove($k); break } }
-    }
     $bk = $b -replace '^0(\d{13})$', '$1'
+    foreach ($k in @($sesler.Keys)) {   # (varsa) eklenti dışı doğrudan depolar — normalde boş
+      try { $v = DepoAS $sesler[$k] $b; if ($v) { $s[$k] = $v } } catch { }
+    }
+    # AS/Selçuk — eklentiden gelen ham detay (AsCoz ile ayıklanır); kategori (atc) buradan $kat'a geçer
+    if ($as.sonuc.ContainsKey($bk)) { $v = AsCoz $as.sonuc[$bk] $bk
+      if ($v) { if ($v.atc) { $kat[$b] = [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk }; foreach ($z in "atc","atca","end","etk") { $v.Remove($z) } }; $s["as"] = $v } }
+    elseif ($onceki[$b] -and $onceki[$b].as) { $s["as"] = $onceki[$b].as }   # bu tur alınamadı: önceki AS verisi kalsın
     if ($sn.sonuc.ContainsKey($bk)) { $v = SnCoz $sn.sonuc[$bk] $bk; if ($v) { $s["sn"] = $v } }
     elseif ($onceki[$b] -and $onceki[$b].sn) { $s["sn"] = $onceki[$b].sn }   # bu saat alınamadı: önceki Sancak verisi kalsın
     if ($bekK.sonuc.ContainsKey($bk)) { try { $v = BekCoz $bekK.sonuc[$bk]; if ($v) { $s["bek"] = $v } } catch { } }
@@ -1358,15 +1381,18 @@ function AsamaDepo {
   if (-not (Test-Path (Join-Path $KOK "kolay-$((Get-Date).ToString('yyyy-MM-dd')).txt"))) {
     try { $kl = KolayListe; if ($kl) { $n = KolayKategori $kat $j $kl; KolayYukle $j $kl; Log ("  Kolay Asistan: {0} ürünün tedavi grubu eklendi" -f $n) }; Set-Content (Join-Path $KOK "kolay-$((Get-Date).ToString('yyyy-MM-dd')).txt") "ok" } catch { Log ("  Kolay Asistan listesi okunamadı: " + $_.Exception.Message) }
   }
-  if ($sesler["as"]) {
+  if ($ay["as"]) {
     $stoklu = @(BulutOku "urun_ozet?select=barkod&stok=gt.0&limit=10000" $j | ForEach-Object { $_.barkod } | Where-Object { $_ -match '^\d{8,14}$' -and (-not $kat.ContainsKey($_) -or ($kat[$_].k -and -not $kat[$_].a)) } | Select-Object -First 150)
-    foreach ($b in $stoklu) { try { $v = DepoAS $sesler["as"] $b; $eski = $kat[$b]
-        $kat[$b] = if ($v -and $v.atc) { [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk } } elseif ($eski -and $eski.atc) { [ordered]@{ atc = $eski.atc; k = 1; a = "-" } } else { [ordered]@{ yok = (Get-Date).ToString("yyyy-MM-dd") } } } catch { } }
+    if ($stoklu.Count) {
+      $as2 = DepoKopru "as" $stoklu $asGiris
+      foreach ($b in $stoklu) { $bk2 = $b -replace '^0(\d{13})$', '$1'; try { $v = if ($as2.sonuc.ContainsKey($bk2)) { AsCoz $as2.sonuc[$bk2] $bk2 } else { $null }; $eski = $kat[$b]
+          $kat[$b] = if ($v -and $v.atc) { [ordered]@{ atc = $v.atc; a = $v.atca; e = $v.end; m = $v.etk } } elseif ($eski -and $eski.atc) { [ordered]@{ atc = $eski.atc; k = 1; a = "-" } } else { [ordered]@{ yok = (Get-Date).ToString("yyyy-MM-dd") } } } catch { } }
+    }
   }
   # ilk çekimde ya da toplu değişimde ürünlerin çoğu "yeni" görünür → bu bir başlangıçtır, işaretleri sil
   foreach ($g in ($sonuc | Where-Object { $_.y } | Group-Object { $_.y })) { if ($g.Count -gt [math]::Max(20, $sonuc.Count * 0.3)) { foreach ($x in $g.Group) { $x.Remove("y") } } }
-  if (-not $sesler.Count -and -not $snTamam -and -not $bkTamam) { throw "Depo çekimi yarıda kaldı, buluta yazılmadı." }
-  $dl = @($sesler.Keys | ForEach-Object { $DEPOLAR[$_].ad }); if (@($sonuc | Where-Object { $_.sn }).Count) { $dl += $DEPOLAR["sn"].ad }; if (@($sonuc | Where-Object { $_.bek }).Count) { $dl += $DEPOLAR["bek"].ad }
+  if (-not $asTamam -and -not $snTamam -and -not $bkTamam) { throw "Depo çekimi yarıda kaldı, buluta yazılmadı." }
+  $dl = @(); if (@($sonuc | Where-Object { $_.as }).Count) { $dl += $DEPOLAR["as"].ad }; if (@($sonuc | Where-Object { $_.sn }).Count) { $dl += $DEPOLAR["sn"].ad }; if (@($sonuc | Where-Object { $_.bek }).Count) { $dl += $DEPOLAR["bek"].ad }
   $snBilgi = [ordered]@{ durum = $sn.durum; deneme = $simdi; zaman = $(if ($snTamam) { $simdi } elseif ($oncekiSn) { $oncekiSn.zaman } else { $null }) }
   $bkBilgi = [ordered]@{ durum = $bekK.durum; deneme = $simdi; zaman = $(if ($bkTamam) { $simdi } elseif ($oncekiBk) { $oncekiBk.zaman } else { $null }) }
   $veri = [ordered]@{ zaman = $simdi; depolar = @($dl | Select-Object -Unique); sn = $snBilgi; bek = $bkBilgi; u = $sonuc.ToArray() }

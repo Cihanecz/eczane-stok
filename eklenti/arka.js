@@ -40,6 +40,7 @@ async function bildir(govde) {
 }
 
 const DEPO = {
+  as:  { desen: "https://webdepo.asecza.com.tr/*",      adres: "https://webdepo.asecza.com.tr/Siparis/hizlisiparis.aspx" },
   sn:  { desen: "https://eticaret.sancakecza.com.tr/*", adres: "https://eticaret.sancakecza.com.tr/" },
   bek: { desen: "https://esube.bek.org.tr/*",           adres: "https://esube.bek.org.tr/irj/portal/" },
 };
@@ -62,7 +63,7 @@ async function sekmeyeSor(id, mesaj) {
   try { return await chrome.tabs.sendMessage(id, mesaj); }
   catch {
     // sekme eklentiden önce açılmışsa içerik betiği yoktur: ekle ve tekrar dene
-    await chrome.scripting.executeScript({ target: { tabId: id, allFrames: mesaj.depo === "bek" }, files: [mesaj.depo === "bek" ? "bek.js" : "sancak.js"] });
+    await chrome.scripting.executeScript({ target: { tabId: id, allFrames: mesaj.depo === "bek" }, files: [mesaj.depo === "bek" ? "bek.js" : mesaj.depo === "as" ? "as.js" : "sancak.js"] });
     await bekle(300);
     return await chrome.tabs.sendMessage(id, mesaj);
   }

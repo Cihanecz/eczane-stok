@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Eczane Stok - Depo Köprüsü",
-  "version": "1.5.1",
-  "description": "Açık depo sekmelerinden (Sancak, BEK) fiyat ve MF bilgisini okuyup Eczane Stok toplayıcısına verir. Sadece okur: sepet/sipariş yok.",
+  "version": "1.6.0",
+  "description": "Açık depo sekmelerinden (AS, Sancak, BEK) fiyat ve MF bilgisini okuyup Eczane Stok toplayıcısına verir. Sadece okur: sepet/sipariş yok.",
   "permissions": [
     "alarms",
     "tabs",
     "scripting"
   ],
   "host_permissions": [
+    "https://webdepo.asecza.com.tr/*",
     "https://eticaret.sancakecza.com.tr/*",
     "https://esube.bek.org.tr/*",
     "http://127.0.0.1:47811/*"
@@ -17,6 +18,15 @@
     "service_worker": "arka.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://webdepo.asecza.com.tr/*"
+      ],
+      "js": [
+        "as.js"
+      ],
+      "run_at": "document_idle"
+    },
     {
       "matches": [
         "https://eticaret.sancakecza.com.tr/*"
