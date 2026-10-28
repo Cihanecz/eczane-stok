@@ -1644,10 +1644,10 @@ const IB_KUCUK = ["kucuk","minik","ufak","minicik","ufacik","kucukce"], IB_BUYUK
 const IB_VOKAB = new Set([...Object.keys(IB_AD), ...Object.keys(IB_SAD), ...Object.keys(IB_FORMLAR), "uzun","oblong","fitil","pomat","pomad","cozelti","odt","bant","sase","igne","enjeksiyon","vajinal","makat","dilde","yaki","bikonveks","elmas","centikli","centik","cizik","film","tablet","kapsul"]);
 const IB_DOLGU = new Set(["ustunde","uzerinde","uzeri","uzerine","ustune","ustu","yazan","yaziyor","yazili","yaziyordu","yazanlar","yazar","vardi","variyor","birsey","bisey","sey","seyler","gibi","renkli","renginde","rengi","renk","biraz","galiba","sanirim","herhalde","hani","ilac","hap","tane","adet","boyutunda","boyunda","seklinde","falan","filan","vs","olan","bir","ile","icin","kutu","kutusu","kutulu","kutunun","ici","ici","dis","disi"]);
 const IB_GENEL = new Set(["film","kapli","tablet","tablets","kapsul","kaps","draje","efervesan","cigneme","agizda","dagilan","dil","alti","mg","ml","mcg","gr","g","mikrogram","sase","ampul","flakon","oral","surup","liquid","fort","tb","adet","mikrog","iu","ui"]);
-function ibKelimeler(ad){ return String(ad||"").toLocaleUpperCase("tr-TR").replace(/Ç/g,"C").replace(/Ğ/g,"G").replace(/İ/g,"I").replace(/Ö/g,"O").replace(/Ş/g,"S").replace(/Ü/g,"U").replace(/Â/g,"A").replace(/Î/g,"I").replace(/Û/g,"U").toLowerCase().replace(/[^a-z0-9]+/g," ").trim().split(/\s+/).filter(Boolean); }
-function ibAnahtar(ad){ // marka alfa kelimeleri + ilk sayı (doz)
+function ibKelimeler(ad){ return String(ad||"").toLocaleUpperCase("tr-TR").replace(/Ç/g,"C").replace(/Ğ/g,"G").replace(/İ/g,"I").replace(/Ö/g,"O").replace(/Ş/g,"S").replace(/Ü/g,"U").replace(/Â/g,"A").replace(/Î/g,"I").replace(/Û/g,"U").toLowerCase().replace(/([a-z])(\d)/g,"$1 $2").replace(/(\d)([a-z])/g,"$1 $2").replace(/[^a-z0-9]+/g," ").trim().split(/\s+/).filter(Boolean); }
+function ibAnahtar(ad){ // marka = ilk dozdan önceki alfa kelimeler (üretici/yer ekleri hariç), doz = ilk sayı
   const k = ibKelimeler(ad); const marka = []; let doz = "";
-  for(const t of k){ if(/^\d+$/.test(t)){ if(!doz) doz = t; } else if(!IB_GENEL.has(t) && !/^\d/.test(t)) marka.push(t); }
+  for(const t of k){ if(/^\d/.test(t)){ doz = (t.match(/^\d+/)||[""])[0]; break; } if(!IB_GENEL.has(t)) marka.push(t); }
   return { marka, doz };
 }
 async function ibVeri(){
@@ -1665,21 +1665,24 @@ async function ibVeri(){
   return IB;
 }
 // Stoktaki ilaçların "marka+doz" indeksini kurar (var/yok için). Sadece okur.
+let ibStokBar = null;
+function ibBarNorm(b){ b = String(b||"").replace(/\D/g,""); return b.replace(/^0+/,"") || "0"; }
 async function ibStokKur(){
   if(ibStok) return ibStok;
-  const idx = {};
-  for(let s=0;s<20000;s+=1000){
-    const { data, error } = await db.from("urun_ozet").select("ad").gt("stok",0).range(s, s+999);
+  const idx = {}, bar = new Set();
+  for(let s=0;s<40000;s+=1000){
+    const { data, error } = await db.from("urun_ozet").select("barkod,ad").gt("stok",0).range(s, s+999);
     if(error) break;
-    for(const r of data){ const k = ibKelimeler(r.ad||""); const set = new Set(k); const ilk = k.find(t=>!IB_GENEL.has(t) && !/^\d/.test(t));
+    for(const r of data){ if(r.barkod) bar.add(ibBarNorm(r.barkod)); const k = ibKelimeler(r.ad||""); const set = new Set(k); const ilk = k.find(t=>!IB_GENEL.has(t) && !/^\d/.test(t));
       if(ilk){ (idx[ilk] = idx[ilk] || []).push(set); } }
     if(data.length < 1000) break;
   }
-  ibStok = idx; return idx;
+  ibStok = idx; ibStokBar = bar; return idx;
 }
-function ibStokta(ad){
+function ibStokta(d){
   if(!ibStok) return null;
-  const { marka, doz } = ibAnahtar(ad); if(!marka.length) return false;
+  if(d.bar && ibStokBar && ibStokBar.has(ibBarNorm(d.bar))) return true;   // barkod kesin eşleşme
+  const { marka, doz } = ibAnahtar(d.ad); if(!marka.length) return false;
   const liste = ibStok[marka[0]]; if(!liste) return false;
   for(const set of liste){ if(marka.every(m=>set.has(m)) && (!doz || set.has(doz))) return true; }
   return false;
@@ -1750,8 +1753,8 @@ async function ibListele(){
     <p style="margin:0 0 10px;color:var(--soluk)">${toplam} ilaç uyuyor${toplam>80?" (ilk 80)":""}. ${toplam>25?"Daraltmak için kelime ekle ya da renk/şekil/form seç.":""}</p>
     <div class="ib-liste">${goster.map(ibKart).join("")}</div>`;
 }
-function ibRozet(ad){
-  const v = ibStokta(ad);
+function ibRozet(d){
+  const v = ibStokta(d);
   if(v===null) return `<span class="ib-stok ib-bekle">stok…</span>`;
   return v ? `<span class="ib-stok ib-var">✓ stokta var</span>` : `<span class="ib-stok ib-yok">✗ stokta yok</span>`;
 }
@@ -1766,7 +1769,7 @@ function ibKart(d){
     <div class="ib-kart-ust">
       ${gorsel}
       <div class="ib-kart-ad"><b>${kacis(d.ad)}</b>${d.et?`<small>${kacis(d.et)}</small>`:""}</div>
-      ${ibRozet(d.ad)}
+      ${ibRozet(d)}
     </div>
     ${nitelik?`<div class="ib-nitelik">${kacis(nitelik)}</div>`:""}
     ${d.kt.length?`<div class="ib-kutu">Kutu: ${kutuSwatch}<span>${kacis(d.kt.map(t=>IB_AD[t]||t).join(", "))}</span></div>`:""}
