@@ -795,7 +795,9 @@ function Gunluk {
     $ab = if ($sa.Count -and $sa[0].fat_tarih) { ([datetime]$sa[0].fat_tarih).AddDays(-10) } else { (Get-Date).Date.AddDays(-30) }
     AsamaAlis $p $ab.ToString("dd.MM.yyyy") (Get-Date).ToString("dd.MM.yyyy") "alis.csv"
     AlisYukle "alis.csv"
-    AsamaHasta $p
+    # Rx veritabanindan canli hasta koprusu (rx-hasta.ps1) varsa ekran uzerinden hasta raporu ALINMAZ
+    # (kopru 10 dk'da bir raporlu+raporsuz listeyi yaziyor; burasi yazarsa onu ezer).
+    if (Test-Path (Join-Path $KOK "rx-hasta.ps1")) { Log "Hasta takibi: rx-hasta.ps1 (canli kopru) var, ekrandan alinmadi" } else { AsamaHasta $p }
     try { RaporSekmeleriniTemizle $p } catch { Log ("  sekme temizliği: " + $_.Exception.Message) }
     Kayit "gunluk" "tamam" 0 "" (Jeton)
   } catch {
