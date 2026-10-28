@@ -1470,7 +1470,7 @@ async function nvVeri(){
   const v = data ? JSON.parse(data.deger) : { alanlar:[], l:[] };
   const i = n => v.alanlar.indexOf(n);
   const ib = i("barkod"), ia = i("ad"), ie = i("endikasyon");
-  NV = v.l.map(x=>({ k:nvAnahtar(x[ib]), ad:x[ia], en:x[ie]||"", ara:" "+araMetni(x[ie]+" "+x[ia]), sk:nvSekil(x[ia], x[ie]) }));
+  NV = v.l.map(x=>{ const a = araMetni(x[ie]+" "+x[ia]); return { k:nvAnahtar(x[ib]), ad:x[ia], en:x[ie]||"", ara:" "+a, kelimeler:a.split(" ").filter(Boolean), sk:nvSekil(x[ia], x[ie]) }; });
   NV.harita = {}; for(const x of NV) NV.harita[x.k] = x;
   return NV;
 }
@@ -1539,7 +1539,15 @@ async function nvListele(q){
   for(const s of NV_SEKIL) for(const a of [...s.ara].sort((x,y)=>y.length-x.length)) if(t.includes(" "+a+" ")){ yazilanSekil.add(s.k); t = t.replace(" "+a+" "," "); }
   const kel = t.split(/\s+/).filter(w=>w.length>=2);
   let adaylar;
-  if(kel.length) adaylar = veri.filter(x=>kel.every(w=>x.ara.includes(w)) && (!yazilanSekil.size || yazilanSekil.has(x.sk)));
+  if(kel.length) adaylar = veri.filter(x=>{
+    if(yazilanSekil.size && !yazilanSekil.has(x.sk)) return false;
+    // Etki alanında kelime sınırından eşleşme: önceki kelimeler tam kelime, son kelime yarım yazılmış olabilir (ön ek).
+    // Böylece "kas" artık "KAŞINTI"(kasinti) içine düşmez; "kas gev" yalnız "KAS GEVŞETİCİ"yi getirir, "ağrı ateş" ikisini de yapanı bulur.
+    for(let i=0;i<kel.length;i++){ const w = kel[i];
+      const ok = i===kel.length-1 ? x.kelimeler.some(p=>p.startsWith(w)) : x.kelimeler.includes(w);
+      if(!ok) return false; }
+    return true;
+  });
   else if(yazilanSekil.size) adaylar = veri.filter(x=>yazilanSekil.has(x.sk));
   else adaylar = Object.keys(onc).map(k=>veri.harita[k] || { k, en:"", sk:"diger" });
   if(!adaylar.length){ kutu.innerHTML = `<div class="tablo"><div class="bos">${q.trim() ? `“${kacis(q)}” için ilaç bulunamadı. Başka bir kelime dene (ör. ağrı, ateş, öksürük, alerji).` : "Aramak için yukarıya yaz. ⭐ ile işaretlenen ilaçlar burada da listelenir."}</div></div>`; return; }
