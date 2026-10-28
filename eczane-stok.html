@@ -362,7 +362,11 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 .ib-boya{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.18);display:inline-block;flex:none}
 .ib-boya.buyuk{width:44px;height:44px;border-radius:10px}
 .ib-boya.ib-bos{background:repeating-linear-gradient(45deg,var(--yuzey2),var(--yuzey2) 3px,var(--cizgi) 3px,var(--cizgi) 6px)}
-.ib-resim{width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--cizgi);flex:none}
+.ib-resim{width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--cizgi);flex:none;cursor:zoom-in}
+.ib-buyut{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
+.ib-buyut.acik{display:flex}
+.ib-buyut img{max-width:95vw;max-height:92vh;object-fit:contain;border-radius:12px;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.ib-buyut-kapat{position:fixed;top:14px;right:18px;width:46px;height:46px;border-radius:50%;border:0;background:rgba(255,255,255,.95);color:#111;font-size:28px;line-height:46px;text-align:center;cursor:pointer;font-weight:700;box-shadow:0 2px 12px rgba(0,0,0,.35)}
 .ib-liste{display:flex;flex-direction:column;gap:10px}
 .ib-kart{background:var(--yuzey);border:1px solid var(--cizgi);border-radius:14px;padding:12px 14px;box-shadow:var(--golge)}
 .ib-kart-ust{display:flex;align-items:center;gap:10px}
@@ -1771,6 +1775,20 @@ function ibKart(d){
     ${d.gr?`<div class="ib-gorunum">${kacis(d.gr)}</div>`:""}
   </div>`;
 }
+function ibBuyut(src){
+  let o=document.getElementById("ibBuyutKat");
+  if(!o){
+    o=document.createElement("div"); o.id="ibBuyutKat"; o.className="ib-buyut";
+    o.innerHTML='<button class="ib-buyut-kapat" type="button" aria-label="Kapat">×</button><img alt="">';
+    o.addEventListener("click",e=>{ if(e.target===o||e.target.classList.contains("ib-buyut-kapat")) ibBuyutKapat(); });
+    document.body.appendChild(o);
+  }
+  o.querySelector("img").src=src; o.classList.add("acik");
+  document.addEventListener("keydown",ibBuyutEsc);
+}
+function ibBuyutKapat(){ const o=document.getElementById("ibBuyutKat"); if(o) o.classList.remove("acik"); document.removeEventListener("keydown",ibBuyutEsc); }
+function ibBuyutEsc(e){ if(e.key==="Escape") ibBuyutKapat(); }
+document.addEventListener("click",e=>{ const im=e.target.closest(".ib-resim"); if(im&&im.src) ibBuyut(im.src); });
 
 /* =====================================================================
    HASTA TAKİBİ — İlacı biten / raporu biten hastalar
