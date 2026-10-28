@@ -676,7 +676,9 @@ function IlaciBitenAl($p, [string]$tur) {
   RaporAc $p "HastaRap" "IlaciBiten" "İlacı Biten Hastalar ($tur)"; Start-Sleep 3
   $script:ON = AnaPencere $p
   TarihYaz "IlacBitBas" ((Get-Date).AddDays(-45).ToString("dd.MM.yyyy"))
-  K "IlacTurOk"; Start-Sleep -Milliseconds 600; K $(if ($tur -eq "R") { "IlacRaporlu" } else { "IlacRaporsuz" }); Start-Sleep -Milliseconds 600
+  # Raporlu/Raporsuz filtresini sabit pikselle değil klavyeyle seç (çözünürlükten bağımsız, şaşmaz):
+  # açılır listeyi aç, seçeneğin adını yaz (type-ahead seçer), TAB ile onayla.
+  K "IlacTurOk"; Start-Sleep -Milliseconds 700; Tus $(if ($tur -eq "R") { "Raporlu" } else { "Raporsuz" }); Start-Sleep -Milliseconds 400; Tus "{TAB}"; Start-Sleep -Milliseconds 500
   K "IlacSorgula"; Log "İlacı biten ($tur) sorgulandı"
   $rx = YuklemeBekle $p 600
   IzgaradanCsv $p $rx (Join-Path $VERI "ilacbiten-$tur.csv") "IlacTumu" "IlacSag" | Out-Null
