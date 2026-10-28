@@ -1778,7 +1778,7 @@ function ibKart(d){
    türetilir (PBKDF2-SHA256), veri AES-CBC + HMAC-SHA256 ile şifrelidir.
    Sunucuda sadece okunamaz metin durur.
    ===================================================================== */
-const H = { anahtar:null, veri:null, durum:{}, sablon:null, filtre:"hepsi", sadeceAtilmayan:false };
+const H = { anahtar:null, veri:null, durum:{}, sablon:null, gorunum:"raporlu", mesaj:"hepsi" };
 const HKONTROL = "ECZANE-STOK-HASTA";
 const HSABLON_VARSAYILAN = {
   ilac: "Merhaba {ad}, {eczane}'nden yazıyoruz. {ilac} için reçete zamanınız geldi, {tarih} tarihinden itibaren yazdırabilirsiniz. Doktorunuza reçetenizi yazdırıp eczanemize uğrayabilirsiniz. İyi günler dileriz 😊",
@@ -1890,19 +1890,22 @@ function hSifreSor(tuz, kont){
 }
 
 function hGruplar(){
-  const V = H.veri || {ilac:[], rapor:[]}; const bugun = gunStr(new Date());
-  const filtre = r => H.filtre==="hepsi" || (H.filtre==="R" ? r.tur==="R" : r.tur==="S");
+  const V = H.veri || {ilac:[], rapor:[]};
+  const raporsuz = H.gorunum==="raporsuz";
+  const filtre = r => raporsuz ? r.tur==="S" : r.tur==="R";
+  const mesajGec = (l, tip) => H.mesaj==="bekleyen" ? l.filter(k=>!hYakinMesaj(k.p,tip))
+                            : H.mesaj==="atildi"   ? l.filter(k=>hYakinMesaj(k.p,tip)) : l;
   const kisiler = (satirlar, tip) => { const m = new Map();
     for(const r of satirlar){ if(!m.has(r.p)) m.set(r.p, {p:r.p, h:r.h, gsm:r.gsm, tel:r.tel, tip, satir:[]}); m.get(r.p).satir.push(r); }
-    let l = [...m.values()]; if(H.sadeceAtilmayan) l = l.filter(k=>!hYakinMesaj(k.p, tip)); return l; };
+    return mesajGec([...m.values()], tip); };
   const ilac = (V.ilac||[]).filter(r=>r.yaz && filtre(r));
   const g = d => gunFarki(d);
   return {
     bugun:  kisiler(ilac.filter(r=>g(r.yaz)<=0 && g(r.yaz)>=-7).sort((a,b)=>a.yaz<b.yaz?-1:1), "ilac"),
     hafta:  kisiler(ilac.filter(r=>g(r.yaz)>0 && g(r.yaz)<=7).sort((a,b)=>a.yaz<b.yaz?-1:1), "ilac"),
     gecen:  kisiler(ilac.filter(r=>g(r.yaz)<-7).sort((a,b)=>a.yaz>b.yaz?-1:1), "ilac"),
-    rapor:  kisiler((V.rapor||[]).filter(r=>r.bit && g(r.bit)>=-7 && g(r.bit)<=30 && !hDevamVar(r)).sort((a,b)=>a.bit<b.bit?-1:1), "rapor"),
-    devam:  new Set((V.rapor||[]).filter(r=>r.bit && g(r.bit)>=-7 && g(r.bit)<=30 && hDevamVar(r)).map(r=>r.p)).size,
+    rapor:  raporsuz ? [] : kisiler((V.rapor||[]).filter(r=>r.bit && g(r.bit)>=-7 && g(r.bit)<=30 && !hDevamVar(r)).sort((a,b)=>a.bit<b.bit?-1:1), "rapor"),
+    devam:  raporsuz ? 0 : new Set((V.rapor||[]).filter(r=>r.bit && g(r.bit)>=-7 && g(r.bit)<=30 && hDevamVar(r)).map(r=>r.p)).size,
     stok:   hStokUyari(ilac.filter(r=>g(r.yaz)<=7 && g(r.yaz)>=-7))
   };
 }
@@ -1915,9 +1918,9 @@ function hStokUyari(satirlar){
 }
 function hRozetGuncelle(){
   if(!H.veri){ $("#hastaRozet").classList.add("gizli"); return; }
-  const save = H.sadeceAtilmayan; H.sadeceAtilmayan = true; const f = H.filtre; H.filtre = "hepsi";
-  const n = hGruplar().bugun.length; H.sadeceAtilmayan = save; H.filtre = f;
-  const r = $("#hastaRozet"); r.textContent = n; r.title = "Bugün sırası gelip mesaj atılmamış hasta"; r.classList.toggle("gizli", !n);
+  const sg = H.gorunum, sm = H.mesaj; H.gorunum = "raporlu"; H.mesaj = "bekleyen";
+  const n = hGruplar().bugun.length; H.gorunum = sg; H.mesaj = sm;
+  const r = $("#hastaRozet"); r.textContent = n; r.title = "Bugün sırası gelmiş, mesaj bekleyen raporlu hasta"; r.classList.toggle("gizli", !n);
 }
 function hKisiKart(k){
   const tel = hTel(k), m = hMesajTarihi(k.p, k.tip), yakin = hYakinMesaj(k.p, k.tip);
@@ -1929,7 +1932,7 @@ function hKisiKart(k){
     : `<div class="hilac"><span class="n">${kacis(r.tani||"Rapor")}${r.no?` <span class="hkucuk">· ${kacis(r.no)}</span>`:""}</span>
         <span class="hetk ${gunFarki(r.bit)<0?"kirmizi":"amber"}" title="Rapor bitişi: ${tarih(r.bit)}">rapor ${gunFarki(r.bit)<0?"bitti":"bitiyor"} · ${gunGoreli(r.bit)}</span></div>`).join("");
   return `<div class="hkart ${yakin?"gonderildi":""}" data-p="${k.p}" data-tip="${k.tip}">
-    <div><div class="ad">${kacis(k.h)}</div><div class="hkucuk">${tel?"+"+tel.slice(0,2)+" "+tel.slice(2,5)+" "+tel.slice(5,8)+" "+tel.slice(8):"telefon yok"}${m?` · mesaj ${tarih(m)}`:""}</div></div>
+    <div><div class="ad">${kacis(k.h)}${yakin?` <span class="hetk yesil">✓ atıldı</span>`:""}</div><div class="hkucuk">${tel?"+"+tel.slice(0,2)+" "+tel.slice(2,5)+" "+tel.slice(5,8)+" "+tel.slice(8):"telefon yok"}${m?` · mesaj ${tarih(m)}`:""}</div></div>
     <div class="hdugmeler">${tel
       ? `<button class="wa" type="button" data-wa>${yakin?"Tekrar gönder":"WhatsApp"}</button>`
       : `<span class="htel"><input type="tel" inputmode="tel" placeholder="05xx xxx xx xx" data-telgir><button class="ikincil" type="button" data-telkaydet>Kaydet</button></span>`}</div>
@@ -1941,30 +1944,37 @@ function hBolum(baslik, aciklama, kisiler, not){
 }
 function hCiz(){
   const G = hGruplar(); hRozetGuncelle();
-  const cip = (k,ad) => `<button class="hcip ${H.filtre===k?"secili":""}" type="button" data-filtre="${k}">${ad}</button>`;
+  // çip sayıları: bekleyen / atıldı (mevcut görünümde), bir de raporsuz toplamı
+  const sm0=H.mesaj; H.mesaj="hepsi"; const GH=hGruplar(); H.mesaj=sm0;
+  const tumK = [...GH.bugun,...GH.hafta,...GH.gecen,...GH.rapor];
+  const bekN = tumK.filter(k=>!hYakinMesaj(k.p,k.tip)).length;
+  const atlN = tumK.filter(k=>hYakinMesaj(k.p,k.tip)).length;
+  const sg0=H.gorunum; H.gorunum="raporsuz"; H.mesaj="hepsi"; const GR=hGruplar(); H.gorunum=sg0; H.mesaj=sm0;
+  const raporsuzN = new Set([...GR.bugun,...GR.hafta,...GR.gecen].map(k=>k.p)).size;
   const sirada = [...G.bugun, ...G.rapor.filter(k=>gunFarki(k.satir[0].bit)<=14)].filter(k=>!hYakinMesaj(k.p,k.tip) && hTel(k));
   $("#icerik").innerHTML = `
     <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
     <div class="liste-ust">
-      <div><h1>Hastalar</h1><p>${H.veri ? "Rx'ten son alınma: "+tarihSaat(H.veri.zaman) : "Henüz veri gelmedi. Toplayıcı bir sonraki çalışmasında listeyi getirecek."}</p>
-        ${H.veri?(()=>{ const bek = G.bugun.filter(k=>!hYakinMesaj(k.p,k.tip)); const telsiz = bek.filter(k=>!hTel(k)).length;
-          return `<p class="hkucuk" style="margin-top:2px">Bugün sırası gelip mesaj atılmamış: <b>${bek.length}</b> hasta${telsiz?` (${telsiz}'${telsiz===1?"inin":"sinin"} telefonu yok)`:""}. Üstteki 👥 rozeti bu sayıdır.</p>`; })():""}</div>
+      <div><h1>Hastalar${H.gorunum==="raporsuz"?' <span style="font-size:15px;font-weight:500;color:var(--soluk)">· raporsuzlar</span>':""}</h1>
+        <p class="hkucuk">${H.veri ? "Son güncelleme: "+tarihSaat(H.veri.zaman)+` · <b>${bekN}</b> bekliyor · ${atlN} atıldı` : "Henüz veri gelmedi. Toplayıcı bir sonraki çalışmasında listeyi getirecek."}</p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${sirada.length?`<button class="wa" type="button" id="hSiradaki" title="Telefonu kayıtlı ve henüz mesaj atılmamış hastalar">WhatsApp sırası: ${sirada.length} hasta</button>`:""}
         <button class="ikincil" type="button" id="hSablon">Mesaj metni</button>
         <button class="ikincil" type="button" id="hKilitle">🔒 Kilitle</button>
       </div>
     </div>
-    <div class="hcipler">${cip("hepsi","Tümü")}${cip("R","Raporlu")}${cip("S","Raporsuz")}
-      <button class="hcip ${H.sadeceAtilmayan?"secili":""}" type="button" id="hAtilmayan">Sadece mesaj atılmayanlar</button></div>
+    <div class="hcipler">
+      <button class="hcip ${H.mesaj==="bekleyen"?"secili":""}" type="button" data-mesaj="bekleyen">🟠 Bekleyen <b>${bekN}</b></button>
+      <button class="hcip ${H.mesaj==="atildi"?"secili":""}" type="button" data-mesaj="atildi">✅ Atıldı <b>${atlN}</b></button>
+      <button class="hcip" type="button" data-gorunum="1" style="margin-left:auto;${H.gorunum==="raporsuz"?"background:var(--yesil-acik);border-color:var(--yesil);color:var(--yesil)":"color:var(--soluk)"}">${H.gorunum==="raporsuz"?"← Raporlulara dön":`Raporsuz <b>${raporsuzN}</b>`}</button></div>
     ${G.stok.length?`<div class="kart huyari hbolum"><div class="kart-bas"><h2>⚠ Stok uyarısı</h2><small>önümüzdeki 7 gün</small></div><ul style="margin:0;padding-left:18px">
-      ${G.stok.map(s=>`<li><b>${kacis(s.ilac)}</b>: ${s.hasta} hastanın günü geliyor, stokta ${s.stok>0?sayi(s.stok):"yok"}</li>`).join("")}</ul></div>`:""}
+      ${G.stok.slice(0,12).map(s=>`<li><b>${kacis(s.ilac)}</b>: ${s.hasta} hastanın günü geliyor, stokta ${s.stok>0?sayi(s.stok):"yok"}</li>`).join("")}</ul>${G.stok.length>12?`<div class="hkucuk" style="margin-top:6px">+${G.stok.length-12} ilaç daha</div>`:""}</div>`:""}
     ${hBolum("Bugün reçetesi yazdırılabilecekler","Bugün reçete zamanı gelen hasta yok.", G.bugun)}
     ${hBolum("Bu hafta gelecekler","Önümüzdeki 7 günde reçete zamanı gelen hasta yok.", G.hafta)}
     ${hBolum("Raporu bitecekler","Önümüzdeki 30 günde raporu biten hasta yok.", G.rapor, G.devam?`Raporu bitip <b>yeni raporu zaten çıkmış</b> ${G.devam} hasta listede gösterilmiyor.`:"")}
     ${hBolum("Günü geçmiş, gelmeyenler","Günü 7 günden fazla geçmiş hasta yok.", G.gecen)}`;
-  document.querySelectorAll("[data-filtre]").forEach(b=>b.addEventListener("click",()=>{ H.filtre=b.dataset.filtre; hCiz(); }));
-  $("#hAtilmayan").addEventListener("click",()=>{ H.sadeceAtilmayan=!H.sadeceAtilmayan; hCiz(); });
+  document.querySelectorAll("[data-mesaj]").forEach(b=>b.addEventListener("click",()=>{ const v=b.dataset.mesaj; H.mesaj = H.mesaj===v?"hepsi":v; hCiz(); }));
+  { const rg=document.querySelector("[data-gorunum]"); if(rg) rg.addEventListener("click",()=>{ H.gorunum = H.gorunum==="raporsuz"?"raporlu":"raporsuz"; H.mesaj="hepsi"; hCiz(); }); }
   $("#hKilitle").addEventListener("click",()=>{ hUnut(); location.hash=""; });
   $("#hSablon").addEventListener("click", hSablonDuzenle);
   const sd = $("#hSiradaki"); if(sd) sd.addEventListener("click",()=>hMesajAt(sirada[0]));
