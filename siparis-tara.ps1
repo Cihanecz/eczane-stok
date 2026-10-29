@@ -101,6 +101,7 @@ function Tara {
   # (DB yazilan ayni hastanin baska recetesinden gelebiliyor; ekran kesindir.)
   # Her satir: Barkod | Ad(+strength) | Recete Adet | Karekod Adet. Kucuk sayilar en sagda.
   $recNums=@{}
+  try {
   if($lst){
     $altBar=@($w1|?{ $_.T -match '^8[56]\d{10,12}$' -and $_.Y -gt ($lst.Y+5) }|Sort-Object Y)
     if($altBar.Count -ge 1){
@@ -128,6 +129,7 @@ function Tara {
       }
     }
   }
+  } catch { $recNums=@{}; $script:KKDBG += " | altHata:" + $_.Exception.Message }
   $dbgRN = ($recNums.Keys | %{ "$($_)=[$(($recNums[$_]) -join ',')]" }) -join ' '
   Yaz ("  alt tablo Recete Adet: " + $dbgRN)
 
@@ -244,17 +246,20 @@ function AyarYaz([string]$anahtar,[string]$deger){
 # =====================================================================
 #  ANA AKIS
 # =====================================================================
+function LogDurum([string]$m){ try{ BulutGiris; AyarYaz "sgk_log" $m }catch{} }
+trap { try{ LogDurum ("TRAP: " + $_.Exception.Message + " @satir " + $_.InvocationInfo.ScriptLineNumber) }catch{}; exit 9 }
+
 if(-not $RXPASS){ Yaz "RXPASS okunamadi - rx-hasta.ps1 C:\EczaneStok'ta olmali" "Red"; exit 1 }
 $anahtar = HastaAnahtari
 if(-not $anahtar){ Yaz "hasta.key yok - once rx-hasta.ps1 -HastaKur" "Red"; exit 1 }
 
 Yaz "`n[1/3] Ekran okunuyor (OCR)..." "Cyan"
 $t = Tara
-if(-not $t -or $t.recete.Count -eq 0){ Yaz "Listele ekrani bulunamadi. Medula Listele ekrani onde mi?" "Red"; exit 2 }
+if(-not $t -or $t.recete.Count -eq 0){ Yaz "Listele ekrani bulunamadi. Medula Listele ekrani onde mi?" "Red"; LogDurum ("exit2: Listele/Barkod bulunamadi | " + $script:KKDBG); exit 2 }
 
 Yaz "`n[2/3] Hasta + yazilan adet (Rx DB)..." "Cyan"
 $h = HastaBul $t.recete $t.karekod
-if(-not $h){ Yaz "Hasta eslesmedi - recete DB'de yok (son $GunGeri gun, acik SGK)." "Red"; exit 3 }
+if(-not $h){ Yaz "Hasta eslesmedi - recete DB'de yok (son $GunGeri gun, acik SGK)." "Red"; LogDurum ("exit3: hasta eslesmedi | recete=" + $t.recete.Count + " kk=" + $t.karekod.Count); exit 3 }
 Yaz ("Eslesen hasta: {0}  ({1})  tel={2}  ilac={3}" -f $h.ad,$h.rec,$h.tel,$h.dr.Count) "Green"
 
 # EKSIK = yazilan - okutulan(karekod kutusunda barkod sayisi). Hic okutulmayan = tam eksik.
