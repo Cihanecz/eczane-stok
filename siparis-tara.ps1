@@ -128,7 +128,7 @@ function Bos($s){ if($null -eq $s){""}else{([string]$s).Trim()} }
 function Norm($s){ (([string]$s).ToUpper() -replace '[^A-Z0-9]','') }
 function BarNorm($s){ $d=(([string]$s) -replace '[^0-9]',''); if($d.Length -gt 13){$d=$d.Substring($d.Length-13)}; $d.TrimStart('0') }
 
-function HastaBul($receteBar){
+function HastaBul($receteBar,$kk){
   $sql = @"
 copy (
   select coalesce(s.erecete_no,''), coalesce(s.protokol_no,''),
@@ -160,15 +160,22 @@ copy (
       yazilan=([int]([decimal]::Parse((Bos $r.yazilan),[Globalization.CultureInfo]::InvariantCulture)))
     }
   }
-  # en cok barkod eslesen receteyi sec (esitlikte en yeni)
-  $enIyi=$null; $enSkor=0
+  # Aday receteler: once en cok barkod eslesme. Ayni hastanin birden cok re
+  # recetesi varsa: "okutulan <= yazilan" KISITINI saglayan (fiziksel olarak mumkun)
+  # ve EN SIKI OTURAN (en kucuk toplam yazilan) receteyi sec -> dogru recete + dogru adet.
+  $aday=@()
   foreach($rec in $grup.Keys){
-    $g=$grup[$rec]; $sk=@($g.dr | ?{ $_.barN -and ($ocrBar -contains $_.barN) }).Count
-    if($sk -gt $enSkor){ $enSkor=$sk; $enIyi=$g }
-    elseif($sk -eq $enSkor -and $enIyi -and $sk -gt 0 -and ($g.tarih) -gt ($enIyi.tarih)){ $enIyi=$g }
+    $g=$grup[$rec]
+    $ov=@($g.dr | ?{ $_.barN -and ($ocrBar -contains $_.barN) }).Count
+    if($ov -le 0){ continue }
+    $tot=0; $fits=$true
+    foreach($d in $g.dr){ $tot+=$d.yazilan; if((OkutulanSay $d.bar $kk) -gt $d.yazilan){ $fits=$false } }
+    $aday += [pscustomobject]@{ g=$g; ov=$ov; tot=$tot; fits=[int]$fits; tarih=$g.tarih }
   }
-  if($enSkor -le 0){ return $null }
-  return $enIyi
+  if($aday.Count -eq 0){ return $null }
+  $maxOv=($aday | Measure-Object ov -Maximum).Maximum
+  $en = $aday | ?{ $_.ov -eq $maxOv } | Sort-Object @{Expression={$_.fits};Descending=$true}, @{Expression={$_.tot};Descending=$false}, @{Expression={$_.tarih};Descending=$true} | Select-Object -First 1
+  return $en.g
 }
 
 # =====================================================================
@@ -212,7 +219,7 @@ $t = Tara
 if(-not $t -or $t.recete.Count -eq 0){ Yaz "Listele ekrani bulunamadi. Medula Listele ekrani onde mi?" "Red"; exit 2 }
 
 Yaz "`n[2/3] Hasta + yazilan adet (Rx DB)..." "Cyan"
-$h = HastaBul $t.recete
+$h = HastaBul $t.recete $t.karekod
 if(-not $h){ Yaz "Hasta eslesmedi - recete DB'de yok (son $GunGeri gun, acik SGK)." "Red"; exit 3 }
 Yaz ("Eslesen hasta: {0}  ({1})  tel={2}  ilac={3}" -f $h.ad,$h.rec,$h.tel,$h.dr.Count) "Green"
 
