@@ -1841,6 +1841,21 @@ async function ayarYaz(anahtar, deger){ const { error } = await db.from("ayar").
 function hAnahtarSakla(k){ H.anahtar = k; try{ localStorage.setItem(ANAHTAR("hastaKey"), b64(k)); }catch(e){} }
 function hAnahtarYukle(){ if(H.anahtar) return H.anahtar; try{ const s = localStorage.getItem(ANAHTAR("hastaKey")) || sessionStorage.getItem(ANAHTAR("hastaKey")); if(s) H.anahtar = unb64(s); }catch(e){} return H.anahtar; }
 function hUnut(){ H.anahtar = null; H.veri = null; H.durum = {}; try{ localStorage.removeItem(ANAHTAR("hastaKey")); sessionStorage.removeItem(ANAHTAR("hastaKey")); }catch(e){} $("#hastaRozet").classList.add("gizli"); }
+// Otomatik anahtar: hasta anahtarı Supabase'de (RLS ile sadece giriş yapan okur) saklanır,
+// böylece Hastalar/Sipariş hasta şifresi SORMADAN açılır. Veri yine şifreli + login arkasında.
+async function hOtoYukle(){
+  if(H.anahtar) return H.anahtar;
+  try{ const o = await ayarOku("hasta_anahtar_oto"); if(o && o.deger){ const k = unb64(o.deger); H.anahtar = k; try{ localStorage.setItem(ANAHTAR("hastaKey"), o.deger); }catch(e){} return k; } }catch(e){}
+  return null;
+}
+async function hOtoYaz(){ try{ if(H.anahtar) await ayarYaz("hasta_anahtar_oto", b64(H.anahtar)); }catch(e){} }
+// Geçerli bir anahtar bul (local → oto), doğrula; yoksa null (çağıran bir kez şifre sorar = bootstrap)
+async function hAnahtarHazirla(kontDeger){
+  let k = hAnahtarYukle() || await hOtoYukle();
+  if(k){ try{ await hCoz(k, kontDeger); }catch(e){ k=null; hUnut(); } }
+  if(k) hOtoYaz();   // diğer cihazlar bir daha sormasın diye buluta yaz (bootstrap)
+  return k;
+}
 
 function gunStr(d){ const x=new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); }
 function gunGoreli(d){ const g = gunFarki(d); if(g===null) return "—"; if(g===0) return "bugün"; if(g===1) return "yarın"; if(g===-1) return "dün"; return g>0 ? g+" gün sonra" : (-g)+" gün geçti"; }
@@ -1863,8 +1878,7 @@ async function hastaSayfasi(){
   try { tuz = await ayarOku("hasta_tuz"); kont = await ayarOku("hasta_kontrol"); }
   catch(e){ return hataGoster(e); }
   if(!tuz || !kont) return hSifreBelirle();
-  if(!hAnahtarYukle()) return hSifreSor(tuz.deger, kont.deger);
-  try { await hCoz(H.anahtar, kont.deger); } catch(e){ hUnut(); return hSifreSor(tuz.deger, kont.deger); }
+  if(!await hAnahtarHazirla(kont.deger)) return hSifreSor(tuz.deger, kont.deger);
   try {
     const [l, d, s] = await Promise.all([ayarOku("hasta_liste"), ayarOku("hasta_durum"), ayarOku("hasta_mesaj")]);
     H.veri = l ? JSON.parse(await hCoz(H.anahtar, l.deger)) : null;
@@ -2094,8 +2108,7 @@ async function siparisSayfasi(){
   try { tuz = await ayarOku("hasta_tuz"); kont = await ayarOku("hasta_kontrol"); }
   catch(e){ return hataGoster(e); }
   if(!tuz || !kont){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button><div class="liste-ust"><div><h1>📦 Sipariş</h1><p>Önce <b>Hastalar</b> ekranından hasta şifresini belirle; sipariş verileri de o şifreyle korunur.</p></div></div>`; return; }
-  if(!hAnahtarYukle()) return sSifreSor(tuz.deger, kont.deger);
-  try { await hCoz(H.anahtar, kont.deger); } catch(e){ hUnut(); return sSifreSor(tuz.deger, kont.deger); }
+  if(!await hAnahtarHazirla(kont.deger)) return sSifreSor(tuz.deger, kont.deger);
   try {
     const [a, s, son, cfg] = await Promise.all([ayarOku("sgk_aday"), ayarOku("siparisler"), ayarOku("sgk_son"), ayarOku("siparis_ayar")]);
     S.aday = a ? JSON.parse(await hCoz(H.anahtar, a.deger)) : { sonZaman:null, liste:[] };

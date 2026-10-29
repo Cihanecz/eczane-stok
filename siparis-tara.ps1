@@ -29,7 +29,9 @@ $RXHOST = "127.0.0.1"; $RXPORT = "5432"; $RXDB = "EYS_DB"; $RXUSER = "rx_oku"
 $RXPASS = ""
 try { $m = (Select-String -Path (Join-Path $KOK "rx-hasta.ps1") -Pattern '\$RXPASS\s*=\s*"([^"]+)"').Matches; if ($m -and $m.Count) { $RXPASS = $m[0].Groups[1].Value } } catch {}
 
-function Yaz($m,$c="Gray"){ Write-Host $m -ForegroundColor $c }
+$LOG = "$KOK\tara-log.txt"
+try { "=== " + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + " tara basladi ===" | Out-File $LOG -Encoding UTF8 } catch {}
+function Yaz($m,$c="Gray"){ Write-Host $m -ForegroundColor $c; try { Add-Content -Path $LOG -Value ([string]$m) -Encoding UTF8 } catch {} }
 
 # =====================================================================
 #  1) OCR  (ocr-smart ile ayni mantik + barkod yakalama)
