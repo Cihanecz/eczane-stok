@@ -78,18 +78,30 @@ foreach($ry in ($ry2|Sort-Object)){
   foreach($wd in $row){ if($wd.T -match '^\d'){ if($wd.T.Length -ge 2){$hitNum=$true} }
     if(-not $hitNum -and $wd.T -match '[A-Za-zÇĞİÖŞÜ]' -and $wd.X -gt (60*$Scale)){ $nameW+=$wd.T } }
   $ad = ($nameW -join ' ')
-  # stok capasi: N/N ya da -N/N
-  $stok = $row|?{ $_.T -match '^-?\d+\s*/\s*\d+$' }|Select-Object -First 1
-  $adet=0; $okkk=0
-  if($stok){
-    $before = $row|?{ $_.X -lt $stok.X -and $_.T -match '^\d+$' }|Sort-Object X
-    if($before.Count -gt 0){ $adet=[int]($before[-1].T) }
-    # stoktan sonra, dozaj (Gunde/Hafta/x/virgul) gelene kadar ilk sayi
-    $afterAll = $row|?{ $_.X -gt $stok.R }|Sort-Object X
-    foreach($wd in $afterAll){
-      if($wd.T -match 'G[uü]nde|Hafta|x|,'){ break }
-      if($wd.T -match '^\d+$'){ $okkk=[int]$wd.T; break }
+  # stok capasi: "N/N" ya da "-N/N" (0 bazen 'o'/'O' okunur). Tek kelime ya da "N" "/" "N" bolunmus.
+  $stokL=$null; $stokRx=0
+  $stokW = $row|?{ $_.T -match '^-?\d+\s*/\s*[0-9oO]+$' }|Select-Object -First 1
+  if($stokW){ $stokL=$stokW.X; $stokRx=$stokW.R }
+  else {
+    # bolunmus: bir sayi + "/" + (sayi ya da o)
+    for($i=0;$i -lt $row.Count-2;$i++){
+      if($row[$i].T -match '^-?\d+$' -and $row[$i+1].T -match '^/$' -and $row[$i+2].T -match '^[0-9oO]+$'){
+        $stokL=$row[$i].X; $stokRx=$row[$i+2].R; break
+      }
     }
+  }
+  $adet=0; $okkk=0
+  if($stokL -ne $null){
+    $before = $row|?{ $_.X -lt $stokL -and $_.T -match '^\d+$' }|Sort-Object X
+    if($before.Count -gt 0){ $adet=[int]($before[-1].T) }
+    # stoktan sonraki kelimeler; dozaj "N Gunde" -> Gunde'den HEMEN ONCEKI sayi dozaj, Ok.KK degil
+    $afterAll = $row|?{ $_.X -gt $stokRx }|Sort-Object X
+    $dozIdx=-1
+    for($i=0;$i -lt $afterAll.Count;$i++){ if($afterAll[$i].T -match 'G[uü]nde|Hafta'){ $dozIdx=$i; break } }
+    $scan = if($dozIdx -ge 0){ if($dozIdx -gt 0){ $afterAll[0..($dozIdx-1)] } else { @() } } else { $afterAll }
+    $nums = @($scan | ?{ $_.T -match '^\d+$' })
+    # Gunde'den hemen onceki sayi = dozaj; ondan onceki (varsa) = Ok.KK
+    if($nums.Count -ge 2){ $okkk=[int]$nums[0].T } else { $okkk=0 }
   }
   $eksik=$adet-$okkk
   $kisa= if($ad.Length -gt 40){$ad.Substring(0,40)}else{$ad}
