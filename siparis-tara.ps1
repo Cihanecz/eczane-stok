@@ -67,7 +67,7 @@ function Tara {
 
   $w1=OcrFile "$KOK\cap.png"
   $hBar=$w1|?{$_.T -match '^Barkod'}|Select-Object -First 1
-  if(-not $hBar){ Yaz "  (OCR) 'Barkod' basligi yok - Listele tam onde degil" "Yellow"; return $null }
+  if(-not $hBar){ $script:KKDBG="Barkod-yok | kelime=" + $w1.Count + " ilk14=" + ((@($w1|%{$_.T})|Select-Object -First 14) -join ' '); Yaz "  (OCR) 'Barkod' basligi yok - Listele tam onde degil" "Yellow"; return $null }
 
   # Recetedeki barkodlar (13 hane, 85/86 ile baslar). Ust+alt tabloda tekrar eder -> uniq.
   $recete = @($w1 | ?{ $_.T -match '^8[56]\d{10,12}$' } | %{ ([string]$_.T) } | Sort-Object -Unique)
