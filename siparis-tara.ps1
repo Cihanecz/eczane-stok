@@ -95,6 +95,16 @@ function Tara {
   $ry2=@(); foreach($r in $bar2){ if(($ry2|?{[math]::Abs($_-$r.Y) -lt (14*$Scale)}).Count -eq 0){$ry2+=$r.Y} }
   if($ry2.Count -eq 0){ $ry2 = $rowYs | %{ ($_-$cropY)*$Scale } }
 
+  # --- SUTUN X KONUMLARI (baslik satirindan) : stok "N/N" OCR'da bozuluyor, bu yuzden konum bazli oku ---
+  $ilkVeriY = ($ry2 | Measure-Object -Minimum).Minimum
+  $hdr = @($w2 | ?{ $_.Y -lt ($ilkVeriY - 12*$Scale) })        # veri satirlarinin ustu = baslik
+  $adetHdrs = @($hdr | ?{ $_.T -match '^Adet' } | Sort-Object X)
+  $adetX = if($adetHdrs.Count){ $adetHdrs[0].CX } else { $null } # soldaki Adet = miktar sutunu
+  $kkW = @($hdr | ?{ $_.T -match '^KK' })                        # "Ok. KK Adet" -> KK
+  $kkX = if($kkW.Count){ $kkW[0].CX } elseif($adetHdrs.Count -ge 2){ $adetHdrs[-1].CX } else { $null }
+  $TOL = if($adetX -ne $null -and $kkX -ne $null){ [int]([math]::Abs($kkX-$adetX)*0.33) } else { [int](40*$Scale) }
+  Yaz ("  (OCR) adetX=$adetX kkX=$kkX TOL=$TOL")
+
   $rows=New-Object System.Collections.Generic.List[object]
   foreach($ry in ($ry2|Sort-Object)){
     $row = $w2|?{ [math]::Abs($_.Y-$ry) -lt (14*$Scale) } | Sort-Object X
@@ -106,21 +116,12 @@ function Tara {
       if($wd.T -match '^\d' -and $wd.T.Length -ge 2){ $hitNum=$true }
       if(-not $hitNum -and $wd.T -match '[A-Za-zÇĞİÖŞÜ]' -and $wd.X -gt (60*$Scale)){ $nameW+=$wd.T } }
     $ad = ($nameW -join ' ')
-    $stokL=$null; $stokRx=0
-    $stokW = $row|?{ $_.T -match '^-?\d+\s*/\s*[0-9oO]+$' }|Select-Object -First 1
-    if($stokW){ $stokL=$stokW.X; $stokRx=$stokW.R }
-    else { for($i=0;$i -lt $row.Count-2;$i++){ if($row[$i].T -match '^-?\d+$' -and $row[$i+1].T -match '^/$' -and $row[$i+2].T -match '^[0-9oO]+$'){ $stokL=$row[$i].X; $stokRx=$row[$i+2].R; break } } }
+    # Adet = adetX'e en yakin kucuk sayi; Ok.KK = kkX'e en yakin (yoksa 0 = okutulmamis = EKSIK)
+    # stok "N/N" OCR'da "/0" dusurdugu icin cap yerine SUTUN KONUMU kullaniyoruz.
+    $dataNums = @($row | ?{ $_.T -match '^\d{1,3}$' })
     $adet=0; $okkk=0
-    if($stokL -ne $null){
-      $stokCX = ($stokL + $stokRx)/2
-      $before = $row|?{ $_.X -lt $stokL -and $_.T -match '^\d+$' }|Sort-Object X
-      if($before.Count -gt 0){ $adet=[int]($before[-1].T) }
-      $afterAll = $row|?{ $_.CX -gt $stokCX -and $_.CX -gt $stokRx-20 }|Sort-Object X
-      $dozIdx=-1; for($i=0;$i -lt $afterAll.Count;$i++){ if($afterAll[$i].T -match 'G[uü]nde|Hafta'){ $dozIdx=$i; break } }
-      $scan = if($dozIdx -ge 0){ if($dozIdx -gt 0){ $afterAll[0..($dozIdx-1)] } else { @() } } else { $afterAll }
-      $nums = @($scan | ?{ $_.T -match '^\d+$' })
-      if($nums.Count -ge 2){ $okkk=[int]$nums[0].T } else { $okkk=0 }
-    }
+    if($adetX -ne $null){ $c=@($dataNums|?{[math]::Abs($_.CX-$adetX) -lt $TOL}|Sort-Object {[math]::Abs($_.CX-$adetX)}); if($c.Count){ $adet=[int]$c[0].T } }
+    if($kkX   -ne $null){ $c=@($dataNums|?{[math]::Abs($_.CX-$kkX)   -lt $TOL}|Sort-Object {[math]::Abs($_.CX-$kkX)});   if($c.Count){ $okkk=[int]$c[0].T } }
     $eksik=$adet-$okkk
     $rows.Add([pscustomobject]@{ bar=([string]$bar); ad=$ad; adet=$adet; okkk=$okkk; eksik=$eksik })
   }
