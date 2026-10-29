@@ -109,7 +109,7 @@ function SiparisDongu {
   $anahtar = HastaAnahtari
   if (-not $anahtar) { throw "hasta.key yok - once: rx-hasta.ps1 -HastaKur" }
 
-  # --- EKSIK VERILEN (eksik = yazilan - verilen), bugun + son $GunGeri gun ---
+  # --- BEKLEYEN EKSIK: eksik>0 VE sonlandirilmamis (hasta bekliyor) VE aya faturalanmamis ---
   $sql = @"
 copy (
   select coalesce(s.erecete_no,''),
@@ -127,7 +127,9 @@ copy (
   left join eys_tbl_mustahzar_temel m on m.urun_id = fk.urun_id
   left join eys_tbl_cari_hasta ch on ch.id = s.hasta_id
   where (fk.yazilan_adet - fk.verilen_adet) > 0
-    and s.islem_tarihi >= (current_date - $GunGeri)
+    and s.sonlandirilmis = false      -- sonlanmamis = hasta hala bekliyor (sonlandi=bitti, cikar)
+    and s.faturalandirilmis = false   -- aya faturalanmamis (fatura sonlandirilinca eski aylar duser)
+    and s.islem_tarihi >= date_trunc('month', current_date - interval '1 month')  -- onceki ay basindan itibaren
 ) to stdout with (format csv)
 "@
   $rows = PsqlCsv $sql @('rec','prot','tarih','ad','tc','tel','ilac','bar','eksik','stok')
