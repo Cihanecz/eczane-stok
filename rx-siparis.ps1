@@ -129,7 +129,9 @@ copy (
   where (fk.yazilan_adet - fk.verilen_adet) > 0
     and s.sonlandirilmis = false      -- sonlanmamis = hasta hala bekliyor (sonlandi=bitti, cikar)
     and s.faturalandirilmis = false   -- aya faturalanmamis (fatura sonlandirilinca eski aylar duser)
-    and s.islem_tarihi >= date_trunc('month', current_date - interval '1 month')  -- onceki ay basindan itibaren
+    and s.islem_tarihi >= (case when extract(day from current_date) <= 7
+                                then date_trunc('month', current_date - interval '1 month')
+                                else date_trunc('month', current_date) end)  -- ayin 7'sine kadar onceki ay da gorunur, sonra sadece bu ay
 ) to stdout with (format csv)
 "@
   $rows = PsqlCsv $sql @('rec','prot','tarih','ad','tc','tel','ilac','bar','eksik','stok')

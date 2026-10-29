@@ -1838,9 +1838,9 @@ async function hCoz(k, s){
 }
 async function ayarOku(anahtar){ const { data, error } = await db.from("ayar").select("deger,guncelleme").eq("anahtar",anahtar).maybeSingle(); if(error) throw error; return data; }
 async function ayarYaz(anahtar, deger){ const { error } = await db.from("ayar").upsert({ anahtar, deger, guncelleme:new Date().toISOString() }); if(error) throw error; }
-function hAnahtarSakla(k){ H.anahtar = k; try{ sessionStorage.setItem(ANAHTAR("hastaKey"), b64(k)); }catch(e){} }
-function hAnahtarYukle(){ if(H.anahtar) return H.anahtar; try{ const s = sessionStorage.getItem(ANAHTAR("hastaKey")); if(s) H.anahtar = unb64(s); }catch(e){} return H.anahtar; }
-function hUnut(){ H.anahtar = null; H.veri = null; H.durum = {}; try{ sessionStorage.removeItem(ANAHTAR("hastaKey")); }catch(e){} $("#hastaRozet").classList.add("gizli"); }
+function hAnahtarSakla(k){ H.anahtar = k; try{ localStorage.setItem(ANAHTAR("hastaKey"), b64(k)); }catch(e){} }
+function hAnahtarYukle(){ if(H.anahtar) return H.anahtar; try{ const s = localStorage.getItem(ANAHTAR("hastaKey")) || sessionStorage.getItem(ANAHTAR("hastaKey")); if(s) H.anahtar = unb64(s); }catch(e){} return H.anahtar; }
+function hUnut(){ H.anahtar = null; H.veri = null; H.durum = {}; try{ localStorage.removeItem(ANAHTAR("hastaKey")); sessionStorage.removeItem(ANAHTAR("hastaKey")); }catch(e){} $("#hastaRozet").classList.add("gizli"); }
 
 function gunStr(d){ const x=new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); }
 function gunGoreli(d){ const g = gunFarki(d); if(g===null) return "—"; if(g===0) return "bugün"; if(g===1) return "yarın"; if(g===-1) return "dün"; return g>0 ? g+" gün sonra" : (-g)+" gün geçti"; }
