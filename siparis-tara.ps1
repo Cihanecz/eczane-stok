@@ -85,7 +85,7 @@ function Tara {
       $src=[System.Drawing.Image]::FromFile("$KOK\cap.png")
       $cr=New-Object System.Drawing.Bitmap($txW,$txH); $gc=[System.Drawing.Graphics]::FromImage($cr)
       $gc.DrawImage($src,(New-Object System.Drawing.Rectangle(0,0,$txW,$txH)),$txX,$taTop,$txW,$txH,[System.Drawing.GraphicsUnit]::Pixel);$gc.Dispose()
-      $sc=4; $big=New-Object System.Drawing.Bitmap(($txW*$sc),($txH*$sc)); $gb=[System.Drawing.Graphics]::FromImage($big)
+      $sc=5; $big=New-Object System.Drawing.Bitmap(($txW*$sc),($txH*$sc)); $gb=[System.Drawing.Graphics]::FromImage($big)
       $gb.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
       $gb.DrawImage($cr,0,0,($txW*$sc),($txH*$sc));$gb.Dispose()
       $big.Save("$KOK\cap-kk.png",[System.Drawing.Imaging.ImageFormat]::Png)
@@ -101,11 +101,17 @@ function Tara {
   return [pscustomobject]@{ recete=$recete; karekod=$kk }
 }
 # bir barkod karekod kutusunda kac kez gecer (karekod GS1 = 01 + barkod + ...)
+# karekod icinde barkodu TOLERANSLI ara (OCR 6<->5 gibi hatalar icin; en fazla maxH hane farki)
+function FuzzyIcerir([string]$b,[string]$k,[int]$maxH){
+  $lb=$b.Length; if($k.Length -lt $lb){ return $false }
+  for($i=0;$i -le ($k.Length-$lb);$i++){ $h=0
+    for($j=0;$j -lt $lb;$j++){ if($k[$i+$j] -ne $b[$j]){ $h++; if($h -gt $maxH){ break } } }
+    if($h -le $maxH){ return $true } }
+  return $false
+}
 function OkutulanSay([string]$barkod,$kkListe){
   $b=$barkod.TrimStart('0'); if($b.Length -lt 10){ return 0 }
-  $n=@($kkListe | ?{ $_ -like ("*"+$b+"*") }).Count
-  if($n -eq 0 -and $b.Length -ge 12){ $p=$b.Substring(0,12); $n=@($kkListe | ?{ $_ -like ("*"+$p+"*") }).Count }  # son hane OCR toleransi
-  $n
+  @($kkListe | ?{ FuzzyIcerir $b $_ 2 }).Count
 }
 
 # =====================================================================
