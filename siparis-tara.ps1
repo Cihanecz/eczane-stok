@@ -110,7 +110,9 @@ function Tara {
     # dozajdan onceki son sayi=Ok.KK (yoksa 0=okutulmamis=EKSIK). stok "N/N" (/ var) ve barkod (uzun) haric.
     $gi=-1; for($i=0;$i -lt $row.Count;$i++){ if($row[$i].T -match 'G[uü]nde|Hafta'){ $gi=$i; break } }
     $son = if($gi -ge 0){ $gi-1 } else { $row.Count-1 }
-    $onNums=@(); for($i=0;$i -le $son -and $i -lt $row.Count;$i++){ if($row[$i].T -match '^\d{1,3}$'){ $onNums += [int]$row[$i].T } }
+    # isim/birim bitisi = Gunde'den onceki SON harf-ile-baslayan token (strength sayilari "10 MG" isimde kalsin)
+    $isimSon=-1; for($i=0;$i -le $son -and $i -lt $row.Count;$i++){ if($row[$i].T -match '^[A-Za-zÇĞİÖŞÜ]'){ $isimSon=$i } }
+    $onNums=@(); for($i=($isimSon+1);$i -le $son -and $i -lt $row.Count;$i++){ if($row[$i].T -match '^\d{1,3}$'){ $onNums += [int]$row[$i].T } }
     $adet=0; $okkk=0
     if($onNums.Count -ge 1){
       $govde = if($onNums.Count -ge 2){ @($onNums[0..($onNums.Count-2)]) } else { @($onNums) }  # son=dozaj, cikar
