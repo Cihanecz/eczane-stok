@@ -2145,7 +2145,7 @@ function sYoklamaBaslat(){
       const son = await ayarOku("sgk_son");
       if(son){ const c = JSON.parse(await hCoz(H.anahtar, son.deger)); if(c.zaman && c.zaman!==S.aday.sonZaman){ if(await sSonBirlestir(c)){ if(S.ayar.ses) sSesCal(c.ad); sCiz(); } } }
     }catch(e){}
-  }, 15000);
+  }, 8000);
 }
 function sSifreSor(tuz, kont){
   $("#icerik").innerHTML = hSifreFormu("Sipariş / hasta şifresi", "Sipariş ve hasta bilgileri bu şifreyle korunur.", false, "Aç");
@@ -2166,10 +2166,13 @@ function sAdayAcik(){
 function sCiz(){
   const acik = S.kayit.filter(o=>o.durum!=="teslim");
   const aday = sAdayAcik();
-  const son = S.aday&&S.aday.sonZaman ? "Son tarama: "+tarihSaat(S.aday.sonZaman) : "Henüz tarama gelmedi (Medula Listele ekranında Ctrl+Alt+S)";
+  const son = S.aday&&S.aday.sonZaman ? "Son tarama: "+tarihSaat(S.aday.sonZaman) : "Henüz tarama gelmedi (Medula Listele ekranında Ctrl+Shift+D)";
   let g = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
     <div class="liste-ust"><div><h1>📦 Sipariş Takibi</h1><p>${son} · ${aday.length} yeni eksik reçete · ${acik.length} aktif sipariş</p></div>
-      <label class="hkucuk" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="sSes" ${S.ayar.ses?"checked":""}> 🔔 Sesli uyarı</label></div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="hcip" id="sYenile" type="button" title="Yeni taramaları getir">🔄 Yenile</button>
+        <label class="hkucuk" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="sSes" ${S.ayar.ses?"checked":""}> 🔔 Sesli uyarı</label>
+      </div></div>
     <div class="hcipler">
       <button class="hcip ${S.gorunum==="bekleyen"?"secili":""}" type="button" data-sg="bekleyen">🆕 Yeni eksikler <b>${aday.length}</b></button>
       <button class="hcip ${S.gorunum==="aktif"?"secili":""}" type="button" data-sg="aktif">📦 Aktif siparişler <b>${acik.length}</b></button>
@@ -2177,7 +2180,7 @@ function sCiz(){
     </div>`;
   if(S.gorunum==="bekleyen"){
     g += aday.length ? `<div class="hbolum"><h2>SGK reçetesi bekleyenler <span class="say">${aday.length}</span></h2>${aday.map(sAdayKart).join("")}</div>`
-                     : `<div class="hkart"><p class="hkucuk" style="margin:0">Şu an siparişe alınacak yeni eksik reçete yok. Medula <b>Listele</b> ekranında eksik ilaç kalınca <b>Ctrl+Alt+S</b> ile taratırsan (OCR: okutulan &lt; yazılan) burada görünür.</p></div>`;
+                     : `<div class="hkart"><p class="hkucuk" style="margin:0">Şu an siparişe alınacak yeni eksik reçete yok. Medula <b>Listele</b> ekranında <b>Ctrl+Shift+D</b> ile taratırsan (okutulmayan ilaçlar) burada görünür.</p></div>`;
   } else if(S.gorunum==="aktif"){
     g += acik.length ? acik.map(sKart).join("") : `<div class="hkart"><p class="hkucuk" style="margin:0">Aktif sipariş yok.</p></div>`;
   } else {
@@ -2187,6 +2190,7 @@ function sCiz(){
   }
   $("#icerik").innerHTML = g;
   const ses=$("#sSes"); if(ses) ses.addEventListener("change", ()=>{ S.ayar.ses=ses.checked; sAyarKaydet(); });
+  const yb=$("#sYenile"); if(yb) yb.addEventListener("click", ()=>{ yb.textContent="⏳ Yenileniyor…"; siparisSayfasi(); });
   document.querySelectorAll("[data-sg]").forEach(b=>b.addEventListener("click", ()=>{ S.gorunum=b.dataset.sg; sCiz(); }));
   document.querySelectorAll("[data-sol]").forEach(b=>b.addEventListener("click", ()=>sOlusturForm(b.dataset.sol)));
   document.querySelectorAll("[data-sred]").forEach(b=>b.addEventListener("click", ()=>sAdayRed(b.dataset.sred)));
