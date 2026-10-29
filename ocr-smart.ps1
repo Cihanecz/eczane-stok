@@ -92,10 +92,11 @@ foreach($ry in ($ry2|Sort-Object)){
   }
   $adet=0; $okkk=0
   if($stokL -ne $null){
+    $stokCX = ($stokL + $stokRx)/2
     $before = $row|?{ $_.X -lt $stokL -and $_.T -match '^\d+$' }|Sort-Object X
     if($before.Count -gt 0){ $adet=[int]($before[-1].T) }
-    # stoktan sonraki kelimeler; dozaj "N Gunde" -> Gunde'den HEMEN ONCEKI sayi dozaj, Ok.KK degil
-    $afterAll = $row|?{ $_.X -gt $stokRx }|Sort-Object X
+    # stoktan sonraki kelimeler (merkez stok merkezinin sagi); dozaj "N Gunde" -> Gunde'den HEMEN ONCEKI sayi dozaj
+    $afterAll = $row|?{ $_.CX -gt $stokCX -and $_.CX -gt $stokRx-20 }|Sort-Object X
     $dozIdx=-1
     for($i=0;$i -lt $afterAll.Count;$i++){ if($afterAll[$i].T -match 'G[uü]nde|Hafta'){ $dozIdx=$i; break } }
     $scan = if($dozIdx -ge 0){ if($dozIdx -gt 0){ $afterAll[0..($dozIdx-1)] } else { @() } } else { $afterAll }
