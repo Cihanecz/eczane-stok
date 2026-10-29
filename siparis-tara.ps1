@@ -72,9 +72,6 @@ function Tara {
   $barRows=$w1|?{ [math]::Abs($_.X-$hBar.X) -lt 70 -and $_.T -match '^8[56]\d{10,12}$' -and $_.Y -gt $hy } | Sort-Object Y
   $rowYs=@(); foreach($r in $barRows){ if(($rowYs|?{[math]::Abs($_-$r.Y) -lt 12}).Count -eq 0){$rowYs+=$r.Y} }
   $rowYs = $rowYs | Sort-Object
-  # SADECE UST TABLO: iki tablo arasindaki buyuk Y boslugunda kes
-  # (alt "Okutulan Karekodlar" tablosu ayni barkodlari tekrar listeliyor, stok sutunu yok -> sutunlari kaydiriyor)
-  if($rowYs.Count -gt 1){ $kes=@($rowYs[0]); for($i=1;$i -lt $rowYs.Count;$i++){ if(($rowYs[$i]-$rowYs[$i-1]) -gt 60){break}; $kes+=$rowYs[$i] }; $rowYs=@($kes) }
   Yaz ("  (OCR) Barkod.X={0} Y={1} rightEnd={2} satir={3}" -f $hBar.X,$hy,$rightEnd,$rowYs.Count)
   if($rowYs.Count -eq 0){ return $null }
 
@@ -108,18 +105,13 @@ function Tara {
     $ad = ($nameW -join ' ')
     # Gunde/Hafta capasi: ondan onceki kucuk sayilar -> ilk=Adet, son=dozaj(at),
     # dozajdan onceki son sayi=Ok.KK (yoksa 0=okutulmamis=EKSIK). stok "N/N" (/ var) ve barkod (uzun) haric.
-    $gi=-1; for($i=0;$i -lt $row.Count;$i++){ if($row[$i].T -match 'G[uü]nde|Hafta'){ $gi=$i; break } }
-    $son = if($gi -ge 0){ $gi-1 } else { $row.Count-1 }
-    # isim/birim bitisi = Gunde'den onceki SON harf-ile-baslayan token (strength sayilari "10 MG" isimde kalsin)
-    $isimSon=-1; for($i=0;$i -le $son -and $i -lt $row.Count;$i++){ if($row[$i].T -match '^[A-Za-zÇĞİÖŞÜ]'){ $isimSon=$i } }
-    $onNums=@(); for($i=($isimSon+1);$i -le $son -and $i -lt $row.Count;$i++){ if($row[$i].T -match '^\d{1,3}$'){ $onNums += [int]$row[$i].T } }
-    $adet=0; $okkk=0
-    if($onNums.Count -ge 1){
-      $govde = if($onNums.Count -ge 2){ @($onNums[0..($onNums.Count-2)]) } else { @($onNums) }  # son=dozaj, cikar
-      $adet = $govde[0]
-      $okkk = if($govde.Count -ge 2){ $govde[-1] } else { 0 }
-    }
-    $eksik=$adet-$okkk
+    # UST "Recete" tablosu satiri Gunde/Hafta icerir (stok+dozaj karmasik, OCR'da /0 duser) -> ATLA.
+    # ALT "Okutulan Karekodlar" tablosu: Barkod | Ad | Recete Adet | Karekod Adet.
+    # Son iki kucuk sayi = recete, karekod (strength sayilari "650 MG" solda kalir). eksik = recete - karekod.
+    if(($row|?{$_.T -match 'G[uü]nde|Hafta'}).Count -gt 0){ continue }
+    $nums = @($row | ?{ $_.T -match '^\d{1,3}$' } | %{ [int]$_.T })
+    if($nums.Count -lt 2){ continue }
+    $adet = $nums[-2]; $okkk = $nums[-1]; $eksik = $adet - $okkk
     $rows.Add([pscustomobject]@{ bar=([string]$bar); ad=$ad; adet=$adet; okkk=$okkk; eksik=$eksik })
   }
   return $rows
