@@ -54,6 +54,10 @@ function OcrFile($path){
   return $w
 }
 function Tara {
+  # YONTEM: kucuk sayilari OKUMA. Recetedeki barkodlar (13 hane, net) ile okutulan
+  # karekodlari (ortadaki kutudaki uzun "0108..." GS1 stringleri, net) cikar.
+  # Recetede olup hic karekodu okutulmayan barkod = okutulmamis = EKSIK.
+  # Her barkodun kac kez okutuldugunu de sayar (karekod icinde barkod substring).
   if(-not $NoSleep){ Yaz "8 sn icinde Listele ekranini ONE getir..." "Yellow"; Start-Sleep -Seconds 8 }
   else { Start-Sleep -Milliseconds 1200 }   # hotkey: Medula zaten onde, odak otursun
   $b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds
@@ -63,58 +67,23 @@ function Tara {
 
   $w1=OcrFile "$KOK\cap.png"
   $hBar=$w1|?{$_.T -match '^Barkod'}|Select-Object -First 1
-  if(-not $hBar){ Yaz "  (OCR) 'Barkod' basligi yok - Listele tam onde degil (pencere kapatiyor olabilir)" "Yellow"; return $null }
-  $hy=$hBar.Y
-  $hrow=$w1|?{[math]::Abs($_.Y-$hy) -lt 18}
-  $hRaf=$hrow|?{$_.T -match 'Raf'}|Select-Object -First 1
-  $hDozaj=$hrow|?{$_.T -match 'Dozaj'}|Select-Object -First 1
-  $rightEnd= if($hRaf){$hRaf.X-10} elseif($hDozaj){$hDozaj.X+260} else {$hBar.X+760}
-  $barRows=$w1|?{ [math]::Abs($_.X-$hBar.X) -lt 70 -and $_.T -match '^8[56]\d{10,12}$' -and $_.Y -gt $hy } | Sort-Object Y
-  $rowYs=@(); foreach($r in $barRows){ if(($rowYs|?{[math]::Abs($_-$r.Y) -lt 12}).Count -eq 0){$rowYs+=$r.Y} }
-  $rowYs = $rowYs | Sort-Object
-  Yaz ("  (OCR) Barkod.X={0} Y={1} rightEnd={2} satir={3}" -f $hBar.X,$hy,$rightEnd,$rowYs.Count)
-  if($rowYs.Count -eq 0){ return $null }
+  if(-not $hBar){ Yaz "  (OCR) 'Barkod' basligi yok - Listele tam onde degil" "Yellow"; return $null }
 
-  $cropX=[math]::Max(0,$hBar.X-12); $cropY=[math]::Max(0,$hy-6)
-  $cropR=[math]::Min($b.Width,$rightEnd); $cropB=[math]::Min($b.Height,$rowYs[-1]+40)
-  $cw=$cropR-$cropX; $ch=$cropB-$cropY
-  $src=[System.Drawing.Image]::FromFile("$KOK\cap.png")
-  $cr=New-Object System.Drawing.Bitmap($cw,$ch); $gc=[System.Drawing.Graphics]::FromImage($cr)
-  $gc.DrawImage($src,(New-Object System.Drawing.Rectangle(0,0,$cw,$ch)),$cropX,$cropY,$cw,$ch,[System.Drawing.GraphicsUnit]::Pixel);$gc.Dispose()
-  $big=New-Object System.Drawing.Bitmap(($cw*$Scale),($ch*$Scale)); $gb=[System.Drawing.Graphics]::FromImage($big)
-  $gb.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-  $gb.DrawImage($cr,0,0,($cw*$Scale),($ch*$Scale));$gb.Dispose()
-  $big.Save("$KOK\cap-crop.png",[System.Drawing.Imaging.ImageFormat]::Png)
-  $src.Dispose();$cr.Dispose();$big.Dispose()
-  $w2=OcrFile "$KOK\cap-crop.png"
+  # Recetedeki barkodlar (13 hane, 85/86 ile baslar). Ust+alt tabloda tekrar eder -> uniq.
+  $recete = @($w1 | ?{ $_.T -match '^8[56]\d{10,12}$' } | %{ ([string]$_.T) } | Sort-Object -Unique)
+  Yaz ("  recete barkod (" + $recete.Count + "): " + ($recete -join ', '))
 
-  $bar2=$w2|?{ $_.X -lt (120*$Scale) -and $_.T -match '^\d{10,14}$' }|Sort-Object Y
-  $ry2=@(); foreach($r in $bar2){ if(($ry2|?{[math]::Abs($_-$r.Y) -lt (14*$Scale)}).Count -eq 0){$ry2+=$r.Y} }
-  if($ry2.Count -eq 0){ $ry2 = $rowYs | %{ ($_-$cropY)*$Scale } }
+  # Okutulan karekodlar: ortadaki kutudaki uzun GS1 stringleri (0 ile baslar, >=14 hane).
+  $kk = @($w1 | ?{ $_.T -match '^0\d{13,}$' } | %{ ([string]$_.T) })
+  Yaz ("  okutulan karekod token (" + $kk.Count + "): " + (($kk | %{ if($_.Length -gt 22){$_.Substring(0,22)+'..'}else{$_} }) -join '  '))
 
-  $rows=New-Object System.Collections.Generic.List[object]
-  foreach($ry in ($ry2|Sort-Object)){
-    $row = $w2|?{ [math]::Abs($_.Y-$ry) -lt (14*$Scale) } | Sort-Object X
-    Yaz ("  RAW: " + (($row|%{$_.T}) -join ' | '))
-    $bar = ($row|?{ $_.T -match '^\d{10,14}$' -and $_.X -lt (140*$Scale) }|Sort-Object X|Select-Object -First 1).T
-    $nameW=@(); $hitNum=$false
-    foreach($wd in $row){
-      if($wd.T -match '^\d{10,14}$'){ continue }                 # barkod - isim degil, atla
-      if($wd.T -match '^\d' -and $wd.T.Length -ge 2){ $hitNum=$true }
-      if(-not $hitNum -and $wd.T -match '[A-Za-zÇĞİÖŞÜ]' -and $wd.X -gt (60*$Scale)){ $nameW+=$wd.T } }
-    $ad = ($nameW -join ' ')
-    # Gunde/Hafta capasi: ondan onceki kucuk sayilar -> ilk=Adet, son=dozaj(at),
-    # dozajdan onceki son sayi=Ok.KK (yoksa 0=okutulmamis=EKSIK). stok "N/N" (/ var) ve barkod (uzun) haric.
-    # UST "Recete" tablosu satiri Gunde/Hafta icerir (stok+dozaj karmasik, OCR'da /0 duser) -> ATLA.
-    # ALT "Okutulan Karekodlar" tablosu: Barkod | Ad | Recete Adet | Karekod Adet.
-    # Son iki kucuk sayi = recete, karekod (strength sayilari "650 MG" solda kalir). eksik = recete - karekod.
-    if(($row|?{$_.T -match 'G[uü]nde|Hafta'}).Count -gt 0){ continue }
-    $nums = @($row | ?{ $_.T -match '^\d{1,3}$' } | %{ [int]$_.T })
-    if($nums.Count -lt 2){ continue }
-    $adet = $nums[-2]; $okkk = $nums[-1]; $eksik = $adet - $okkk
-    $rows.Add([pscustomobject]@{ bar=([string]$bar); ad=$ad; adet=$adet; okkk=$okkk; eksik=$eksik })
-  }
-  return $rows
+  if($recete.Count -eq 0){ return $null }
+  return [pscustomobject]@{ recete=$recete; karekod=$kk }
+}
+# bir barkod karekod kutusunda kac kez gecer (karekod GS1 = 01 + barkod + ...)
+function OkutulanSay([string]$barkod,$kkListe){
+  $b=$barkod.TrimStart('0'); if($b.Length -lt 8){ return 0 }
+  @($kkListe | ?{ $_ -like ("*"+$b+"*") }).Count
 }
 
 # =====================================================================
@@ -131,7 +100,7 @@ function Bos($s){ if($null -eq $s){""}else{([string]$s).Trim()} }
 function Norm($s){ (([string]$s).ToUpper() -replace '[^A-Z0-9]','') }
 function BarNorm($s){ $d=(([string]$s) -replace '[^0-9]',''); if($d.Length -gt 13){$d=$d.Substring($d.Length-13)}; $d.TrimStart('0') }
 
-function HastaBul($ocrRows){
+function HastaBul($receteBar){
   $sql = @"
 copy (
   select coalesce(s.erecete_no,''), coalesce(s.protokol_no,''),
@@ -139,7 +108,7 @@ copy (
          trim(coalesce(ch.adi,'')||' '||coalesce(ch.soyadi,'')),
          coalesce(ch.tckn,''), coalesce(nullif(ch.gsm1,''),ch.gsm2,''),
          coalesce(m.urun_adi,''), coalesce(m.urun_barkod,''),
-         coalesce(m.stok_miktari,0)::text
+         coalesce(m.stok_miktari,0)::text, coalesce(fk.yazilan_adet,0)::text
   from eys_tbl_satis_recete s
   join eys_tbl_satis_fatura_kalem fk on fk.satis_fatura_id=s.fatura_id
   left join eys_tbl_mustahzar_temel m on m.urun_id=fk.urun_id
@@ -149,30 +118,26 @@ copy (
     and s.islem_tarihi >= current_date - interval '$GunGeri days'
 ) to stdout with (format csv)
 "@
-  $rows = PsqlCsv $sql @('rec','prot','tarih','ad','tc','tel','ilac','bar','stok')
+  $rows = PsqlCsv $sql @('rec','prot','tarih','ad','tc','tel','ilac','bar','stok','yazilan')
   if(-not $rows -or $rows.Count -eq 0){ return $null }
+  $ocrBar = @($receteBar | %{ BarNorm $_ } | ?{ $_ })
 
-  # OCR kumeleri
-  $ocrBar  = @($ocrRows | %{ BarNorm $_.bar } | ?{ $_ })
-  $ocrAd   = @($ocrRows | %{ Norm (($_.ad -split '\s+')[0]) } | ?{ $_.Length -ge 3 })
-
-  # recete bazinda grupla + skorla
   $grup=[ordered]@{}
   foreach($r in $rows){
     $rec = Bos $r.rec; if($rec -eq ""){ $rec = Bos $r.prot }; if($rec -eq ""){ continue }
     if(-not $grup.Contains($rec)){ $grup[$rec]=[ordered]@{ rec=$rec; prot=(Bos $r.prot); tarih=(Bos $r.tarih); ad=(Bos $r.ad); tc=(Bos $r.tc); tel=(Bos $r.tel); dr=@() } }
-    $grup[$rec].dr += [pscustomobject]@{ ad=(Bos $r.ilac); bar=(BarNorm $r.bar); stok=([int]([decimal]::Parse((Bos $r.stok),[Globalization.CultureInfo]::InvariantCulture))) }
+    $grup[$rec].dr += [pscustomobject]@{
+      ad=(Bos $r.ilac); bar=(Bos $r.bar); barN=(BarNorm $r.bar)
+      stok=([int]([decimal]::Parse((Bos $r.stok),[Globalization.CultureInfo]::InvariantCulture)))
+      yazilan=([int]([decimal]::Parse((Bos $r.yazilan),[Globalization.CultureInfo]::InvariantCulture)))
+    }
   }
+  # en cok barkod eslesen receteyi sec (esitlikte en yeni)
   $enIyi=$null; $enSkor=0
   foreach($rec in $grup.Keys){
-    $g=$grup[$rec]; $sk=0
-    foreach($d in $g.dr){
-      if($d.bar -and ($ocrBar -contains $d.bar)){ $sk+=2 }
-      $dn = Norm (($d.ad -split '\s+')[0])
-      if($dn.Length -ge 3 -and ($ocrAd | ?{ $_.StartsWith($dn.Substring(0,[math]::Min(4,$dn.Length))) -or $dn.StartsWith($_.Substring(0,[math]::Min(4,$_.Length))) }).Count -gt 0){ $sk+=1 }
-    }
+    $g=$grup[$rec]; $sk=@($g.dr | ?{ $_.barN -and ($ocrBar -contains $_.barN) }).Count
     if($sk -gt $enSkor){ $enSkor=$sk; $enIyi=$g }
-    elseif($sk -eq $enSkor -and $enIyi -and $sk -gt 0){ if(($g.tarih) -gt ($enIyi.tarih)){ $enIyi=$g } }  # esitlikte en yeni
+    elseif($sk -eq $enSkor -and $enIyi -and $sk -gt 0 -and ($g.tarih) -gt ($enIyi.tarih)){ $enIyi=$g }
   }
   if($enSkor -le 0){ return $null }
   return $enIyi
@@ -215,40 +180,33 @@ $anahtar = HastaAnahtari
 if(-not $anahtar){ Yaz "hasta.key yok - once rx-hasta.ps1 -HastaKur" "Red"; exit 1 }
 
 Yaz "`n[1/3] Ekran okunuyor (OCR)..." "Cyan"
-$ocr = Tara
-if(-not $ocr -or $ocr.Count -eq 0){ Yaz "Listele ekrani/tablo bulunamadi. Medula Listele ekrani onde mi?" "Red"; exit 2 }
-Yaz ("{0,-28} {1,5} {2,6} {3,6}  {4}" -f "Ilac","Adet","Ok.KK","EKSIK","Barkod")
-foreach($r in $ocr){ Yaz ("{0,-28} {1,5} {2,6} {3,6}  {4}" -f (($r.ad)[0..27] -join '').Trim(),$r.adet,$r.okkk,$r.eksik,$r.bar) }
-$eksikler = @($ocr | ?{ $_.eksik -gt 0 })
-if($eksikler.Count -eq 0){ Yaz "`nEksik ilac yok - hepsi okutulmus. Siparis olusturulmadi." "Green"; exit 0 }
+$t = Tara
+if(-not $t -or $t.recete.Count -eq 0){ Yaz "Listele ekrani bulunamadi. Medula Listele ekrani onde mi?" "Red"; exit 2 }
 
-Yaz "`n[2/3] Hasta eslestiriliyor (Rx DB)..." "Cyan"
-$h = HastaBul $ocr
-if($h){ Yaz ("Eslesen hasta: {0}  ({1})  tel={2}" -f $h.ad,$h.rec,$h.tel) "Green" }
-else  { Yaz "Hasta eslesmedi - aday isimsiz gidecek (web'de telefon elle girilir)." "Yellow" }
+Yaz "`n[2/3] Hasta + yazilan adet (Rx DB)..." "Cyan"
+$h = HastaBul $t.recete
+if(-not $h){ Yaz "Hasta eslesmedi - recete DB'de yok (son $GunGeri gun, acik SGK)." "Red"; exit 3 }
+Yaz ("Eslesen hasta: {0}  ({1})  tel={2}  ilac={3}" -f $h.ad,$h.rec,$h.tel,$h.dr.Count) "Green"
 
-# aday ilac listesi: OCR eksikleri (stok DB'den eslerse)
-$drIlac = @()
-foreach($e in $eksikler){
-  $stok=0
-  if($h){ $bn=BarNorm $e.bar; $en=Norm (($e.ad -split '\s+')[0])
-    $m = $h.dr | ?{ ($_.bar -and $_.bar -eq $bn) -or (Norm (($_.ad -split '\s+')[0])).StartsWith($en.Substring(0,[math]::Min(4,$en.Length))) } | Select-Object -First 1
-    if($m){ $stok=$m.stok; if(-not $e.ad){ $e.ad=$m.ad } } }
-  $drIlac += [ordered]@{ ad=$e.ad; bar=$e.bar; adet=$e.adet; okkk=$e.okkk; eksik=$e.eksik; stok=$stok }
+# EKSIK = yazilan - okutulan(karekod kutusunda barkod sayisi). Hic okutulmayan = tam eksik.
+Yaz ("{0,-30} {1,4} {2,4} {3,5}  {4}" -f "Ilac","Yaz","Oku","EKSIK","Barkod")
+$drIlac=@()
+foreach($d in $h.dr){
+  if(-not $d.bar){ continue }
+  $ok = OkutulanSay $d.bar $t.karekod
+  $eksik = $d.yazilan - $ok
+  $kisa = if($d.ad.Length -gt 30){$d.ad.Substring(0,30)}else{$d.ad}
+  Yaz ("{0,-30} {1,4} {2,4} {3,5}  {4}" -f $kisa,$d.yazilan,$ok,$eksik,$d.bar)
+  if($eksik -gt 0){ $drIlac += [ordered]@{ ad=$d.ad; bar=$d.bar; adet=$d.yazilan; okkk=$ok; eksik=$eksik; stok=$d.stok } }
 }
+if($drIlac.Count -eq 0){ Yaz "`nEksik ilac yok - hepsi okutulmus. Siparis olusturulmadi." "Green"; exit 0 }
+
 $aday = [ordered]@{
-  zaman = (Get-Date).ToString("o")
-  rec   = if($h){$h.rec}else{"OCR-"+(Get-Date -Format "HHmmss")}
-  prot  = if($h){$h.prot}else{""}
-  tarih = if($h){$h.tarih}else{(Get-Date -Format "yyyy-MM-dd HH:mm")}
-  ad    = if($h){$h.ad}else{""}
-  tc    = if($h){$h.tc}else{""}
-  tel   = if($h){$h.tel}else{""}
-  ilac  = $drIlac
+  zaman=(Get-Date).ToString("o"); rec=$h.rec; prot=$h.prot; tarih=$h.tarih
+  ad=$h.ad; tc=$h.tc; tel=$h.tel; ilac=$drIlac
 }
-
 Yaz "`n[3/3] Sifrelenip buluta yaziliyor (sgk_son)..." "Cyan"
 BulutGiris
 $sifreli = Sifrele $anahtar (ConvertTo-Json $aday -Depth 6 -Compress)
 AyarYaz "sgk_son" $sifreli
-Yaz ("TAMAM: {0} eksik ilac, hasta '{1}' -> web listesine dustu." -f $drIlac.Count, $aday.ad) "Green"
+Yaz ("TAMAM: {0} eksik ilac, hasta '{1}' -> web listesine dustu." -f $drIlac.Count, $h.ad) "Green"
