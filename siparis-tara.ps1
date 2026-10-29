@@ -97,8 +97,42 @@ function Tara {
   } else { $script:KKDBG="Listele-yok"; Yaz "  (OCR) 'Listele' dugmesi bulunamadi" "Yellow" }
   Yaz ("  okutulan karekod token (" + $kk.Count + "): " + (($kk | %{ if($_.Length -gt 22){$_.Substring(0,22)+'..'}else{$_} }) -join '  '))
 
+  # --- ALT "Okutulan Karekodlar" tablosu: Recete Adet (yazilan) EKRANDAN oku ---
+  # (DB yazilan ayni hastanin baska recetesinden gelebiliyor; ekran kesindir.)
+  # Her satir: Barkod | Ad(+strength) | Recete Adet | Karekod Adet. Kucuk sayilar en sagda.
+  $recNums=@{}
+  if($lst){
+    $altBar=@($w1|?{ $_.T -match '^8[56]\d{10,12}$' -and $_.Y -gt ($lst.Y+5) }|Sort-Object Y)
+    if($altBar.Count -ge 1){
+      $aTop=[math]::Max(0,$altBar[0].Y-16); $aBot=[math]::Min($b.Height,$altBar[-1].Y+20)
+      $aX=[math]::Max(0,$hBar.X-55); $aW=[math]::Min($b.Width-$aX,1000); $aH=$aBot-$aTop
+      if($aH -gt 15 -and $aW -gt 50){
+        $src=[System.Drawing.Image]::FromFile("$KOK\cap.png")
+        $cr=New-Object System.Drawing.Bitmap($aW,$aH); $gc=[System.Drawing.Graphics]::FromImage($cr)
+        $gc.DrawImage($src,(New-Object System.Drawing.Rectangle(0,0,$aW,$aH)),$aX,$aTop,$aW,$aH,[System.Drawing.GraphicsUnit]::Pixel);$gc.Dispose()
+        $sc2=4; $big=New-Object System.Drawing.Bitmap(($aW*$sc2),($aH*$sc2)); $gb=[System.Drawing.Graphics]::FromImage($big)
+        $gb.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $gb.DrawImage($cr,0,0,($aW*$sc2),($aH*$sc2));$gb.Dispose()
+        $big.Save("$KOK\cap-alt.png",[System.Drawing.Imaging.ImageFormat]::Png)
+        $src.Dispose();$cr.Dispose();$big.Dispose()
+        $w4=OcrFile "$KOK\cap-alt.png"
+        $bA=@($w4|?{ $_.X -lt (170*$sc2) -and $_.T -match '^\d{10,14}$' }|Sort-Object Y)
+        $ryA=@(); foreach($r in $bA){ if(($ryA|?{[math]::Abs($_-$r.Y) -lt (14*$sc2)}).Count -eq 0){$ryA+=$r.Y} }
+        foreach($ry in $ryA){
+          $row=@($w4|?{ [math]::Abs($_.Y-$ry) -lt (14*$sc2) }|Sort-Object X)
+          $bk=($row|?{ $_.T -match '^\d{10,14}$' }|Select-Object -First 1).T
+          if(-not $bk){ continue }
+          $nums=@($row|?{ $_.T -match '^\d{1,3}$' }|%{ [int]$_.T })
+          if($nums.Count -ge 1){ $recNums[(BarNorm $bk)] = $nums }
+        }
+      }
+    }
+  }
+  $dbgRN = ($recNums.Keys | %{ "$($_)=[$(($recNums[$_]) -join ',')]" }) -join ' '
+  Yaz ("  alt tablo Recete Adet: " + $dbgRN)
+
   if($recete.Count -eq 0){ return $null }
-  return [pscustomobject]@{ recete=$recete; karekod=$kk }
+  return [pscustomobject]@{ recete=$recete; karekod=$kk; recNums=$recNums }
 }
 # bir barkod karekod kutusunda kac kez gecer (karekod GS1 = 01 + barkod + ...)
 # karekod icinde barkodu TOLERANSLI ara (OCR 6<->5 gibi hatalar icin; en fazla maxH hane farki)
@@ -229,15 +263,32 @@ $drIlac=@()
 foreach($d in $h.dr){
   if(-not $d.bar){ continue }
   $ok = OkutulanSay $d.bar $t.karekod
-  $eksik = $d.yazilan - $ok
+  # Recete Adet: ONCE ekrandan (alt "Okutulan Karekodlar" tablosu) - DB yazilan
+  # ayni hastanin BASKA recetesinden gelebiliyor; ekran kesindir. Ekran yoksa DB.
+  $yaz = $d.yazilan
+  $en = $null
+  if($t.recNums.ContainsKey($d.barN)){ $en = $t.recNums[$d.barN] }
+  else {
+    foreach($rk in $t.recNums.Keys){
+      $len=[math]::Min($rk.Length,$d.barN.Length); $hh=[math]::Abs($rk.Length-$d.barN.Length)
+      for($i=0;$i -lt $len;$i++){ if($rk[$i] -ne $d.barN[$i]){ $hh++ } }
+      if($hh -le 2){ $en=$t.recNums[$rk]; break }
+    }
+  }
+  if($en -and $en.Count -ge 1){
+    if($ok -gt 0 -and $en.Count -ge 2){ $yaz = [int]$en[-2] }  # en sag=Karekod Adet, onceki=Recete Adet
+    else { $yaz = [int]$en[-1] }                                # Karekod Adet=0 render olmaz -> en sag=Recete Adet
+  }
+  if($yaz -lt 1){ $yaz = $d.yazilan }
+  $eksik = $yaz - $ok
   $kisa = if($d.ad.Length -gt 30){$d.ad.Substring(0,30)}else{$d.ad}
-  Yaz ("{0,-30} {1,4} {2,4} {3,5}  {4}" -f $kisa,$d.yazilan,$ok,$eksik,$d.bar)
-  if($eksik -gt 0){ $drIlac += [ordered]@{ ad=$d.ad; bar=$d.bar; adet=$d.yazilan; okkk=$ok; eksik=$eksik; stok=$d.stok } }
+  Yaz ("{0,-30} {1,4} {2,4} {3,5}  {4}" -f $kisa,$yaz,$ok,$eksik,$d.bar)
+  if($eksik -gt 0){ $drIlac += [ordered]@{ ad=$d.ad; bar=$d.bar; adet=$yaz; okkk=$ok; eksik=$eksik; stok=$d.stok } }
 }
 # TANI: buluta plaintext log (PII yok - barkod/sayac) -> uzaktan gorulebilsin
 try {
   $tani = ("recete=" + $t.recete.Count + " kk=" + $t.karekod.Count + " || KK: " + (($t.karekod | %{ if($_.Length -gt 26){$_.Substring(0,26)}else{$_} }) -join ' '))
-  $tani += " || " + (($h.dr | %{ "$($_.bar):y$($_.yazilan)/o$(OkutulanSay $_.bar $t.karekod)" }) -join ' ')
+  $tani += " || " + (($h.dr | %{ "$($_.bar):y$($_.yazilan)/o$(OkutulanSay $_.bar $t.karekod)/e[$(($t.recNums[$_.barN]) -join ',')]" }) -join ' ')
   $tani += " || " + $script:KKDBG
   BulutGiris; AyarYaz "sgk_log" $tani
 } catch {}
