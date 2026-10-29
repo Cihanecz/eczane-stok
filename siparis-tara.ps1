@@ -75,7 +75,7 @@ function Tara {
 
   # Okutulan karekodlar ORTADAKI KUTUDA kucuk font -> KIRP + 4x BUYUT + OCR.
   # Kutu "Listele" dugmesinin HEMEN USTUNDE (hem "Recete" hem "Karekod Islemleri" ekraninda boyle).
-  $kk=@()
+  $kk=@(); $script:KKDBG=""
   $lst = $w1|?{ $_.T -match '^Listele$' -and $_.X -gt 400 }|Sort-Object Y|Select-Object -First 1
   if($lst){
     $taBot=[math]::Max(40,$lst.Y-8); $taTop=[math]::Max(0,$lst.Y-205)
@@ -92,8 +92,9 @@ function Tara {
       $src.Dispose();$cr.Dispose();$big.Dispose()
       $w3=OcrFile "$KOK\cap-kk.png"
       $kk=@($w3 | ?{ $_.T -match '^0\d{13,}' } | %{ ([string]$_.T) })
+      $script:KKDBG = "Lst=$($lst.Y) t=$taTop b=$taBot x=$txX | w3=" + ((@($w3|%{ if($_.T.Length -gt 24){$_.T.Substring(0,24)}else{$_.T} })|Select-Object -First 12) -join ' ')
     }
-  } else { Yaz "  (OCR) 'Listele' dugmesi bulunamadi - karekod kutusu konumlanamadi" "Yellow" }
+  } else { $script:KKDBG="Listele-yok"; Yaz "  (OCR) 'Listele' dugmesi bulunamadi" "Yellow" }
   Yaz ("  okutulan karekod token (" + $kk.Count + "): " + (($kk | %{ if($_.Length -gt 22){$_.Substring(0,22)+'..'}else{$_} }) -join '  '))
 
   if($recete.Count -eq 0){ return $null }
@@ -224,6 +225,7 @@ foreach($d in $h.dr){
 try {
   $tani = ("recete=" + $t.recete.Count + " kk=" + $t.karekod.Count + " || KK: " + (($t.karekod | %{ if($_.Length -gt 26){$_.Substring(0,26)}else{$_} }) -join ' '))
   $tani += " || " + (($h.dr | %{ "$($_.bar):y$($_.yazilan)/o$(OkutulanSay $_.bar $t.karekod)" }) -join ' ')
+  $tani += " || " + $script:KKDBG
   BulutGiris; AyarYaz "sgk_log" $tani
 } catch {}
 
