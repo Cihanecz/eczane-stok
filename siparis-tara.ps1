@@ -98,7 +98,7 @@ function Tara {
   $rows=New-Object System.Collections.Generic.List[object]
   foreach($ry in ($ry2|Sort-Object)){
     $row = $w2|?{ [math]::Abs($_.Y-$ry) -lt (14*$Scale) } | Sort-Object X
-    if($Dok){ Yaz ("  -- Y=$($ry): " + (($row|%{$_.T}) -join ' | ')) "DarkGray" }
+    Yaz ("  RAW: " + (($row|%{$_.T}) -join ' | '))
     $bar = ($row|?{ $_.T -match '^\d{10,14}$' -and $_.X -lt (140*$Scale) }|Sort-Object X|Select-Object -First 1).T
     $nameW=@(); $hitNum=$false
     foreach($wd in $row){
