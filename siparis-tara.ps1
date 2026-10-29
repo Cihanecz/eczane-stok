@@ -73,8 +73,31 @@ function Tara {
   $recete = @($w1 | ?{ $_.T -match '^8[56]\d{10,12}$' } | %{ ([string]$_.T) } | Sort-Object -Unique)
   Yaz ("  recete barkod (" + $recete.Count + "): " + ($recete -join ', '))
 
-  # Okutulan karekodlar: ortadaki kutudaki uzun GS1 stringleri (0 ile baslar, >=14 hane).
-  $kk = @($w1 | ?{ $_.T -match '^0\d{13,}$' } | %{ ([string]$_.T) })
+  # Okutulan karekodlar ORTADAKI KUTUDA kucuk font -> tam ekran OCR okuyamiyor.
+  # Kutu bolgesini (ust tablo ile alt tablo arasi) KIRP + 4x BUYUT + OCR.
+  $barRows = @($w1|?{ [math]::Abs($_.X-$hBar.X) -lt 90 -and $_.T -match '^8[56]\d{10,12}$' -and $_.Y -gt $hBar.Y } | Sort-Object Y)
+  $ys=@(); foreach($r in $barRows){ if(($ys|?{[math]::Abs($_-$r.Y) -lt 12}).Count -eq 0){$ys+=$r.Y} }
+  $ys=@($ys | Sort-Object)
+  $kk=@()
+  if($ys.Count -ge 1){
+    $ustSon=$ys[0]; $altIlk=$null
+    for($i=1;$i -lt $ys.Count;$i++){ if(($ys[$i]-$ys[$i-1]) -gt 60){ $altIlk=$ys[$i]; break }; $ustSon=$ys[$i] }
+    $taTop=[math]::Max(0,$ustSon+22)
+    $taBot= if($altIlk){ [math]::Max($taTop+40,$altIlk-12) } else { [math]::Min($b.Height,$ustSon+240) }
+    $txX=[math]::Max(0,$hBar.X-12); $txW=[math]::Min($b.Width-$txX,820); $txH=$taBot-$taTop
+    if($txH -gt 20 -and $txW -gt 50){
+      $src=[System.Drawing.Image]::FromFile("$KOK\cap.png")
+      $cr=New-Object System.Drawing.Bitmap($txW,$txH); $gc=[System.Drawing.Graphics]::FromImage($cr)
+      $gc.DrawImage($src,(New-Object System.Drawing.Rectangle(0,0,$txW,$txH)),$txX,$taTop,$txW,$txH,[System.Drawing.GraphicsUnit]::Pixel);$gc.Dispose()
+      $sc=4; $big=New-Object System.Drawing.Bitmap(($txW*$sc),($txH*$sc)); $gb=[System.Drawing.Graphics]::FromImage($big)
+      $gb.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+      $gb.DrawImage($cr,0,0,($txW*$sc),($txH*$sc));$gb.Dispose()
+      $big.Save("$KOK\cap-kk.png",[System.Drawing.Imaging.ImageFormat]::Png)
+      $src.Dispose();$cr.Dispose();$big.Dispose()
+      $w3=OcrFile "$KOK\cap-kk.png"
+      $kk=@($w3 | ?{ $_.T -match '^0\d{13,}' } | %{ ([string]$_.T) })
+    }
+  }
   Yaz ("  okutulan karekod token (" + $kk.Count + "): " + (($kk | %{ if($_.Length -gt 22){$_.Substring(0,22)+'..'}else{$_} }) -join '  '))
 
   if($recete.Count -eq 0){ return $null }
