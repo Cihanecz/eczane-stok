@@ -2253,9 +2253,9 @@ async function sDurumGecir(id, yeni){
   if(yeni==="geldi" && S.ayar.ses) sSesCal(o.ad);
   siparisSayfasi();
 }
-function sSesCal(ad){
+function sSesCal(){
   if(Date.now()-S_SES_SON < 1500) return; S_SES_SON=Date.now();
-  try { const u = new SpeechSynthesisUtterance("Sipariş geldi" + (ad?(", "+ad):"")); u.lang="tr-TR"; speechSynthesis.speak(u); } catch(e){}
+  try { const u = new SpeechSynthesisUtterance("Sipariş geldi"); u.lang="tr-TR"; speechSynthesis.speak(u); } catch(e){}  // gizlilik: hasta adı söylenmez
 }
 function sWhatsapp(id){
   const o = sBul(id); if(!o) return; const t = telNo(o.tel); if(!t) return alert("Telefon numarası yok veya geçersiz.");
