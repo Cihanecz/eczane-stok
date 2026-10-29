@@ -281,8 +281,11 @@ foreach($d in $h.dr){
     }
   }
   if($en -and $en.Count -ge 1){
-    if($ok -gt 0 -and $en.Count -ge 2){ $yaz = [int]$en[-2] }  # en sag=Karekod Adet, onceki=Recete Adet
-    else { $yaz = [int]$en[-1] }                                # Karekod Adet=0 render olmaz -> en sag=Recete Adet
+    # Alt tablo satiri: ...strength... | Recete Adet | Karekod Adet
+    # Karekod Adet = okutulan sayisi (ok). Son sayi ok'a esitse o Karekod Adet'tir
+    # -> Recete Adet bir onceki. Degilse Karekod Adet(0) hic basilmamis -> son sayi Recete Adet.
+    if($en.Count -ge 2 -and ([int]$en[-1] -eq $ok)){ $yaz = [int]$en[-2] }
+    else { $yaz = [int]$en[-1] }
   }
   if($yaz -lt 1){ $yaz = $d.yazilan }
   $eksik = $yaz - $ok
