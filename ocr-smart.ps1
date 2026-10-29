@@ -72,7 +72,7 @@ Write-Host ("{0,-40} {1,5} {2,6} {3,6}" -f "Ilac","Adet","Ok.KK","EKSIK")
 $sonuc=New-Object System.Collections.Generic.List[object]
 foreach($ry in ($ry2|Sort-Object)){
   $row = $w2|?{ [math]::Abs($_.Y-$ry) -lt (14*$Scale) } | Sort-Object X
-  if($Dok){ Write-Host ("  -- satir Y=$ry: " + (($row|%{$_.T}) -join ' | ')) -ForegroundColor DarkGray }
+  if($Dok){ Write-Host ("  -- satir Y=$($ry): " + (($row|%{$_.T}) -join ' | ')) -ForegroundColor DarkGray }
   # isim: barkoddan sonraki ilk harfli kelimeler (sayi/stok gelene kadar)
   $nameW=@(); $hitNum=$false
   foreach($wd in $row){ if($wd.T -match '^\d'){ if($wd.T.Length -ge 2){$hitNum=$true} }
