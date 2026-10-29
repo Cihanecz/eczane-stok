@@ -2069,7 +2069,8 @@ function hSablonDuzenle(){
    ===================================================================== */
 const S = { aday:null, kayit:[], ayar:{ yerler:["Banko","Buzdolabı"], ses:true }, gorunum:"bekleyen" };
 const S_DURUM_AD = { verildi:"🟠 Sipariş verildi", geldi:"📦 Geldi", hazir:"✅ Hazırlandı", haber:"💬 Haber verildi", teslim:"🎉 Teslim edildi" };
-const S_MILLET = [["TR","🇹🇷","Türkçe"],["EN","🇬🇧","İngilizce"],["DE","🇩🇪","Almanca"],["RU","🇷🇺","Rusça"],["AR","🇸🇦","Arapça"],["FA","🇮🇷","Farsça"],["UK","🇺🇦","Ukraynaca"],["FR","🇫🇷","Fransızca"],["ES","🇪🇸","İspanyolca"],["PT","🇵🇹","Portekizce"]];
+const S_MILLET = [["TR","tr","Türkçe"],["EN","gb","İngilizce"],["DE","de","Almanca"],["RU","ru","Rusça"],["AR","sa","Arapça"],["FA","ir","Farsça"],["UK","ua","Ukraynaca"],["FR","fr","Fransızca"],["ES","es","İspanyolca"],["PT","pt","Portekizce"]];
+const bayrak = cc => `<img src="https://flagcdn.com/20x15/${cc}.png" srcset="https://flagcdn.com/40x30/${cc}.png 2x" width="20" height="15" alt="" style="border-radius:2px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(0,0,0,.08)">`;
 const S_MESAJ = {
   TR:"Merhaba {ad}, eczanemize verdiğiniz eksik ilaç siparişiniz hazır. Uygun olduğunuzda gelip teslim alabilirsiniz. İyi günler.",
   EN:"Hello {ad}, the medicine you ordered at our pharmacy is ready. You can come and pick it up whenever convenient. Have a nice day.",
@@ -2163,10 +2164,10 @@ function sKart(o){
   if(o.durum==="verildi") dug += `<button class="wa" type="button" data-sdur="geldi" data-sid="${o.id}">📦 Geldi</button>`;
   if(o.durum==="geldi")   dug += `<button class="wa" type="button" data-syer="${o.id}">✅ Hazırla / yere koy</button>`;
   if(o.durum==="hazir" || o.durum==="haber"){
-    dug += tel ? `<button class="wa" type="button" data-swa="${o.id}">💬 WhatsApp ${mil[1]}</button>` : `<span class="hetk kirmizi">telefon yok</span>`;
+    dug += tel ? `<button class="wa" type="button" data-swa="${o.id}">💬 WhatsApp ${bayrak(mil[1])}</button>` : `<span class="hetk kirmizi">telefon yok</span>`;
     dug += `<button class="wa" type="button" style="background:#1F7A4D" data-sdur="teslim" data-sid="${o.id}">🎉 Teslim edildi</button>`;
   }
-  if(o.durum!=="teslim") dug += `<button class="hcip" type="button" data-smil="${o.id}" title="Milliyet / dil">${mil[1]}</button> <button class="hcip" type="button" data-ssil="${o.id}" title="Sil">🗑️</button>`;
+  if(o.durum!=="teslim") dug += `<button class="hcip" type="button" data-smil="${o.id}" title="Milliyet / dil">${bayrak(mil[1])}</button> <button class="hcip" type="button" data-ssil="${o.id}" title="Sil">🗑️</button>`;
   const yer = o.yer ? ` · 📍 ${kacis(o.yer)}` : "";
   return `<div class="hkart ${o.durum==="teslim"?"gonderildi":""}">
     <div class="ad">${kacis(o.ad||"(isim yok)")} <span class="hkucuk">· ${kacis(o.rec||o.kaynak||"")}${o.tel?" · "+kacis(o.tel):""}</span></div>
@@ -2190,13 +2191,14 @@ async function sOlusturForm(rec){
       <input type="number" min="1" value="${x.eksik}" data-si="${i}" style="width:66px;padding:6px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
       <span class="hkucuk">adet</span></div>`;
   }).join("");
-  const milOpt = S_MILLET.map(m=>`<option value="${m[0]}">${m[1]} ${m[2]}</option>`).join("");
-  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash='siparis'">‹ Geri</button>
+  const milCip = S_MILLET.map(m=>`<button type="button" class="hcip ${m[0]==="TR"?"secili":""}" data-mv="${m[0]}">${bayrak(m[1])} ${m[2]}</button>`).join("");
+  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
     <div class="liste-ust"><div><h1>Sipariş oluştur</h1><p>${kacis(r.ad||"")} · ${kacis(r.rec)}</p></div></div>
     <div class="hkart"><div class="ilaclar">${satir}</div>
-      <label class="alan" style="margin-top:12px"><span>Milliyet (mesaj dili)</span><select id="sMil">${milOpt}</select></label>
+      <div class="alan" style="margin-top:12px"><span>Milliyet (mesaj dili)</span><div class="hcipler" id="sMilCip">${milCip}</div></div><input type="hidden" id="sMil" value="TR">
       <label class="alan"><span>Telefon (WhatsApp)</span><input id="sTel" type="tel" value="${kacis(r.tel||"")}" placeholder="05xx xxx xx xx"></label>
       <button class="ana-dugme" id="sOnayla" type="button" style="margin-top:12px">Siparişi oluştur</button></div>`;
+  document.querySelectorAll("#sMilCip [data-mv]").forEach(b=>b.addEventListener("click", ()=>{ $("#sMil").value=b.dataset.mv; document.querySelectorAll("#sMilCip .hcip").forEach(x=>x.classList.remove("secili")); b.classList.add("secili"); }));
   $("#sOnayla").addEventListener("click", async ()=>{
     const ad = [];
     document.querySelectorAll("[data-si]").forEach(inp=>{ const i=+inp.dataset.si; const n=Math.max(1,parseInt(inp.value)||1); const x=r.ilac[i]; ad.push({ad:x.ad,bar:x.bar,adet:n}); });
@@ -2227,7 +2229,7 @@ function sYerSec(id){
   const o = sBul(id); if(!o) return;
   const liste = S.ayar.yerler||[];
   const se = liste.map(y=>`<button class="hcip" type="button" data-yd="${kacis(y)}">📍 ${kacis(y)}</button>`).join("");
-  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash='siparis'">‹ Geri</button>
+  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
     <div class="liste-ust"><div><h1>Nereye koydun?</h1><p>${kacis(o.ad||"")} · ${kacis(o.rec||"")}</p></div></div>
     <div class="hkart"><div class="hcipler">${se}</div>
       <label class="alan" style="margin-top:10px"><span>Yeni yer ekle</span><input id="yYeni" placeholder="ör. Raf 3"></label>
@@ -2237,8 +2239,8 @@ function sYerSec(id){
 }
 function sMilletSec(id){
   const o = sBul(id); if(!o) return;
-  const se = S_MILLET.map(m=>`<button class="hcip ${o.mil===m[0]?"secili":""}" type="button" data-md="${m[0]}">${m[1]} ${m[2]}</button>`).join("");
-  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash='siparis'">‹ Geri</button>
+  const se = S_MILLET.map(m=>`<button class="hcip ${o.mil===m[0]?"secili":""}" type="button" data-md="${m[0]}">${bayrak(m[1])} ${m[2]}</button>`).join("");
+  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
     <div class="liste-ust"><div><h1>Milliyet</h1><p>${kacis(o.ad||"")} — WhatsApp mesajı bu dilde gidecek</p></div></div>
     <div class="hkart"><div class="hcipler">${se}</div></div>`;
   document.querySelectorAll("[data-md]").forEach(b=>b.addEventListener("click", async ()=>{ o.mil=b.dataset.md; await sKaydet(); siparisSayfasi(); }));
