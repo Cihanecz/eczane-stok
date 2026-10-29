@@ -21,7 +21,7 @@ param(
   [switch]$Once,
   [switch]$HastaKur,
   [int]$Periyot   = 120,    # saniye (2 dk) - verilen_adet canli degisir, sik tarariz
-  [int]$GunGeri   = 2       # bugun + son GunGeri gun icindeki receteler
+  [int]$GunGeri   = 30      # bugun + son GunGeri gun icindeki receteler (eksikler 30 gun listede kalir)
 )
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
