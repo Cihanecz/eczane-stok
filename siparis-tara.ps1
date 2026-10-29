@@ -71,6 +71,10 @@ function Tara {
   $rightEnd= if($hRaf){$hRaf.X-10} elseif($hDozaj){$hDozaj.X+260} else {$hBar.X+760}
   $barRows=$w1|?{ [math]::Abs($_.X-$hBar.X) -lt 70 -and $_.T -match '^8[56]\d{10,12}$' -and $_.Y -gt $hy } | Sort-Object Y
   $rowYs=@(); foreach($r in $barRows){ if(($rowYs|?{[math]::Abs($_-$r.Y) -lt 12}).Count -eq 0){$rowYs+=$r.Y} }
+  $rowYs = $rowYs | Sort-Object
+  # SADECE UST TABLO: iki tablo arasindaki buyuk Y boslugunda kes
+  # (alt "Okutulan Karekodlar" tablosu ayni barkodlari tekrar listeliyor, stok sutunu yok -> sutunlari kaydiriyor)
+  if($rowYs.Count -gt 1){ $kes=@($rowYs[0]); for($i=1;$i -lt $rowYs.Count;$i++){ if(($rowYs[$i]-$rowYs[$i-1]) -gt 60){break}; $kes+=$rowYs[$i] }; $rowYs=@($kes) }
   Yaz ("  (OCR) Barkod.X={0} Y={1} rightEnd={2} satir={3}" -f $hBar.X,$hy,$rightEnd,$rowYs.Count)
   if($rowYs.Count -eq 0){ return $null }
 
@@ -97,7 +101,9 @@ function Tara {
     if($Dok){ Yaz ("  -- Y=$($ry): " + (($row|%{$_.T}) -join ' | ')) "DarkGray" }
     $bar = ($row|?{ $_.T -match '^\d{10,14}$' -and $_.X -lt (140*$Scale) }|Sort-Object X|Select-Object -First 1).T
     $nameW=@(); $hitNum=$false
-    foreach($wd in $row){ if($wd.T -match '^\d'){ if($wd.T.Length -ge 2){$hitNum=$true} }
+    foreach($wd in $row){
+      if($wd.T -match '^\d{10,14}$'){ continue }                 # barkod - isim degil, atla
+      if($wd.T -match '^\d' -and $wd.T.Length -ge 2){ $hitNum=$true }
       if(-not $hitNum -and $wd.T -match '[A-Za-zÇĞİÖŞÜ]' -and $wd.X -gt (60*$Scale)){ $nameW+=$wd.T } }
     $ad = ($nameW -join ' ')
     $stokL=$null; $stokRx=0
