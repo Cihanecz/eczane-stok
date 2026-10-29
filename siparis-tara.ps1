@@ -84,7 +84,7 @@ function Tara {
     for($i=1;$i -lt $ys.Count;$i++){ if(($ys[$i]-$ys[$i-1]) -gt 60){ $altIlk=$ys[$i]; break }; $ustSon=$ys[$i] }
     $taTop=[math]::Max(0,$ustSon+22)
     $taBot= if($altIlk){ [math]::Max($taTop+40,$altIlk-12) } else { [math]::Min($b.Height,$ustSon+240) }
-    $txX=[math]::Max(0,$hBar.X-12); $txW=[math]::Min($b.Width-$txX,820); $txH=$taBot-$taTop
+    $txX=[math]::Max(0,$hBar.X-45); $txW=[math]::Min($b.Width-$txX,1000); $txH=$taBot-$taTop
     if($txH -gt 20 -and $txW -gt 50){
       $src=[System.Drawing.Image]::FromFile("$KOK\cap.png")
       $cr=New-Object System.Drawing.Bitmap($txW,$txH); $gc=[System.Drawing.Graphics]::FromImage($cr)
@@ -105,8 +105,10 @@ function Tara {
 }
 # bir barkod karekod kutusunda kac kez gecer (karekod GS1 = 01 + barkod + ...)
 function OkutulanSay([string]$barkod,$kkListe){
-  $b=$barkod.TrimStart('0'); if($b.Length -lt 8){ return 0 }
-  @($kkListe | ?{ $_ -like ("*"+$b+"*") }).Count
+  $b=$barkod.TrimStart('0'); if($b.Length -lt 10){ return 0 }
+  $n=@($kkListe | ?{ $_ -like ("*"+$b+"*") }).Count
+  if($n -eq 0 -and $b.Length -ge 12){ $p=$b.Substring(0,12); $n=@($kkListe | ?{ $_ -like ("*"+$p+"*") }).Count }  # son hane OCR toleransi
+  $n
 }
 
 # =====================================================================
@@ -222,6 +224,13 @@ foreach($d in $h.dr){
   Yaz ("{0,-30} {1,4} {2,4} {3,5}  {4}" -f $kisa,$d.yazilan,$ok,$eksik,$d.bar)
   if($eksik -gt 0){ $drIlac += [ordered]@{ ad=$d.ad; bar=$d.bar; adet=$d.yazilan; okkk=$ok; eksik=$eksik; stok=$d.stok } }
 }
+# TANI: buluta plaintext log (PII yok - barkod/sayac) -> uzaktan gorulebilsin
+try {
+  $tani = ("recete=" + $t.recete.Count + " kk=" + $t.karekod.Count + " || KK: " + (($t.karekod | %{ if($_.Length -gt 26){$_.Substring(0,26)}else{$_} }) -join ' '))
+  $tani += " || " + (($h.dr | %{ "$($_.bar):y$($_.yazilan)/o$(OkutulanSay $_.bar $t.karekod)" }) -join ' ')
+  BulutGiris; AyarYaz "sgk_log" $tani
+} catch {}
+
 if($drIlac.Count -eq 0){ Yaz "`nEksik ilac yok - hepsi okutulmus. Siparis olusturulmadi." "Green"; exit 0 }
 
 $aday = [ordered]@{
