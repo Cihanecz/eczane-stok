@@ -1,10 +1,11 @@
 # =====================================================================
-#  OCR-SMART - Listele ekranini DINAMIK oku (pencere konumundan bagimsiz)
-#  1) Tam ekran OCR -> "Barkod/Adet/KK" basliklarindan sutun X'leri + ilac satirlari (barkod+ad+Y)
-#  2) Tablo bolgesini kirp+3x buyut -> rakamlari (Adet, Ok.KK) konumdan oku
-#  eksik = Adet - Ok.KK.  8 sn bekler -> Listele ekranini ONE getir.
+#  OCR-SMART v2 - Listele ekranini DINAMIK + SIRA BAZLI oku
+#  Pass1 (tam ekran): Barkod basligi + ilac satirlari (barkod Y'leri) + saga uzanim
+#  Pass2 (kirp+3x buyut): her satirda stok "N/N" capasi -> Adet=ondan onceki sayi,
+#    Ok.KK=ondan sonraki sayi (yoksa 0, cunku 0 OCR'da cikmaz). eksik=Adet-OkKK.
+#  8 sn bekler -> Listele ekranini ONE getir.  -Verbose ile her satirin kelimeleri dokumlenir.
 # =====================================================================
-param([switch]$NoSleep, [int]$Scale=3)
+param([switch]$NoSleep, [switch]$Dok, [int]$Scale=3)
 [Console]::OutputEncoding=[Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -28,41 +29,28 @@ function OcrFile($path){
 }
 
 if(-not $NoSleep){Write-Host "8 sn icinde Listele ekranini ONE getir..." -ForegroundColor Yellow;Start-Sleep -Seconds 8}
-# --- tam ekran yakala ---
 $b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds
 $full=New-Object System.Drawing.Bitmap($b.Width,$b.Height)
 $g=[System.Drawing.Graphics]::FromImage($full);$g.CopyFromScreen($b.X,$b.Y,0,0,$b.Size);$g.Dispose()
 $full.Save("C:\EczaneStok\cap.png",[System.Drawing.Imaging.ImageFormat]::Png)
 
-# --- PASS 1: tam ekran OCR, basliklari bul ---
+# --- PASS 1: tablo konumu ---
 $w1=OcrFile "C:\EczaneStok\cap.png"
 $hBar=$w1|?{$_.T -match '^Barkod'}|Select-Object -First 1
-if(-not $hBar){Write-Host "Baslik 'Barkod' bulunamadi - Listele ekrani onde mi?" -ForegroundColor Red;return}
+if(-not $hBar){Write-Host "Baslik 'Barkod' yok - Listele ekrani onde mi?" -ForegroundColor Red;return}
 $hy=$hBar.Y
 $hrow=$w1|?{[math]::Abs($_.Y-$hy) -lt 18}
-$hMevcut=$hrow|?{$_.T -match 'Mevcut|Kritik'}|Select-Object -First 1
-$hKK=$hrow|?{$_.T -match '^KK$|KK'}|Select-Object -First 1
 $hDozaj=$hrow|?{$_.T -match 'Dozaj'}|Select-Object -First 1
-$adetHdrs=$hrow|?{$_.T -match '^Adet'}|Sort-Object X
-$mevX= if($hMevcut){$hMevcut.X}else{99999}
-$adetX=($adetHdrs|?{$_.X -lt $mevX}|Select-Object -First 1).CX
-$kkX= if($hKK){$hKK.CX}elseif($adetHdrs.Count -ge 2){($adetHdrs[-1]).CX}else{0}
-$dozX= if($hDozaj){$hDozaj.X}else{99999}
-Write-Host ("Basliklar: Barkod.X={0} Adet.X={1} KK.X={2} Dozaj.X={3} Y={4}" -f $hBar.X,$adetX,$kkX,$dozX,$hy) -ForegroundColor Cyan
-
-# --- ilac satirlari: barkod sutununda 13 haneli (86/85 ile baslayan) numaralar ---
-$barRows=$w1|?{ [math]::Abs($_.X-$hBar.X) -lt 60 -and $_.T -match '^8[56]\d{10,12}$' -and $_.Y -gt $hy } | Sort-Object Y
+$hRaf=$hrow|?{$_.T -match 'Raf'}|Select-Object -First 1
+$rightEnd= if($hRaf){$hRaf.X-10} elseif($hDozaj){$hDozaj.X+260} else {$hBar.X+760}
+$barRows=$w1|?{ [math]::Abs($_.X-$hBar.X) -lt 70 -and $_.T -match '^8[56]\d{10,12}$' -and $_.Y -gt $hy } | Sort-Object Y
 $rowYs=@(); foreach($r in $barRows){ if(($rowYs|?{[math]::Abs($_-$r.Y) -lt 12}).Count -eq 0){$rowYs+=$r.Y} }
-Write-Host ("Ilac satiri sayisi: " + $rowYs.Count) -ForegroundColor Cyan
+Write-Host ("Barkod.X={0} Y={1} rightEnd={2} ilac_satiri={3}" -f $hBar.X,$hy,$rightEnd,$rowYs.Count) -ForegroundColor Cyan
 if($rowYs.Count -eq 0){Write-Host "Ilac satiri yok." -ForegroundColor Red;return}
 
-# ilac adini al (isim sutunu: barkodun sagi ile adet sutunu solu arasi, harfli)
-function AdAl($ry){ ($w1|?{[math]::Abs($_.Y-$ry) -lt 12 -and $_.X -gt ($hBar.R) -and $_.X -lt ($adetX-60) -and $_.T -match '[A-Za-zÇĞİÖŞÜ]'}|Sort-Object X|%{$_.T}) -join ' ' }
-
-# --- PASS 2: tablo bolgesini kirp + buyut, rakamlari oku ---
-$cropX=[math]::Max(0,$hBar.X-10); $cropY=[math]::Max(0,$hy-6)
-$cropR=[math]::Min($b.Width, ($(if($dozX -lt 99999){$dozX}else{$kkX+120})+10))
-$cropB=[math]::Min($b.Height, ($rowYs[-1]+40))
+# --- PASS 2: kirp+buyut ---
+$cropX=[math]::Max(0,$hBar.X-12); $cropY=[math]::Max(0,$hy-6)
+$cropR=[math]::Min($b.Width,$rightEnd); $cropB=[math]::Min($b.Height,$rowYs[-1]+40)
 $cw=$cropR-$cropX; $ch=$cropB-$cropY
 $src=[System.Drawing.Image]::FromFile("C:\EczaneStok\cap.png")
 $cr=New-Object System.Drawing.Bitmap($cw,$ch); $gc=[System.Drawing.Graphics]::FromImage($cr)
@@ -74,24 +62,39 @@ $big.Save("C:\EczaneStok\cap-crop.png",[System.Drawing.Imaging.ImageFormat]::Png
 $src.Dispose();$cr.Dispose();$big.Dispose()
 $w2=OcrFile "C:\EczaneStok\cap-crop.png"
 
-# native -> buyutulmus donusum
-function ToBigX($nx){ ($nx-$cropX)*$Scale }
-function ToBigY($ny){ ($ny-$cropY)*$Scale }
-$adetBX=ToBigX $adetX; $kkBX=ToBigX $kkX; $tolX=42*$Scale; $tolY=16*$Scale
-function NumAt($ry,$cx){ $c=$w2|?{[math]::Abs($_.Y-$ry) -lt $tolY -and [math]::Abs($_.CX-$cx) -lt $tolX -and $_.T -match '^\d+$'}; if($c.Count -eq 0){return 0}; [int](($c|Sort-Object {[math]::Abs($_.CX-$cx)})[0].T) }
+# satir Y'leri (buyutulmus): barkoddan (sol, 13 hane) kumele
+$bar2=$w2|?{ $_.X -lt (120*$Scale) -and $_.T -match '^\d{10,13}$' }|Sort-Object Y
+$ry2=@(); foreach($r in $bar2){ if(($ry2|?{[math]::Abs($_-$r.Y) -lt (14*$Scale)}).Count -eq 0){$ry2+=$r.Y} }
+if($ry2.Count -eq 0){ $ry2 = $rowYs | %{ ($_-$cropY)*$Scale } }   # yedek: pass1 satirlari
 
-Write-Host ("`n=== OKUNAN ===") -ForegroundColor Cyan
-Write-Host ("{0,-42} {1,5} {2,6} {3,6}" -f "Ilac","Adet","Ok.KK","EKSIK")
+Write-Host ("`n=== OKUNAN (satir=" + $ry2.Count + ") ===") -ForegroundColor Cyan
+Write-Host ("{0,-40} {1,5} {2,6} {3,6}" -f "Ilac","Adet","Ok.KK","EKSIK")
 $sonuc=New-Object System.Collections.Generic.List[object]
-foreach($ry in $rowYs){
-  $ad=AdAl $ry
-  $by=ToBigY $ry
-  $adet=NumAt $by $adetBX
-  $okkk=NumAt $by $kkBX
+foreach($ry in ($ry2|Sort-Object)){
+  $row = $w2|?{ [math]::Abs($_.Y-$ry) -lt (14*$Scale) } | Sort-Object X
+  if($Dok){ Write-Host ("  -- satir Y=$ry: " + (($row|%{$_.T}) -join ' | ')) -ForegroundColor DarkGray }
+  # isim: barkoddan sonraki ilk harfli kelimeler (sayi/stok gelene kadar)
+  $nameW=@(); $hitNum=$false
+  foreach($wd in $row){ if($wd.T -match '^\d'){ if($wd.T.Length -ge 2){$hitNum=$true} }
+    if(-not $hitNum -and $wd.T -match '[A-Za-zÇĞİÖŞÜ]' -and $wd.X -gt (60*$Scale)){ $nameW+=$wd.T } }
+  $ad = ($nameW -join ' ')
+  # stok capasi: N/N ya da -N/N
+  $stok = $row|?{ $_.T -match '^-?\d+\s*/\s*\d+$' }|Select-Object -First 1
+  $adet=0; $okkk=0
+  if($stok){
+    $before = $row|?{ $_.X -lt $stok.X -and $_.T -match '^\d+$' }|Sort-Object X
+    if($before.Count -gt 0){ $adet=[int]($before[-1].T) }
+    # stoktan sonra, dozaj (Gunde/Hafta/x/virgul) gelene kadar ilk sayi
+    $afterAll = $row|?{ $_.X -gt $stok.R }|Sort-Object X
+    foreach($wd in $afterAll){
+      if($wd.T -match 'G[uü]nde|Hafta|x|,'){ break }
+      if($wd.T -match '^\d+$'){ $okkk=[int]$wd.T; break }
+    }
+  }
   $eksik=$adet-$okkk
-  $kisa= if($ad.Length -gt 42){$ad.Substring(0,42)}else{$ad}
-  Write-Host ("{0,-42} {1,5} {2,6} {3,6}" -f $kisa,$adet,$okkk,$eksik)
+  $kisa= if($ad.Length -gt 40){$ad.Substring(0,40)}else{$ad}
+  Write-Host ("{0,-40} {1,5} {2,6} {3,6}" -f $kisa,$adet,$okkk,$eksik)
   $sonuc.Add([pscustomobject]@{ad=$ad;adet=$adet;okkk=$okkk;eksik=$eksik})
 }
 $sonuc|ConvertTo-Json -Compress|Out-File "C:\EczaneStok\ocr-sonuc.json" -Encoding UTF8
-Write-Host "`nJSON yazildi: C:\EczaneStok\ocr-sonuc.json" -ForegroundColor Green
+Write-Host "`nJSON: C:\EczaneStok\ocr-sonuc.json" -ForegroundColor Green
