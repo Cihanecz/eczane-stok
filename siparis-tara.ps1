@@ -53,6 +53,7 @@ function OcrFile($path){
 }
 function Tara {
   if(-not $NoSleep){ Yaz "8 sn icinde Listele ekranini ONE getir..." "Yellow"; Start-Sleep -Seconds 8 }
+  else { Start-Sleep -Milliseconds 1200 }   # hotkey: Medula zaten onde, odak otursun
   $b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds
   $full=New-Object System.Drawing.Bitmap($b.Width,$b.Height)
   $g=[System.Drawing.Graphics]::FromImage($full);$g.CopyFromScreen($b.X,$b.Y,0,0,$b.Size);$g.Dispose()
