@@ -78,7 +78,7 @@ function Tara {
   $kk=@(); $script:KKDBG=""
   $lst = $w1|?{ $_.T -match '^Listele$' -and $_.X -gt 400 }|Sort-Object Y|Select-Object -First 1
   if($lst){
-    $taBot=[math]::Max(40,$lst.Y-8); $taTop=[math]::Max(0,$lst.Y-205)
+    $taBot=[math]::Max(40,$lst.Y-8); $taTop=[math]::Max(0,$lst.Y-310)  # karekodlar kutunun UST kisminda -> yuksege al
     $txX=[math]::Max(0,$hBar.X-55); $txW=[math]::Min($b.Width-$txX,1000); $txH=$taBot-$taTop
     Yaz ("  (OCR) karekod kutu: Listele.Y=$($lst.Y) taTop=$taTop taBot=$taBot txX=$txX")
     if($txH -gt 20 -and $txW -gt 50){
