@@ -63,7 +63,7 @@ function Tara {
 
   $w1=OcrFile "$KOK\cap.png"
   $hBar=$w1|?{$_.T -match '^Barkod'}|Select-Object -First 1
-  if(-not $hBar){ return $null }
+  if(-not $hBar){ Yaz "  (OCR) 'Barkod' basligi yok - Listele tam onde degil (pencere kapatiyor olabilir)" "Yellow"; return $null }
   $hy=$hBar.Y
   $hrow=$w1|?{[math]::Abs($_.Y-$hy) -lt 18}
   $hRaf=$hrow|?{$_.T -match 'Raf'}|Select-Object -First 1
@@ -71,6 +71,7 @@ function Tara {
   $rightEnd= if($hRaf){$hRaf.X-10} elseif($hDozaj){$hDozaj.X+260} else {$hBar.X+760}
   $barRows=$w1|?{ [math]::Abs($_.X-$hBar.X) -lt 70 -and $_.T -match '^8[56]\d{10,12}$' -and $_.Y -gt $hy } | Sort-Object Y
   $rowYs=@(); foreach($r in $barRows){ if(($rowYs|?{[math]::Abs($_-$r.Y) -lt 12}).Count -eq 0){$rowYs+=$r.Y} }
+  Yaz ("  (OCR) Barkod.X={0} Y={1} rightEnd={2} satir={3}" -f $hBar.X,$hy,$rightEnd,$rowYs.Count)
   if($rowYs.Count -eq 0){ return $null }
 
   $cropX=[math]::Max(0,$hBar.X-12); $cropY=[math]::Max(0,$hy-6)
@@ -220,8 +221,8 @@ if(-not $anahtar){ Yaz "hasta.key yok - once rx-hasta.ps1 -HastaKur" "Red"; exit
 Yaz "`n[1/3] Ekran okunuyor (OCR)..." "Cyan"
 $ocr = Tara
 if(-not $ocr -or $ocr.Count -eq 0){ Yaz "Listele ekrani/tablo bulunamadi. Medula Listele ekrani onde mi?" "Red"; exit 2 }
-Write-Host ("{0,-28} {1,5} {2,6} {3,6}  {4}" -f "Ilac","Adet","Ok.KK","EKSIK","Barkod")
-foreach($r in $ocr){ Write-Host ("{0,-28} {1,5} {2,6} {3,6}  {4}" -f (($r.ad)[0..27] -join '').Trim(),$r.adet,$r.okkk,$r.eksik,$r.bar) }
+Yaz ("{0,-28} {1,5} {2,6} {3,6}  {4}" -f "Ilac","Adet","Ok.KK","EKSIK","Barkod")
+foreach($r in $ocr){ Yaz ("{0,-28} {1,5} {2,6} {3,6}  {4}" -f (($r.ad)[0..27] -join '').Trim(),$r.adet,$r.okkk,$r.eksik,$r.bar) }
 $eksikler = @($ocr | ?{ $_.eksik -gt 0 })
 if($eksikler.Count -eq 0){ Yaz "`nEksik ilac yok - hepsi okutulmus. Siparis olusturulmadi." "Green"; exit 0 }
 
