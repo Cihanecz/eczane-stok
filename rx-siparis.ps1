@@ -129,6 +129,7 @@ copy (
   where s.sonlandirilmis = false      -- sonlanmamis = eksik ilac var (eksikse ITS satis bildirimi yapilamaz = hasta bekliyor)
     and s.faturalandirilmis = false   -- aya faturalanmamis (fatura sonlandirilinca eski aylar duser)
     and coalesce(m.stok_miktari,0) < fk.yazilan_adet   -- stokta yeterli yok = okutulamayan = eksik ilac (verilen_adet guvenilmez)
+    and s.medula_fatura_tipi is not null and trim(s.medula_fatura_tipi) <> ''   -- SADECE SGK (A/B/C grubu); ozel sigorta + ucretli receteleri disla
     and s.islem_tarihi >= (case when extract(day from current_date) <= 7
                                 then date_trunc('month', current_date - interval '1 month')
                                 else date_trunc('month', current_date) end)  -- ayin 7'sine kadar onceki ay da gorunur, sonra sadece bu ay
