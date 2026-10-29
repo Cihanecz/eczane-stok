@@ -73,18 +73,14 @@ function Tara {
   $recete = @($w1 | ?{ $_.T -match '^8[56]\d{10,12}$' } | %{ ([string]$_.T) } | Sort-Object -Unique)
   Yaz ("  recete barkod (" + $recete.Count + "): " + ($recete -join ', '))
 
-  # Okutulan karekodlar ORTADAKI KUTUDA kucuk font -> tam ekran OCR okuyamiyor.
-  # Kutu bolgesini (ust tablo ile alt tablo arasi) KIRP + 4x BUYUT + OCR.
-  $barRows = @($w1|?{ [math]::Abs($_.X-$hBar.X) -lt 90 -and $_.T -match '^8[56]\d{10,12}$' -and $_.Y -gt $hBar.Y } | Sort-Object Y)
-  $ys=@(); foreach($r in $barRows){ if(($ys|?{[math]::Abs($_-$r.Y) -lt 12}).Count -eq 0){$ys+=$r.Y} }
-  $ys=@($ys | Sort-Object)
+  # Okutulan karekodlar ORTADAKI KUTUDA kucuk font -> KIRP + 4x BUYUT + OCR.
+  # Kutu "Listele" dugmesinin HEMEN USTUNDE (hem "Recete" hem "Karekod Islemleri" ekraninda boyle).
   $kk=@()
-  if($ys.Count -ge 1){
-    $ustSon=$ys[0]; $altIlk=$null
-    for($i=1;$i -lt $ys.Count;$i++){ if(($ys[$i]-$ys[$i-1]) -gt 60){ $altIlk=$ys[$i]; break }; $ustSon=$ys[$i] }
-    $taTop=[math]::Max(0,$ustSon+22)
-    $taBot= if($altIlk){ [math]::Max($taTop+40,$altIlk-12) } else { [math]::Min($b.Height,$ustSon+240) }
-    $txX=[math]::Max(0,$hBar.X-45); $txW=[math]::Min($b.Width-$txX,1000); $txH=$taBot-$taTop
+  $lst = $w1|?{ $_.T -match '^Listele$' -and $_.X -gt 400 }|Sort-Object Y|Select-Object -First 1
+  if($lst){
+    $taBot=[math]::Max(40,$lst.Y-8); $taTop=[math]::Max(0,$lst.Y-205)
+    $txX=[math]::Max(0,$hBar.X-55); $txW=[math]::Min($b.Width-$txX,1000); $txH=$taBot-$taTop
+    Yaz ("  (OCR) karekod kutu: Listele.Y=$($lst.Y) taTop=$taTop taBot=$taBot txX=$txX")
     if($txH -gt 20 -and $txW -gt 50){
       $src=[System.Drawing.Image]::FromFile("$KOK\cap.png")
       $cr=New-Object System.Drawing.Bitmap($txW,$txH); $gc=[System.Drawing.Graphics]::FromImage($cr)
@@ -97,7 +93,7 @@ function Tara {
       $w3=OcrFile "$KOK\cap-kk.png"
       $kk=@($w3 | ?{ $_.T -match '^0\d{13,}' } | %{ ([string]$_.T) })
     }
-  }
+  } else { Yaz "  (OCR) 'Listele' dugmesi bulunamadi - karekod kutusu konumlanamadi" "Yellow" }
   Yaz ("  okutulan karekod token (" + $kk.Count + "): " + (($kk | %{ if($_.Length -gt 22){$_.Substring(0,22)+'..'}else{$_} }) -join '  '))
 
   if($recete.Count -eq 0){ return $null }
