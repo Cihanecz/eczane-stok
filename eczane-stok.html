@@ -59,7 +59,7 @@ a{color:inherit}
 .marka{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;white-space:nowrap;
   background:none;border:0;color:var(--murekkep);cursor:pointer;padding:4px 0}
 .marka svg{flex:none}
-.ara-kutu{flex:1;position:relative;max-width:560px;margin-left:auto}
+.ara-kutu{flex:1 1 380px;position:relative;max-width:680px;min-width:300px;margin-left:auto}
 .ara-kutu input{width:100%;border:1px solid var(--cizgi);border-radius:12px;padding:10px 14px 10px 40px;font-size:16px;
   background:var(--yuzey);color:var(--murekkep)}
 .ara-kutu input::placeholder{color:var(--soluk)}
@@ -1360,6 +1360,7 @@ async function depoSayfasi(){
   $("#icerik").innerHTML = `
     <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
     <div class="liste-ust"><div><h1>Depolar</h1><p>${kacis((v.depolar||[]).join(" · "))} · son güncelleme ${tarihSaat(v.zaman)} · en çok satan ${v.u.length} ürün</p>${depoSnNot(v)}</div></div>
+    <div style="display:flex;gap:8px;margin:4px 0 12px"><input id="depoAraKutu" type="search" placeholder="🔎 Herhangi bir ürünü 3 depoda da ara — ad ya da barkod" style="flex:1;max-width:640px;padding:12px 14px;border:1px solid var(--cizgi);border-radius:12px;background:var(--yuzey);color:var(--murekkep);font-size:15px"><button class="hcip" id="depoAraBtn" type="button">Ara</button></div>
     <div class="hcipler">${Object.entries(filtreler).map(([k,a])=>`<button class="hcip ${DEPO_FILTRE===k?"secili":""}" type="button" data-df="${k}">${a}</button>`).join("")}</div>
     <div class="dl">
       ${l.length ? l.map(u=>depoListeSatiri(u, aktif)).join("") : `<div class="tablo"><div class="bos">Bu filtrede ürün yok.</div></div>`}
@@ -1367,6 +1368,10 @@ async function depoSayfasi(){
     <p class="alt-not" style="margin-top:12px">✅ Al: eldeki stokla birlikte ${VADE_AY} ayda (vade dolmadan) satılır, MF'nin parası satıştan çıkar. ⚠️ Dikkat: vadeyi aşar. Fiyatlar KDV dahil kutu başı geliş fiyatıdır; ayrıntı için ürüne dokunun.</p>`;
   document.querySelectorAll("[data-df]").forEach(b=>b.addEventListener("click",()=>{ DEPO_FILTRE=b.dataset.df; depoSayfasi(); }));
   document.querySelectorAll("[data-barkod]").forEach(b=>b.addEventListener("click",()=>location.hash="urun/"+b.dataset.barkod));
+  const dak=$("#depoAraKutu"), dab=$("#depoAraBtn");
+  const depoAraGit=()=>{ const q=(dak.value||"").trim(); if(q.length>=2) location.hash="depoara/"+encodeURIComponent(q); };
+  if(dak) dak.addEventListener("keydown", e=>{ if(e.key==="Enter") depoAraGit(); });
+  if(dab) dab.addEventListener("click", depoAraGit);
 }
 async function depoRozet(){
   try { const v = await depoYukle(); const n = v ? v.u.filter(u=>{ const o = depoOncelik(u); return o && (o.gun < 15 || depoYeni(u)); }).length : 0;
@@ -2151,7 +2156,7 @@ function sOneriKutu(input, kutu, getir, sec){
   input.addEventListener("input", ()=>{ clearTimeout(zaman); const v=input.value; zaman=setTimeout(async ()=>{ try{ ac(await getir(v)); }catch(e){ kapat(); } }, 180); });
   input.addEventListener("blur", ()=>setTimeout(kapat, 180));
 }
-const SONE_STIL = "display:none;border:1px solid var(--cizgi);border-top:none;border-radius:0 0 10px 10px;max-height:220px;overflow:auto;margin-bottom:8px";
+const SONE_STIL = "display:none;width:100%;box-sizing:border-box;border:1px solid var(--cizgi);border-radius:10px;max-height:240px;overflow:auto;margin:-6px 0 8px;box-shadow:0 6px 18px rgba(0,0,0,.08)";
 let S_SES_SON = 0;
 function sBul(id){ return S.kayit.find(o=>o.id===id); }
 
@@ -2320,7 +2325,8 @@ function sEksikDbKart(r){
     const yok = (x.stok||0)<=0;
     return `<div class="hilac"><span class="n">${kacis(x.ad)}</span><span class="hetk">${x.yaz} yazılan</span><span class="hetk ${yok?'kirmizi':''}">stok ${x.stok}</span></div>`;
   }).join("");
-  return `<div class="hkart"><div class="ad">${kacis(r.ad||"(isim yok)")} <span class="hkucuk">· ${kacis(r.rec)}${r.tarih?" · "+kacis(r.tarih):""} · <b style="color:#C0552E">karekod eksik</b>${r.tutar>0?` · 💰 hasta ${sPara(r.tutar)}`:""}</span></div>
+  return `<div class="hkart"><div class="ad">${kacis(r.ad||"(isim yok)")} <span class="hetk" style="background:#2B78C8;color:#fff;margin-left:4px">🟦 SGK reçetesi</span></div>
+    <div class="hkucuk" style="margin:3px 0 7px">${kacis(r.rec)}${r.tarih?" · "+kacis(r.tarih):""} · <b style="color:#C0552E">karekod eksik (okutulamadı)</b>${r.tutar>0?` · 💰 hasta ödeyecek <b>${sPara(r.tutar)}</b>`:""}</div>
     <div class="hdugmeler"><button class="wa" type="button" data-soldb="${kacis(r.rec)}">✅ Sipariş oluştur</button>
       <button class="hcip" type="button" data-sgiz="${kacis(r.rec)}" title="Bu reçeteyi gizle">✖ Gizle</button></div>
     <div class="ilaclar">${il}</div></div>`;
@@ -2404,7 +2410,7 @@ function sKart(o){
   }
   const yer = o.yer ? ` · 📍 ${kacis(o.yer)}` : "";
   return `<div class="hkart ${o.durum==="teslim"?"gonderildi":""}">
-    <div class="ad">${kacis(o.ad||"(isim yok)")} <span class="hkucuk">· ${elden?"elden":kacis(o.rec||o.kaynak||"")}${o.tel?" · "+kacis(o.tel):""}</span></div>
+    <div class="ad">${kacis(o.ad||"(isim yok)")} ${o.kaynak==="sgk"?`<span class="hetk" style="background:#2B78C8;color:#fff">🟦 SGK reçetesi${(o.rec&&o.rec!=="ELDEN")?" "+kacis(o.rec):""}</span>`:`<span class="hetk" style="background:#6E8780;color:#fff">✋ Elden</span>`}${o.tel?` <span class="hkucuk">· ${kacis(o.tel)}</span>`:""}</div>
     <div class="hdugmeler">${dug}</div>
     <div class="ilaclar">${il}${borcHtml}<div class="hkucuk" style="margin-top:4px">${S_DURUM_AD[o.durum]||o.durum}${yer}${o.sira&&o.sira.haber?" · haber: "+tarihSaat(o.sira.haber):""}</div></div>
   </div>`;
