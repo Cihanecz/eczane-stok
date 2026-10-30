@@ -240,6 +240,14 @@ function OkutulanSay([string]$barkod,$kkListe){
   $b=$barkod.TrimStart('0'); if($b.Length -lt 10){ return 0 }
   @($kkListe | ?{ FuzzyIcerir $b $_ 2 }).Count
 }
+# iki barkod TOLERANSLI esit mi (OCR 86->85 gibi hatalar; uzunluk+hane farki <= maxH)
+function FuzzyEsit([string]$a,[string]$c,[int]$maxH){
+  if(-not $a -or -not $c){ return $false }
+  $h=[math]::Abs($a.Length-$c.Length); if($h -gt $maxH){ return $false }
+  $len=[math]::Min($a.Length,$c.Length)
+  for($i=0;$i -lt $len;$i++){ if($a[$i] -ne $c[$i]){ $h++; if($h -gt $maxH){ return $false } } }
+  return $true
+}
 
 # =====================================================================
 #  2) Rx DB -> acik SGK receteleri (son 30 gun) ; OCR ile eslestir
@@ -293,7 +301,13 @@ copy (
   $aday=@()
   foreach($rec in $grup.Keys){
     $g=$grup[$rec]
-    $ov=@($g.dr | ?{ $_.barN -and ($ocrBar -contains $_.barN) }).Count
+    # barkod eslesme FUZZY: OCR barkodu sasabilir (86->85). Once tam, yoksa toleransli.
+    $ov=0
+    foreach($d in $g.dr){
+      if(-not $d.barN){ continue }
+      if($ocrBar -contains $d.barN){ $ov++ }
+      elseif(@($ocrBar|?{ FuzzyEsit $_ $d.barN 2 }).Count -ge 1){ $ov++ }
+    }
     if($ov -le 0){ continue }
     $tot=0; $fits=$true
     foreach($d in $g.dr){ $tot+=$d.yazilan; if((OkutulanSay $d.bar $kk) -gt $d.yazilan){ $fits=$false } }
