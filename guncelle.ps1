@@ -18,7 +18,7 @@ foreach ($d in $dosyalar) {
 Set-Content -Path (Join-Path $KOK "surum.txt") -Value $Sha -Encoding ASCII
 GLog "Dosyalar indi, surum.txt = $Sha"
 # eski gözcü ve sepet süreçlerini kapat, gözcüyü yeniden başlat
-foreach ($p in (Surecler 'gozcu\.ps1|-Asama sepet')) { Stop-Process -Id $p.ProcessId -Force; "kapatildi: $($p.ProcessId)" }
+foreach ($p in (Surecler 'gozcu\.ps1|-Asama sepet|rx-eksik\.ps1')) { Stop-Process -Id $p.ProcessId -Force; "kapatildi: $($p.ProcessId)" }
 if (Get-ScheduledTask -TaskName "Eczane Stok Gozcu" -ErrorAction SilentlyContinue) { Start-ScheduledTask "Eczane Stok Gozcu"; "gozcu: zamanlanmis gorevle baslatildi" }
 elseif (Test-Path "$KOK\baslat.vbs") { Start-Process wscript.exe -ArgumentList "`"$KOK\baslat.vbs`""; "gozcu: baslat.vbs ile baslatildi" }
 else { Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\gozcu.ps1`"" -WindowStyle Hidden; "gozcu: dogrudan baslatildi" }

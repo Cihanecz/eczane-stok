@@ -6,6 +6,7 @@
 #  TARIH KURALI: ayin 8'inden ONCE -> onceki ay + bu ay; 8'inden ITIBAREN -> sadece bu ay.
 #  MEDULA'YA DOKUNMAZ, Rx'e yalnizca OKUMA. Periyodik calisir (gozcu/zamanlanmis).
 # =====================================================================
+param([int]$DonguSn=0)   # 0 = tek sefer; >0 = her $DonguSn sn'de bir (anlik), degisince yazar
 $ErrorActionPreference="Stop"
 [Console]::OutputEncoding=[Text.Encoding]::UTF8; $env:PGCLIENTENCODING='UTF8'
 Add-Type -AssemblyName System.Security
@@ -53,7 +54,7 @@ function PsqlCsv([string]$sql,[string[]]$basliklar){
 }
 
 # ---- EKSIK SGK RECETELERI (karekodu tam olmayan) ----
-$sql = @"
+$SQL = @"
 copy (
   select s.id::text, coalesce(nullif(s.erecete_no,''),s.protokol_no,''),
          to_char(s.islem_tarihi,'YYYY-MM-DD HH24:MI'),
@@ -74,26 +75,41 @@ copy (
   order by s.id, m.urun_adi
 ) to stdout with (format csv)
 "@
-$rows = PsqlCsv $sql @('id','erec','tarih','ad','tc','tel','ilacad','bar','stok','yaz')
-
-# ---- recete bazinda grupla ----
-$grup=[ordered]@{}
-foreach($r in $rows){
-  $id=Bos $r.id; if($id -eq ""){ continue }
-  if(-not $grup.Contains($id)){
-    $grup[$id]=[ordered]@{ rec=$id; erec=(Bos $r.erec); tarih=(Bos $r.tarih); ad=(Bos $r.ad); tc=(Bos $r.tc); tel=(Bos $r.tel); ilac=@() }
+function EksikListe {
+  $rows = PsqlCsv $SQL @('id','erec','tarih','ad','tc','tel','ilacad','bar','stok','yaz')
+  $grup=[ordered]@{}
+  foreach($r in $rows){
+    $id=Bos $r.id; if($id -eq ""){ continue }
+    if(-not $grup.Contains($id)){
+      $grup[$id]=[ordered]@{ rec=$id; erec=(Bos $r.erec); tarih=(Bos $r.tarih); ad=(Bos $r.ad); tc=(Bos $r.tc); tel=(Bos $r.tel); ilac=@() }
+    }
+    $bar=Bos $r.bar; if($bar -eq ""){ continue }
+    $grup[$id].ilac += [ordered]@{ bar=$bar; ad=(Bos $r.ilacad); yaz=([int](Bos $r.yaz)); stok=([int]([decimal]::Parse((Bos $r.stok),[Globalization.CultureInfo]::InvariantCulture))) }
   }
-  $bar=Bos $r.bar; if($bar -eq ""){ continue }
-  $grup[$id].ilac += [ordered]@{ bar=$bar; ad=(Bos $r.ilacad); yaz=([int](Bos $r.yaz)); stok=([int]([decimal]::Parse((Bos $r.stok),[Globalization.CultureInfo]::InvariantCulture))) }
+  @($grup.Values | ?{ $_.ilac.Count -gt 0 })
 }
-$liste = @($grup.Values | ?{ $_.ilac.Count -gt 0 })
+function Imza($liste){ ConvertTo-Json @($liste) -Depth 8 -Compress }   # zaman haric icerik imzasi
+function Yaz($liste,[byte[]]$anahtar){
+  $paket=[ordered]@{ zaman=(Get-Date).ToString("o"); liste=@($liste) }
+  AyarYaz "sgk_eksik_db" (Sifrele $anahtar (ConvertTo-Json $paket -Depth 8 -Compress))
+  AyarYaz "sgk_eksik_log" ("recete=" + @($liste).Count + " ilac=" + (@($liste|%{$_.ilac.Count})|Measure-Object -Sum).Sum + " zaman=" + (Get-Date -Format "HH:mm:ss"))
+}
 
-$paket = [ordered]@{ zaman=(Get-Date).ToString("o"); liste=$liste }
 $anahtar = HastaAnahtari
 if(-not $anahtar){ throw "hasta.key yok" }
 BulutGiris
-$sifreli = Sifrele $anahtar (ConvertTo-Json $paket -Depth 8 -Compress)
-AyarYaz "sgk_eksik_db" $sifreli
-# teshis (PII yok): kac recete / kac ilac
-AyarYaz "sgk_eksik_log" ("recete=" + $liste.Count + " ilac=" + (@($liste|%{$_.ilac.Count})|Measure-Object -Sum).Sum + " zaman=" + (Get-Date -Format "HH:mm:ss"))
-Write-Host ("EKSIK yazildi: " + $liste.Count + " recete")
+if($DonguSn -gt 0){
+  # ANLIK DONGU: her $DonguSn sn sorgula; icerik degisince yaz (bos degisiklikte Supabase'i yormaz)
+  $sonImza=$null; $girisZaman=Get-Date
+  while($true){
+    try{
+      if(((Get-Date)-$girisZaman).TotalMinutes -gt 50){ BulutGiris; $girisZaman=Get-Date }
+      $liste=EksikListe; $imza=Imza $liste
+      if($imza -ne $sonImza){ Yaz $liste $anahtar; $sonImza=$imza; Write-Host ("degisti -> yazildi: " + @($liste).Count + " recete " + (Get-Date -Format "HH:mm:ss")) }
+    }catch{ Start-Sleep -Seconds 5; try{ BulutGiris; $girisZaman=Get-Date }catch{} }
+    Start-Sleep -Seconds $DonguSn
+  }
+} else {
+  $liste=EksikListe; Yaz $liste $anahtar
+  Write-Host ("EKSIK yazildi: " + @($liste).Count + " recete")
+}

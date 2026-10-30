@@ -60,18 +60,17 @@ function OtoGuncelle {
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\guncelle.ps1`" -Repo $GH_REPO -Sha $sha" -WindowStyle Hidden | Out-Null
   } catch { }
 }
-# EKSIK SGK FEED: Rx EYS calisiyorsa 2 dk'da bir rx-eksik.ps1 (SADECE-OKUMA) -> Supabase sgk_eksik_db
-# Hicbir PC'de ek kurulum gerekmez: ana PC'deki gozcu merkezi DB'yi okur, tum PC'ler ayni web listesini gorur.
-$script:eksikSon = [datetime]::MinValue; $script:eksikPr = $null
-function RxEksikBak {
+# EKSIK SGK FEED: rx-eksik.ps1 -DonguSn 3 SUREKLI calisir (3 sn'de bir sorgu, icerik degisince yazar = ANLIK).
+# Kapanirsa 15 sn icinde yeniden acilir. Hicbir PC'de ek kurulum gerekmez: ana PC merkezi DB'yi okur, tum PC'ler gorur.
+$script:eksikPr = $null
+function EksikDonguBak {
   try {
-    if ($script:eksikPr -and -not $script:eksikPr.HasExited) { return }      # onceki calisma bitmediyse bekle
-    if (((Get-Date) - $script:eksikSon).TotalSeconds -lt 25) { return }      # ~25 sn'de bir (anlik)
-    if (-not (Get-Process -Name "RxMediaPharmaEYS" -ErrorAction SilentlyContinue)) { return }  # DB kapaliysa atla
+    if ($script:eksikPr -and -not $script:eksikPr.HasExited) { return }      # dongu zaten calisiyor
+    if (@(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'rx-eksik\.ps1' }).Count) { return }  # baska gozcu baslattiysa tekrar acma
+    if (-not (Get-Process -Name "RxMediaPharmaEYS" -ErrorAction SilentlyContinue)) { return }
     if (-not (Test-Path (Join-Path $KOK "rx-eksik.ps1"))) { return }
     if (-not (Test-Path (Join-Path $KOK "giris.dat"))) { return }
-    $script:eksikSon = Get-Date
-    $script:eksikPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\rx-eksik.ps1`"" -WindowStyle Hidden -PassThru
+    $script:eksikPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\rx-eksik.ps1`" -DonguSn 3" -WindowStyle Hidden -PassThru
   } catch { }
 }
 # HASTA KART FEED: tum Rx hastalari -> hasta_kart (elden siparis oneri). Saatte bir yeter.
@@ -93,7 +92,7 @@ $depoSon = [datetime]::MinValue
 $tur = 0
 while ($true) {
   # 60 sn'lik ana döngü; arada 15 sn'de bir sepet isteklerine bak
-  for ($k = 0; $k -lt 4; $k++) { SepetDonguBak; RxEksikBak; Start-Sleep 15 }
+  for ($k = 0; $k -lt 4; $k++) { SepetDonguBak; EksikDonguBak; Start-Sleep 15 }
   RxKartBak
   OtoGuncelle
   # Depolar (Rx'e dokunmaz): depo kaydı (depo.dat) VEYA eklenti-aktif işareti (depo-aktif.txt) varsa 08:00-21:00 arası saatte bir fiyat/MF çek
