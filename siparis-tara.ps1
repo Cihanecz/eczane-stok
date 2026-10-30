@@ -53,6 +53,45 @@ function OcrFile($path){
   foreach($ln in $res.Lines){foreach($wd in $ln.Words){$r=$wd.BoundingRect;$w.Add([pscustomobject]@{Y=[int]($r.Y+$r.Height/2);X=[int]$r.X;CX=[int]($r.X+$r.Width/2);R=[int]($r.X+$r.Width);T=$wd.Text})}}
   return $w
 }
+function TaraGiris($w1,$b,$hBar){
+  # ReceteIslem2 (giris) ekrani: recetedeki TUM ilaclari OLDUGU GIBI al (stoga BAKMA;
+  # stok hatali olabilir). Hic okutulamayan (hepsi eksik) senaryo icin. Hasta ad/tel
+  # ekranin ust barindan; ilac bar/adet/ad tablodan. Rx DB gerekmez.
+  $dbg=""
+  $ust=@($w1|?{ $_.Y -lt 125 })
+  $telL=($ust|?{ $_.T -match '^Tel' }|Sort-Object X|Select-Object -First 1)
+  $alL =($ust|?{ $_.T -match '^Al\.?$' }|Sort-Object X|Select-Object -First 1)
+  $ad=""; $tel=""
+  if($telL){
+    $tel=((@($ust|?{ $_.X -gt $telL.R -and $_.X -lt ($telL.R+300) -and $_.T -match '[0-9]' }|Sort-Object X|%{ $_.T })) -join '')
+  }
+  if($alL -and $telL){
+    $ad=((@($ust|?{ $_.X -gt $alL.R -and $_.X -lt $telL.X -and $_.T -match '[A-Za-z]' }|Sort-Object X|%{ $_.T })) -join ' ').Trim()
+  }
+  $tc=(@($w1|?{ $_.T -match '^\d{11}$' }|Select-Object -First 1).T)
+  $rec=""
+  $noL=($w1|?{ $_.T -match '^No' -and $_.Y -lt 230 }|Sort-Object Y|Select-Object -First 1)
+  if($noL){ $rec=(@($w1|?{ [math]::Abs($_.Y-$noL.Y) -lt 12 -and $_.X -gt $noL.R -and $_.X -lt ($noL.R+180) -and $_.T -match '^[0-9A-Z]{5,9}$' }|Sort-Object X|Select-Object -First 1).T) }
+  $hy= if($hBar){ $hBar.Y }else{ 0 }
+  $adiH =($w1|?{ $_.T -match '^Ad' -and $_.T.Length -le 4 -and ($hy -eq 0 -or [math]::Abs($_.Y-$hy) -lt 18) -and $_.X -gt 850 }|Sort-Object X|Select-Object -First 1)
+  $stokH=($w1|?{ $_.T -match '^Stok$' -and ($hy -eq 0 -or [math]::Abs($_.Y-$hy) -lt 18) }|Sort-Object X|Select-Object -First 1)
+  $ax= if($adiH){ $adiH.X-60 }else{ 980 }
+  $sx= if($stokH){ $stokH.X-10 }else{ 1190 }
+  $bar=@($w1|?{ $_.T -match '^8[56]\d{10,12}$' }|Sort-Object Y)
+  $ilac=@()
+  foreach($bk in $bar){
+    $row=@($w1|?{ [math]::Abs($_.Y-$bk.Y) -lt 13 }|Sort-Object X)
+    $adet=(@($row|?{ $_.X -gt $bk.R -and $_.T -match '^\d{1,3}$' }|Sort-Object X|Select-Object -First 1).T)
+    if(-not $adet){ $adet='1' }
+    $iad=((@($row|?{ $_.X -ge $ax -and $_.X -lt $sx }|Sort-Object X|%{ $_.T })) -join ' ').Trim()
+    $ilac += [pscustomobject]@{ bar=$bk.T; adet=[int]$adet; ad=$iad }
+    $dbg += " $($bk.T):a$adet"
+  }
+  $script:KKDBG = "GIRIS ad='$ad' tel='$tel' tc=$tc rec=$rec adi@$ax-$sx ilac=$($ilac.Count) |$dbg"
+  if($ilac.Count -eq 0){ return $null }
+  return [pscustomobject]@{ mod='giris'; ad=$ad; tel=$tel; tc=$tc; rec=$rec; ilac=$ilac }
+}
+
 function Tara {
   # YONTEM: kucuk sayilari OKUMA. Recetedeki barkodlar (13 hane, net) ile okutulan
   # karekodlari (ortadaki kutudaki uzun "0108..." GS1 stringleri, net) cikar.
@@ -67,6 +106,9 @@ function Tara {
 
   $w1=OcrFile "$KOK\cap.png"
   $hBar=$w1|?{$_.T -match '^Barkod'}|Select-Object -First 1
+  # GIRIS EKRANI (ReceteIslem2) mi? -> benzersiz basliklar (Verilebilece/Provizyon/Teslim).
+  # Oyleyse tum ilaclari ekrandan al (okutma yok, stok yok sayilir).
+  if(@($w1|?{ $_.T -match 'Verilebilece|Teslim' }).Count -ge 1){ return (TaraGiris $w1 $b $hBar) }
   if(-not $hBar){ $script:KKDBG="Barkod-yok | kelime=" + $w1.Count + " ilk14=" + ((@($w1|%{$_.T})|Select-Object -First 14) -join ' '); Yaz "  (OCR) 'Barkod' basligi yok - Listele tam onde degil" "Yellow"; return $null }
 
   # Recetedeki barkodlar (13 hane, 85/86 ile baslar). Ust+alt tabloda tekrar eder -> uniq.
@@ -152,7 +194,7 @@ function Tara {
   $script:KKDBG += " || ALT: " + $altDbg
 
   if($recete.Count -eq 0){ return $null }
-  return [pscustomobject]@{ recete=$recete; karekod=$kk; recAdet=$recAdet }
+  return [pscustomobject]@{ mod='listele'; recete=$recete; karekod=$kk; recAdet=$recAdet }
 }
 # bir barkod karekod kutusunda kac kez gecer (karekod GS1 = 01 + barkod + ...)
 # karekod icinde barkodu TOLERANSLI ara (OCR 6<->5 gibi hatalar icin; en fazla maxH hane farki)
@@ -273,7 +315,29 @@ if(-not $anahtar){ Yaz "hasta.key yok - once rx-hasta.ps1 -HastaKur" "Red"; exit
 
 Yaz "`n[1/3] Ekran okunuyor (OCR)..." "Cyan"
 $t = Tara
-if(-not $t -or $t.recete.Count -eq 0){ Yaz "Listele ekrani bulunamadi. Medula Listele ekrani onde mi?" "Red"; LogDurum ("exit2: Listele/Barkod bulunamadi | " + $script:KKDBG); exit 2 }
+if(-not $t){ Yaz "Ekran bulunamadi. Medula Listele ya da Recete giris ekrani onde mi?" "Red"; LogDurum ("exit2: ekran bulunamadi | " + $script:KKDBG); exit 2 }
+
+# --- GIRIS EKRANI MODU: tum ilaclari ekrandan al (Rx DB yok, stok yok sayilir) ---
+if($t.mod -eq 'giris'){
+  Yaz ("`n[2/2] Giris ekrani -> {0} ilac (hepsi, stok yok sayildi)..." -f $t.ilac.Count) "Cyan"
+  $drIlac=@()
+  foreach($il in $t.ilac){ $drIlac += [ordered]@{ ad=$il.ad; bar=$il.bar; adet=$il.adet; okkk=0; eksik=$il.adet; stok='' } }
+  try { $tani="GIRIS || ad=$($t.ad) tel=$($t.tel) tc=$($t.tc) rec=$($t.rec) || " + (($t.ilac|%{ "$($_.bar):a$($_.adet):$($_.ad)" }) -join ' | ') + " || " + $script:KKDBG; BulutGiris; AyarYaz "sgk_log" $tani } catch {}
+  if($drIlac.Count -eq 0){ Yaz "Giris ekraninda ilac yok." "Yellow"; exit 0 }
+  if(-not $t.ad){ Yaz "Hasta adi okunamadi - yine de kaydediliyor." "Yellow" }
+  $aday = [ordered]@{
+    zaman=(Get-Date).ToString("o"); rec=$t.rec; prot=$t.rec; tarih=(Get-Date).ToString("yyyy-MM-dd")
+    ad=$t.ad; tc=$t.tc; tel=$t.tel; ilac=$drIlac
+  }
+  Yaz "`n[son] Sifrelenip buluta yaziliyor (sgk_son)..." "Cyan"
+  BulutGiris
+  $sifreli = Sifrele $anahtar (ConvertTo-Json $aday -Depth 6 -Compress)
+  AyarYaz "sgk_son" $sifreli
+  Yaz ("TAMAM (giris): {0} ilac, hasta '{1}' -> web listesine dustu." -f $drIlac.Count, $t.ad) "Green"
+  exit 0
+}
+
+if($t.recete.Count -eq 0){ Yaz "Listele ekrani bulunamadi." "Red"; LogDurum ("exit2: recete bos | " + $script:KKDBG); exit 2 }
 
 Yaz "`n[2/3] Hasta + yazilan adet (Rx DB)..." "Cyan"
 $h = HastaBul $t.recete $t.karekod
