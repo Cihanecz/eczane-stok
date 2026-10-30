@@ -2471,7 +2471,7 @@ async function sDaCoklu(eksik, orderId){
   if(!(await oturumKontrol())) return;
   let l; try{ l=await sepetListe(); }catch(e){ return; }
   const ids={};
-  for(const e of eksik){ const sid="a"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); ids[e.i]=sid; l.push({ id:sid, tip:"ara", q:e.x.bar, durum:"bekliyor", zaman:new Date().toISOString() }); }
+  for(const e of eksik){ const sid="a"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); ids[e.i]=sid; const bq=String(e.x.bar).replace(/^0(\d{13})$/,"$1"); l.push({ id:sid, tip:"ara", q:bq, durum:"bekliyor", zaman:new Date().toISOString() }); }
   try{ await db.from("ayar").upsert({ anahtar:"sepet_istek", deger:JSON.stringify({ liste:l.slice(-60) }), guncelleme:new Date().toISOString() }, { onConflict:"anahtar" }); }catch(e){ return; }
   const kalan = new Set(eksik.map(e=>e.i));
   for(let t=0; t<40 && kalan.size; t++){
@@ -2486,7 +2486,7 @@ async function sDaCoklu(eksik, orderId){
       kalan.delete(i);
     }
   }
-  for(const i of kalan){ const cont=document.getElementById("dara"+i); if(cont){ const e=eksik.find(z=>z.i===i); cont.innerHTML=`<p class="hkucuk" style="margin:4px 0 6px">Depo cevabı gelmedi (eczane bilgisayarı/Chrome açık mı?).</p><button class="hcip" type="button" data-depara="${kacis(e.x.bar)}" data-sip="${orderId}">🔎 Tekrar ara</button>`; const b=cont.querySelector("[data-depara]"); if(b) b.addEventListener("click", ()=>{ SEPET_ORDER=orderId; location.hash="depoara/"+encodeURIComponent(b.dataset.depara); }); } }
+  for(const i of kalan){ const cont=document.getElementById("dara"+i); if(cont){ const e=eksik.find(z=>z.i===i); const bq=String(e.x.bar).replace(/^0(\d{13})$/,"$1"); cont.innerHTML=`<p class="hkucuk" style="margin:4px 0 6px">Depo cevabı gelmedi — eczane bilgisayarında Chrome + depo eklentisi açık ve depolar girişli mi?</p><button class="hcip" type="button" data-depara="${kacis(bq)}" data-sip="${orderId}">🔎 Tekrar ara</button>`; const b=cont.querySelector("[data-depara]"); if(b) b.addEventListener("click", ()=>{ SEPET_ORDER=orderId; location.hash="depoara/"+encodeURIComponent(b.dataset.depara); }); } }
 }
 // depo_ara_sonuc'tan bir ilacın depolardaki fiyat seçeneklerini (tl, PIN'siz) + sepete ekle butonlarını üret
 function sDaRender(s){
