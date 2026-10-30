@@ -195,8 +195,37 @@ function Tara {
   } catch { $recAdet=@{}; $altDbg="altHata:"+$_.Exception.Message }
   $script:KKDBG += " || ALT: " + $altDbg
 
+  # --- UST "Recete" tablosu: her barkodun Adet + Ilac adi (DB yoksa/hic okutulmadiysa) ---
+  # Ust tablo HER ZAMAN var (hic okutulmasa bile). Barkodun EN UST (min Y) ornegi ust tablodur.
+  $ust=@{}; $topAd=""; $topTel=""; $ustDbg=""
+  try {
+    $adetH=@($w1|?{ $_.T -match '^Adet$' -and [math]::Abs($_.Y-$hBar.Y) -lt 16 }|Sort-Object X)
+    $aHX= if($adetH.Count -ge 1){ $adetH[0].CX }else{ $null }
+    foreach($bn in $recete){
+      $tok=@($w1|?{ $_.T -eq $bn }|Sort-Object Y|Select-Object -First 1)
+      if(-not $tok){ continue }
+      $row=@($w1|?{ [math]::Abs($_.Y-$tok.Y) -lt 12 }|Sort-Object X)
+      $iad=1
+      if($aHX -ne $null){
+        $ac=@($row|?{ $_.T -match '^\d{1,3}$' }|Sort-Object @{Expression={[math]::Abs($_.CX-$aHX)}})
+        if($ac.Count -ge 1 -and [math]::Abs($ac[0].CX-$aHX) -lt 120){ $iad=[int]$ac[0].T }
+      }
+      $anm=((@($row|?{ $_.X -gt ($tok.R+5) -and ($aHX -eq $null -or $_.CX -lt ($aHX-25)) }|Sort-Object X|%{ $_.T })) -join ' ').Trim()
+      $ust[$bn]=[pscustomobject]@{ adet=$iad; ad=$anm }
+      $ustDbg += " $($bn):a$iad"
+    }
+  } catch { $ustDbg="ustHata:"+$_.Exception.Message }
+  try {
+    $ub=@($w1|?{ $_.Y -lt 120 })
+    $telL=($ub|?{ $_.T -match '^Tel' }|Sort-Object X|Select-Object -First 1)
+    $alL =($ub|?{ $_.T -match '^Al\.?$' }|Sort-Object X|Select-Object -First 1)
+    if($alL -and $telL){ $topAd=((@($ub|?{ $_.X -gt $alL.R -and $_.X -lt $telL.X -and $_.T -match '[A-Za-z]' }|Sort-Object X|%{ $_.T })) -join ' ').Trim() }
+    if($telL){ $topTel=((@($ub|?{ $_.X -gt $telL.R -and $_.X -lt ($telL.R+300) -and $_.T -match '[0-9]' }|Sort-Object X|%{ $_.T })) -join '') }
+  } catch {}
+  $script:KKDBG += " || UST: aHX=$aHX ad='$topAd' tel='$topTel' |$ustDbg"
+
   if($recete.Count -eq 0){ return $null }
-  return [pscustomobject]@{ mod='listele'; recete=$recete; karekod=$kk; recAdet=$recAdet }
+  return [pscustomobject]@{ mod='listele'; recete=$recete; karekod=$kk; recAdet=$recAdet; ust=$ust; topAd=$topAd; topTel=$topTel }
 }
 # bir barkod karekod kutusunda kac kez gecer (karekod GS1 = 01 + barkod + ...)
 # karekod icinde barkodu TOLERANSLI ara (OCR 6<->5 gibi hatalar icin; en fazla maxH hane farki)
@@ -343,7 +372,24 @@ if($t.recete.Count -eq 0){ Yaz "Listele ekrani bulunamadi." "Red"; LogDurum ("ex
 
 Yaz "`n[2/3] Hasta + yazilan adet (Rx DB)..." "Cyan"
 $h = HastaBul $t.recete $t.karekod
-if(-not $h){ Yaz "Hasta eslesmedi - recete DB'de yok (son $GunGeri gun, acik SGK)." "Red"; LogDurum ("exit3: hasta eslesmedi | recete=" + $t.recete.Count + " kk=" + $t.karekod.Count); exit 3 }
+if(-not $h){
+  # DB'de yok (taze / hic okutulmamis recete) -> EKRANDAN kur: ust "Recete" tablosu + ust bar.
+  Yaz "Hasta DB'de yok -> ekrandan (ust tablo) kuruluyor..." "Yellow"
+  $drIlac=@()
+  foreach($bn in $t.recete){
+    $u=$t.ust[$bn]; if(-not $u){ continue }
+    $ok = OkutulanSay $bn $t.karekod
+    $eksik = $u.adet - $ok
+    if($eksik -gt 0){ $drIlac += [ordered]@{ ad=$u.ad; bar=$bn; adet=$u.adet; okkk=$ok; eksik=$eksik; stok='' } }
+  }
+  try { $tani="EKRAN(DBsiz) || ad=$($t.topAd) tel=$($t.topTel) recete=$($t.recete.Count) eksik=$($drIlac.Count) || " + (($t.recete|%{ $u=$t.ust[$_]; "$($_):a$($u.adet):$($u.ad)" }) -join ' | ') + " || " + $script:KKDBG; BulutGiris; AyarYaz "sgk_log" $tani } catch {}
+  if($drIlac.Count -eq 0){ Yaz "Eksik ilac yok (hepsi okutulmus)." "Green"; exit 0 }
+  $aday=[ordered]@{ zaman=(Get-Date).ToString("o"); rec=''; prot=''; tarih=(Get-Date).ToString("yyyy-MM-dd"); ad=$t.topAd; tc=''; tel=$t.topTel; ilac=$drIlac }
+  Yaz "`n[son] Sifrelenip buluta yaziliyor (sgk_son)..." "Cyan"
+  BulutGiris; $sifreli=Sifrele $anahtar (ConvertTo-Json $aday -Depth 6 -Compress); AyarYaz "sgk_son" $sifreli
+  Yaz ("TAMAM (ekran): {0} ilac, hasta '{1}' -> web listesine dustu." -f $drIlac.Count,$t.topAd) "Green"
+  exit 0
+}
 Yaz ("Eslesen hasta: {0}  ({1})  tel={2}  ilac={3}" -f $h.ad,$h.rec,$h.tel,$h.dr.Count) "Green"
 
 # EKSIK = yazilan - okutulan(karekod kutusunda barkod sayisi). Hic okutulmayan = tam eksik.
