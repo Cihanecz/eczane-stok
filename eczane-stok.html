@@ -762,10 +762,14 @@ db.auth.onAuthStateChange(ev=>{ if(ev==="SIGNED_OUT" && !$("#program").classList
 
 /* ---------- yönlendirme ---------- */
 window.addEventListener("hashchange", yonlendir);
+let SON_BOLUM = "";   // en son ana bölüm; alt ekranlarda "Geri" buraya döner (başka bölüme atmaz)
+function geriBolum(){ location.hash = SON_BOLUM || ""; }
 function yonlendir(){
   const h = decodeURIComponent(location.hash.slice(1));
   document.body.dataset.ekran = (h.split("/")[0] || "ana");
   window.scrollTo(0,0);
+  const _base = h.split("/")[0] || "";
+  if(["","neverelim","ilacbul","hastalar","siparis","depolar"].includes(_base)) SON_BOLUM = _base;
   if(h.startsWith("urun/")) return urunKarti(h.slice(5));
   if(h.startsWith("liste/")) return liste(h.slice(6));
   if(h.startsWith("ara/")) return aramaSonucu(h.slice(4));
@@ -1164,7 +1168,7 @@ async function urunKarti(barkod){
   const hata = oz.error || kk.error || ay.error; if(hata) return hataGoster(hata);
   const geb = (gb && !gb.error && gb.data && gb.data.gebelik) ? gb.data.gebelik : "";
   const r = oz.data;
-  if(!r){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="history.back()">‹ Geri</button><button class="da-dugme" type="button" onclick="location.hash='depoara/${kacis(barkod)}'">🏷️ Depolarda ara <small>bu barkod stok listende yok</small></button><div class="tablo"><div class="bos">Bu barkodla ürün bulunamadı.</div></div>`; return; }
+  if(!r){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="geriBolum()">‹ Geri</button><button class="da-dugme" type="button" onclick="location.hash='depoara/${kacis(barkod)}'">🏷️ Depolarda ara <small>bu barkod stok listende yok</small></button><div class="tablo"><div class="bos">Bu barkodla ürün bulunamadı.</div></div>`; return; }
 
   const aylik = (r.adet_90||0)/3;
   const kutuKar = r.adet_365 ? r.kar_365 / r.adet_365 : null;
@@ -1179,7 +1183,7 @@ async function urunKarti(barkod){
   const enYuksek = Math.max(1, ...(ay.data||[]).map(a=>Number(a.adet)));
 
   $("#icerik").innerHTML = `
-    <button class="geri" type="button" onclick="history.length>1?history.back():location.hash=''">‹ Geri</button>
+    <button class="geri" type="button" onclick="geriBolum()">‹ Geri</button>
     ${okutmaBandi(barkod)}<div class="urun-bas"><h1>${kacis(r.ad||barkod)}</h1><p>${kacis(barkod)}${r.uretici?" · "+kacis(r.uretici):""}</p>${gebelikKisa(geb)?`<div style="margin-top:4px">${gebelikKisa(geb)}</div>`:""}</div>
     <div class="bilgiler">
       <div class="bilgi"><span>Stok</span><b>${sayi(r.stok)} kutu</b><small>${kilitli()?"&nbsp;":tl(r.stok_maliyet)+" maliyet"}</small></div>
