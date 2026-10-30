@@ -2082,22 +2082,47 @@ function hSablonDuzenle(){
      ayar.siparisler  : web yazar — onaylanan siparişler + durum
      ayar.siparis_ayar: yerler + ses (PII değil, düz JSON)
    ===================================================================== */
-const S = { aday:null, kayit:[], eksikDb:{zaman:null,liste:[]}, eksikGizli:[], ayar:{ yerler:["Banko","Buzdolabı"], ses:true }, gorunum:"bekleyen" };
+const S = { aday:null, kayit:[], eksikDb:{zaman:null,liste:[]}, eksikGizli:[], tel:{}, ara:"", ayar:{ yerler:["Banko","Buzdolabı"], ses:true, mesaj:{} }, gorunum:"bekleyen" };
 const S_DURUM_AD = { verildi:"🟠 Sipariş verildi", geldi:"📦 Geldi", hazir:"✅ Hazırlandı", haber:"💬 Haber verildi", teslim:"🎉 Teslim edildi" };
 const S_MILLET = [["TR","tr","Türkçe"],["EN","gb","İngilizce"],["DE","de","Almanca"],["RU","ru","Rusça"],["AR","sa","Arapça"],["FA","ir","Farsça"],["UK","ua","Ukraynaca"],["FR","fr","Fransızca"],["ES","es","İspanyolca"],["PT","pt","Portekizce"]];
 const bayrak = cc => `<img src="https://flagcdn.com/20x15/${cc}.png" srcset="https://flagcdn.com/40x30/${cc}.png 2x" width="20" height="15" alt="" style="border-radius:2px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(0,0,0,.08)">`;
 const S_MESAJ = {
-  TR:"Merhaba {ad}, eczanemize verdiğiniz eksik ilaç siparişiniz hazır. Uygun olduğunuzda gelip teslim alabilirsiniz. İyi günler.",
-  EN:"Hello {ad}, the medicine you ordered at our pharmacy is ready. You can come and pick it up whenever convenient. Have a nice day.",
-  DE:"Hallo {ad}, das von Ihnen bestellte Medikament ist in unserer Apotheke abholbereit. Sie können es jederzeit abholen. Schönen Tag.",
-  RU:"Здравствуйте, {ad}! Заказанное вами лекарство готово в нашей аптеке. Вы можете забрать его в удобное время. Хорошего дня.",
-  AR:"مرحباً {ad}، الدواء الذي طلبته جاهز في صيدليتنا. يمكنك القدوم لاستلامه في الوقت المناسب لك. يومًا سعيدًا.",
-  FA:"سلام {ad}، داروی سفارش‌داده‌شده شما در داروخانه ما آماده است. هر زمان راحت بودید می‌توانید آن را تحویل بگیرید. روز خوش.",
-  UK:"Вітаємо, {ad}! Замовлені вами ліки готові в нашій аптеці. Ви можете забрати їх у зручний час. Гарного дня.",
-  FR:"Bonjour {ad}, le médicament que vous avez commandé est prêt à notre pharmacie. Vous pouvez venir le récupérer quand vous voulez. Bonne journée.",
-  ES:"Hola {ad}, el medicamento que pidió está listo en nuestra farmacia. Puede venir a recogerlo cuando le convenga. Buen día.",
-  PT:"Olá {ad}, o medicamento que encomendou está pronto na nossa farmácia. Pode vir levantá-lo quando for conveniente. Bom dia."
+  TR:"Merhaba {ad}, siparişiniz eczanemize ulaşmıştır. İstediğiniz zaman gelip teslim alabilirsiniz. Sağlıklı günler dileriz. Cihan Eczanesi",
+  EN:"Hello {ad}, your order has arrived at our pharmacy. You can come and pick it up whenever you like. We wish you good health. Cihan Pharmacy",
+  DE:"Hallo {ad}, Ihre Bestellung ist in unserer Apotheke eingetroffen. Sie können sie jederzeit abholen. Wir wünschen Ihnen gute Gesundheit. Cihan Apotheke",
+  RU:"Здравствуйте, {ad}! Ваш заказ поступил в нашу аптеку. Вы можете забрать его в любое удобное время. Желаем вам крепкого здоровья. Аптека Cihan",
+  AR:"مرحباً {ad}، لقد وصل طلبك إلى صيدليتنا. يمكنك القدوم لاستلامه في أي وقت تشاء. نتمنى لك دوام الصحة والعافية. صيدلية Cihan",
+  FA:"سلام {ad}، سفارش شما به داروخانه ما رسیده است. هر زمان که مایل بودید می‌توانید آن را تحویل بگیرید. برایتان سلامتی آرزومندیم. داروخانه Cihan",
+  UK:"Вітаємо, {ad}! Ваше замовлення надійшло до нашої аптеки. Ви можете забрати його в будь-який зручний час. Бажаємо вам міцного здоров'я. Аптека Cihan",
+  FR:"Bonjour {ad}, votre commande est arrivée à notre pharmacie. Vous pouvez venir la récupérer quand vous le souhaitez. Nous vous souhaitons une bonne santé. Pharmacie Cihan",
+  ES:"Hola {ad}, su pedido ha llegado a nuestra farmacia. Puede venir a recogerlo cuando quiera. Le deseamos buena salud. Farmacia Cihan",
+  PT:"Olá {ad}, a sua encomenda chegou à nossa farmácia. Pode vir levantá-la quando quiser. Desejamos-lhe boa saúde. Farmácia Cihan"
 };
+// mesaj: kullanıcı düzenlediyse S.ayar.mesaj[mil], yoksa varsayılan çeviri
+function sMesaj(mil){ return (S.ayar.mesaj && S.ayar.mesaj[mil]) || S_MESAJ[mil] || S_MESAJ.TR; }
+// borç/ödeme — PIN'siz, hep görünür (sayi()+TL); para() kâr için kilitli olduğundan kullanılmaz
+function sPara(v){ return sayi(v) + " TL"; }
+function sKalan(o){ const t=Number(o&&o.odeme&&o.odeme.toplam)||0, od=Number(o&&o.odeme&&o.odeme.odenen)||0; return Math.max(0, Math.round((t-od)*100)/100); }
+function sOdemeBagla(){
+  const top=$("#sTop"), ode=$("#sOde"), chk=$("#sOdendi"), g=$("#sKalanG"); if(!top) return;
+  function yg(){ const t=Number(top.value)||0; if(chk&&chk.checked){ ode.value=t?t:""; ode.disabled=true; } else if(ode){ ode.disabled=false; }
+    let od = chk&&chk.checked ? t : (Number(ode&&ode.value)||0); const k=Math.max(0,Math.round((t-od)*100)/100);
+    if(g) g.innerHTML = t>0 ? (k>0?`<b style="color:#C0552E">Kalan: ${sPara(k)}</b>`:`<span style="color:#1F7A4D">✓ Tamamı ödendi</span>`) : ""; }
+  top.addEventListener("input",yg); if(ode) ode.addEventListener("input",yg); if(chk) chk.addEventListener("change",yg); yg();
+}
+function sOdemeOku(){ const t=Math.round((Number(($("#sTop")||{}).value)||0)*100)/100; const chk=$("#sOdendi");
+  let od = chk&&chk.checked ? t : (Number(($("#sOde")||{}).value)||0); od=Math.round(od*100)/100; return { toplam:t, odenen:Math.min(od, t||od) }; }
+const SODEME_HTML = `<div class="alan" style="margin-top:10px"><span>Ödeme (hastanın ödeyeceği)</span>
+    <label class="hkucuk" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:4px 0"><input type="checkbox" id="sOdendi"> Tamamı ödendi</label>
+    <div style="display:flex;gap:8px"><input id="sTop" type="number" min="0" step="0.01" placeholder="Toplam TL" style="flex:1;padding:8px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
+      <input id="sOde" type="number" min="0" step="0.01" placeholder="Ödenen TL" style="flex:1;padding:8px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)"></div>
+    <div class="hkucuk" id="sKalanG" style="margin-top:4px"></div></div>`;
+// telefon hatırlama: hasta (tc/ad) -> telefon, şifreli saklanır (siparis_tel)
+function sTelAnahtar(tc,ad){ return (String(tc||"").trim() || ("ad:"+String(ad||"").trim().toLocaleLowerCase("tr"))); }
+function sTelBul(tc,ad){ const k=sTelAnahtar(tc,ad); return (S.tel&&S.tel[k]) || ""; }
+async function sTelHatirla(tc,ad,tel){ const t=telNo(tel); const k=sTelAnahtar(tc,ad); if(!k) return; if(t){ S.tel[k]=tel; } await sTelDepoKaydet(); }
+async function sTelDepoKaydet(){ try { await ayarYaz("siparis_tel", await hSifrele(H.anahtar, JSON.stringify(S.tel||{}))); } catch(e){} }
+function sSuz(list){ const q=(S.ara||"").trim().toLocaleLowerCase("tr"); if(!q) return list; return list.filter(o=>(((o.ad||"")+" "+(o.rec||"")).toLocaleLowerCase("tr")).includes(q)); }
 let S_SES_SON = 0;
 function sBul(id){ return S.kayit.find(o=>o.id===id); }
 
@@ -2110,11 +2135,12 @@ async function siparisSayfasi(){
   if(!tuz || !kont){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button><div class="liste-ust"><div><h1>📦 Sipariş</h1><p>Önce <b>Hastalar</b> ekranından hasta şifresini belirle; sipariş verileri de o şifreyle korunur.</p></div></div>`; return; }
   if(!await hAnahtarHazirla(kont.deger)) return sSifreSor(tuz.deger, kont.deger);
   try {
-    const [a, s, son, cfg, edb, egz] = await Promise.all([ayarOku("sgk_aday"), ayarOku("siparisler"), ayarOku("sgk_son"), ayarOku("siparis_ayar"), ayarOku("sgk_eksik_db"), ayarOku("sgk_eksik_gizli")]);
+    const [a, s, son, cfg, edb, egz, tl] = await Promise.all([ayarOku("sgk_aday"), ayarOku("siparisler"), ayarOku("sgk_son"), ayarOku("siparis_ayar"), ayarOku("sgk_eksik_db"), ayarOku("sgk_eksik_gizli"), ayarOku("siparis_tel")]);
     S.aday = a ? JSON.parse(await hCoz(H.anahtar, a.deger)) : { sonZaman:null, liste:[] };
     if(!S.aday.liste) S.aday.liste = [];
     S.kayit = s ? JSON.parse(await hCoz(H.anahtar, s.deger)) : [];
-    if(cfg){ try{ S.ayar = Object.assign(S.ayar, JSON.parse(cfg.deger)); }catch(e){} }
+    if(cfg){ try{ S.ayar = Object.assign(S.ayar, JSON.parse(cfg.deger)); if(!S.ayar.mesaj) S.ayar.mesaj={}; if(!S.ayar.yerler) S.ayar.yerler=["Banko","Buzdolabı"]; }catch(e){} }
+    try { S.tel = tl ? JSON.parse(await hCoz(H.anahtar, tl.deger)) : {}; } catch(e){ S.tel = {}; }
     try { S.eksikDb = edb ? JSON.parse(await hCoz(H.anahtar, edb.deger)) : { zaman:null, liste:[] }; } catch(e){ S.eksikDb = { zaman:null, liste:[] }; }
     if(!S.eksikDb.liste) S.eksikDb.liste = [];
     try { S.eksikGizli = egz ? JSON.parse(await hCoz(H.anahtar, egz.deger)) : []; } catch(e){ S.eksikGizli = []; }
@@ -2171,35 +2197,42 @@ function sAdayAcik(){
   return ((S.aday&&S.aday.liste)||[]).filter(r=>!alinmis.has(r.rec));
 }
 function sCiz(){
-  const acik = S.kayit.filter(o=>o.durum!=="teslim");
-  const aday = sAdayAcik();
-  const dbEksik = sEksikDbAcik();
-  const yeniSay = aday.length + dbEksik.length;
+  const acikAll = S.kayit.filter(o=>o.durum!=="teslim");
+  const adayAll = sAdayAcik();
+  const dbEksikAll = sEksikDbAcik();
+  const acik = sSuz(acikAll), aday = sSuz(adayAll), dbEksik = sSuz(dbEksikAll);
+  const yeniSay = adayAll.length + dbEksikAll.length;
   const son = S.eksikDb&&S.eksikDb.zaman ? "Otomatik güncel: "+tarihSaat(S.eksikDb.zaman) : "Rx'ten otomatik eksik reçeteler buraya düşer";
   let g = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
-    <div class="liste-ust"><div><h1>📦 Sipariş Takibi</h1><p>${son} · ${yeniSay} eksik reçete · ${acik.length} aktif sipariş</p></div>
-      <div style="display:flex;align-items:center;gap:12px">
+    <div class="liste-ust"><div><h1>📦 Sipariş Takibi</h1><p>${son} · ${yeniSay} eksik reçete · ${acikAll.length} aktif sipariş</p></div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="hcip" id="sElden" type="button">➕ Elden sipariş</button>
+        <button class="hcip" id="sAyar" type="button" title="Mesaj ve yer ayarları">⚙️ Ayarlar</button>
         <button class="hcip" id="sYenile" type="button" title="Yenile">🔄 Yenile</button>
         <label class="hkucuk" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="sSes" ${S.ayar.ses?"checked":""}> 🔔 Sesli uyarı</label>
       </div></div>
+    <input id="sAra" type="search" value="${kacis(S.ara||"")}" placeholder="🔍 Hasta adı / reçete ara" style="width:100%;padding:10px 12px;margin:6px 0 10px;border:1px solid var(--cizgi);border-radius:10px;background:var(--yuzey);color:var(--murekkep);font-size:15px">
     <div class="hcipler">
       <button class="hcip ${S.gorunum==="bekleyen"?"secili":""}" type="button" data-sg="bekleyen">🆕 Eksik reçeteler <b>${yeniSay}</b></button>
-      <button class="hcip ${S.gorunum==="aktif"?"secili":""}" type="button" data-sg="aktif">📦 Aktif siparişler <b>${acik.length}</b></button>
+      <button class="hcip ${S.gorunum==="aktif"?"secili":""}" type="button" data-sg="aktif">📦 Aktif siparişler <b>${acikAll.length}</b></button>
       <button class="hcip ${S.gorunum==="arsiv"?"secili":""}" type="button" data-sg="arsiv" style="margin-left:auto">🗂️ Arşiv</button>
     </div>`;
   if(S.gorunum==="bekleyen"){
     let b = "";
     if(dbEksik.length) b += `<div class="hbolum"><h2>Eksik SGK reçeteleri <span class="say">${dbEksik.length}</span></h2>${dbEksik.map(sEksikDbKart).join("")}</div>`;
     if(aday.length)    b += `<div class="hbolum"><h2>Elle taranan <span class="say">${aday.length}</span></h2>${aday.map(sAdayKart).join("")}</div>`;
-    g += b || `<div class="hkart"><p class="hkucuk" style="margin:0">Şu an eksik reçete yok. Rx'te karekodu tamamlanmamış SGK reçetesi oldukça <b>otomatik</b> burada görünür.</p></div>`;
+    g += b || `<div class="hkart"><p class="hkucuk" style="margin:0">${S.ara?"Aramana uyan eksik reçete yok.":"Şu an eksik reçete yok. Rx'te karekodu tamamlanmamış SGK reçetesi oldukça <b>otomatik</b> burada görünür."}</p></div>`;
   } else if(S.gorunum==="aktif"){
-    g += acik.length ? acik.map(sKart).join("") : `<div class="hkart"><p class="hkucuk" style="margin:0">Aktif sipariş yok.</p></div>`;
+    g += acik.length ? acik.map(sKart).join("") : `<div class="hkart"><p class="hkucuk" style="margin:0">${S.ara?"Aramana uyan aktif sipariş yok.":"Aktif sipariş yok."}</p></div>`;
   } else {
-    const ars = S.kayit.filter(o=>o.durum==="teslim").slice().reverse();
+    const ars = sSuz(S.kayit.filter(o=>o.durum==="teslim")).slice().reverse();
     g += ars.length ? `<div class="hbolum"><h2>Teslim edilenler <span class="say">${ars.length}</span></h2>${ars.map(sKart).join("")}</div>`
-                    : `<div class="hkart"><p class="hkucuk" style="margin:0">Arşiv boş.</p></div>`;
+                    : `<div class="hkart"><p class="hkucuk" style="margin:0">${S.ara?"Aramana uyan kayıt yok.":"Arşiv boş."}</p></div>`;
   }
   $("#icerik").innerHTML = g;
+  const ara=$("#sAra"); if(ara){ ara.addEventListener("input", ()=>{ S.ara=ara.value; const p=ara.selectionStart; sCiz(); const n=$("#sAra"); if(n){ n.focus(); try{ n.setSelectionRange(p,p); }catch(e){} } }); }
+  const eb=$("#sElden"); if(eb) eb.addEventListener("click", sEldenForm);
+  const ab=$("#sAyar"); if(ab) ab.addEventListener("click", sAyarEkrani);
   const ses=$("#sSes"); if(ses) ses.addEventListener("change", ()=>{ S.ayar.ses=ses.checked; sAyarKaydet(); });
   const yb=$("#sYenile"); if(yb) yb.addEventListener("click", ()=>{ yb.textContent="⏳ Yenileniyor…"; siparisSayfasi(); });
   document.querySelectorAll("[data-sg]").forEach(b=>b.addEventListener("click", ()=>{ S.gorunum=b.dataset.sg; sCiz(); }));
@@ -2212,6 +2245,7 @@ function sCiz(){
   document.querySelectorAll("[data-syer]").forEach(b=>b.addEventListener("click", ()=>sYerSec(b.dataset.syer)));
   document.querySelectorAll("[data-smil]").forEach(b=>b.addEventListener("click", ()=>sMilletSec(b.dataset.smil)));
   document.querySelectorAll("[data-ssil]").forEach(b=>b.addEventListener("click", ()=>sSil(b.dataset.ssil)));
+  document.querySelectorAll("[data-sode]").forEach(b=>b.addEventListener("click", ()=>sOdemeDuzenle(b.dataset.sode)));
 }
 function sAdayKart(r){
   const il = (r.ilac||[]).map(x=>`<div class="hilac"><span class="n">${kacis(x.ad)}</span><span class="hetk kirmizi">${x.eksik} eksik</span>${x.stok>0?`<span class="hetk">stok ${x.stok}</span>`:""}</div>`).join("");
@@ -2266,23 +2300,27 @@ async function sOlusturFormDb(rec){
     <div class="liste-ust"><div><h1>Sipariş oluştur</h1><p>${kacis(r.ad||"")} · ${kacis(r.rec)} · <span class="hkucuk">işaretli ilaçlar sipariş edilir (stoksuzlar ön-işaretli)</span></p></div></div>
     <div class="hkart"><div class="ilaclar">${satir}</div>
       <div class="alan" style="margin-top:12px"><span>Milliyet (mesaj dili)</span><div class="hcipler" id="sMilCip">${milCip}</div></div><input type="hidden" id="sMil" value="TR">
-      <label class="alan"><span>Telefon (WhatsApp)</span><input id="sTel" type="tel" value="${kacis(r.tel||"")}" placeholder="05xx xxx xx xx"></label>
+      <label class="alan"><span>Telefon (WhatsApp)</span><input id="sTel" type="tel" value="${kacis(r.tel||sTelBul(r.tc,r.ad)||"")}" placeholder="05xx xxx xx xx"></label>
+      ${SODEME_HTML}
       <button class="ana-dugme" id="sOnayla" type="button" style="margin-top:12px">Siparişi oluştur</button></div>`;
   document.querySelectorAll("#sMilCip [data-mv]").forEach(b=>b.addEventListener("click", ()=>{ $("#sMil").value=b.dataset.mv; document.querySelectorAll("#sMilCip .hcip").forEach(x=>x.classList.remove("secili")); b.classList.add("secili"); }));
+  sOdemeBagla();
   $("#sOnayla").addEventListener("click", async ()=>{
     const ad = [];
-    document.querySelectorAll("[data-sc]").forEach(chk=>{ if(!chk.checked) return; const i=+chk.dataset.sc; const inp=document.querySelector(`[data-si="${i}"]`); const n=Math.max(1,parseInt(inp&&inp.value)||1); const x=r.ilac[i]; ad.push({ad:x.ad,bar:x.bar,adet:n}); });
+    document.querySelectorAll("[data-sc]").forEach(chk=>{ if(!chk.checked) return; const i=+chk.dataset.sc; const inp=document.querySelector(`[data-si="${i}"]`); const n=Math.max(1,parseInt(inp&&inp.value)||1); const x=r.ilac[i]; const u=oz[x.bar]||{}; const not=[(u.adet_90!=null?"90g "+u.adet_90:""),(u.stok!=null?"stok "+u.stok:"")].filter(Boolean).join(" · "); ad.push({ad:x.ad,bar:x.bar,adet:n,not}); });
     if(!ad.length) return alert("En az bir ilaç seçin.");
-    const o = { id:"s"+Date.now().toString(36), kaynak:"sgk", rec:r.rec, prot:r.erec||"", ad:r.ad, tc:r.tc, tel:$("#sTel").value.trim(), mil:$("#sMil").value, ilac:ad, durum:"verildi", tarih:new Date().toISOString(), sira:{verildi:new Date().toISOString()} };
+    const tel=$("#sTel").value.trim();
+    const o = { id:"s"+Date.now().toString(36), kaynak:"sgk", rec:r.rec, prot:r.erec||"", ad:r.ad, tc:r.tc, tel, mil:$("#sMil").value, ilac:ad, odeme:sOdemeOku(), durum:"verildi", tarih:new Date().toISOString(), sira:{verildi:new Date().toISOString()} };
     S.kayit.push(o);
-    await sKaydet();
+    await sKaydet(); await sTelHatirla(r.tc, r.ad, tel);
     S.gorunum="aktif"; siparisSayfasi();
   });
 }
 function sKart(o){
-  const il = (o.ilac||[]).map(x=>`<div class="hilac"><span class="n">${kacis(x.ad)}</span><span class="hetk">${x.adet} adet</span></div>`).join("");
+  const il = (o.ilac||[]).map(x=>`<div class="hilac"><span class="n">${kacis(x.ad)}${x.not?` <span class="hkucuk">${kacis(x.not)}</span>`:""}</span><span class="hetk">${x.adet} adet</span></div>`).join("");
   const mil = S_MILLET.find(m=>m[0]===(o.mil||"TR")) || S_MILLET[0];
   const tel = telNo(o.tel);
+  const elden = o.kaynak==="elden";
   let dug = "";
   if(o.durum==="verildi") dug += `<button class="wa" type="button" data-sdur="geldi" data-sid="${o.id}">📦 Geldi</button>`;
   if(o.durum==="geldi")   dug += `<button class="wa" type="button" data-syer="${o.id}">✅ Hazırla / yere koy</button>`;
@@ -2290,13 +2328,33 @@ function sKart(o){
     dug += tel ? `<button class="wa" type="button" data-swa="${o.id}">💬 WhatsApp ${bayrak(mil[1])}</button>` : `<span class="hetk kirmizi">telefon yok</span>`;
     dug += `<button class="wa" type="button" style="background:#1F7A4D" data-sdur="teslim" data-sid="${o.id}">🎉 Teslim edildi</button>`;
   }
-  if(o.durum!=="teslim") dug += `<button class="hcip" type="button" data-smil="${o.id}" title="Milliyet / dil">${bayrak(mil[1])}</button> <button class="hcip" type="button" data-ssil="${o.id}" title="Sil">🗑️</button>`;
+  if(o.durum!=="teslim") dug += `<button class="hcip" type="button" data-sode="${o.id}" title="Ödeme">💰</button> <button class="hcip" type="button" data-smil="${o.id}" title="Milliyet / dil">${bayrak(mil[1])}</button> <button class="hcip" type="button" data-ssil="${o.id}" title="Sil">🗑️</button>`;
+  let borcHtml = "";
+  if(o.odeme && Number(o.odeme.toplam)>0){
+    const k = sKalan(o); const vurgu = (o.durum==="geldi"||o.durum==="hazir"||o.durum==="haber");
+    borcHtml = k>0
+      ? `<div style="margin-top:6px;${vurgu?"font-size:16px;":""}color:#C0552E;font-weight:700">💰 Borç: ${sPara(k)} <span class="hkucuk" style="color:var(--soluk);font-weight:400">(toplam ${sPara(o.odeme.toplam)}${Number(o.odeme.odenen)>0?", ödenen "+sPara(o.odeme.odenen):""})</span></div>`
+      : `<div class="hkucuk" style="margin-top:6px;color:#1F7A4D;font-weight:600">✓ Ödendi (${sPara(o.odeme.toplam)})</div>`;
+  }
   const yer = o.yer ? ` · 📍 ${kacis(o.yer)}` : "";
   return `<div class="hkart ${o.durum==="teslim"?"gonderildi":""}">
-    <div class="ad">${kacis(o.ad||"(isim yok)")} <span class="hkucuk">· ${kacis(o.rec||o.kaynak||"")}${o.tel?" · "+kacis(o.tel):""}</span></div>
+    <div class="ad">${kacis(o.ad||"(isim yok)")} <span class="hkucuk">· ${elden?"elden":kacis(o.rec||o.kaynak||"")}${o.tel?" · "+kacis(o.tel):""}</span></div>
     <div class="hdugmeler">${dug}</div>
-    <div class="ilaclar">${il}<div class="hkucuk" style="margin-top:4px">${S_DURUM_AD[o.durum]||o.durum}${yer}${o.sira&&o.sira.haber?" · haber: "+tarihSaat(o.sira.haber):""}</div></div>
+    <div class="ilaclar">${il}${borcHtml}<div class="hkucuk" style="margin-top:4px">${S_DURUM_AD[o.durum]||o.durum}${yer}${o.sira&&o.sira.haber?" · haber: "+tarihSaat(o.sira.haber):""}</div></div>
   </div>`;
+}
+// kartlardaki ödeme/dil/sil/yer/whatsapp/durum butonları sCiz sonunda bağlanıyor (data-sode dahil)
+async function sOdemeDuzenle(id){
+  const o = sBul(id); if(!o) return;
+  const od = o.odeme||{toplam:0,odenen:0}; const tam = Number(od.toplam)>0 && sKalan(o)<=0;
+  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
+    <div class="liste-ust"><div><h1>Ödeme</h1><p>${kacis(o.ad||"")} · ${o.kaynak==="elden"?"elden":kacis(o.rec||"")}</p></div></div>
+    <div class="hkart">${SODEME_HTML}<button class="ana-dugme" id="sOdeKaydet" type="button" style="margin-top:12px">Kaydet</button></div>`;
+  if(Number(od.toplam)>0) $("#sTop").value = od.toplam;
+  if(Number(od.odenen)>0) $("#sOde").value = od.odenen;
+  if(tam) $("#sOdendi").checked = true;
+  sOdemeBagla();
+  $("#sOdeKaydet").addEventListener("click", async ()=>{ o.odeme = sOdemeOku(); await sKaydet(); S.gorunum = o.durum==="teslim"?"arsiv":"aktif"; sCiz(); });
 }
 async function sOlusturForm(rec){
   const r = ((S.aday&&S.aday.liste)||[]).find(x=>x.rec===rec); if(!r) return;
@@ -2319,16 +2377,19 @@ async function sOlusturForm(rec){
     <div class="liste-ust"><div><h1>Sipariş oluştur</h1><p>${kacis(r.ad||"")} · ${kacis(r.rec)}</p></div></div>
     <div class="hkart"><div class="ilaclar">${satir}</div>
       <div class="alan" style="margin-top:12px"><span>Milliyet (mesaj dili)</span><div class="hcipler" id="sMilCip">${milCip}</div></div><input type="hidden" id="sMil" value="TR">
-      <label class="alan"><span>Telefon (WhatsApp)</span><input id="sTel" type="tel" value="${kacis(r.tel||"")}" placeholder="05xx xxx xx xx"></label>
+      <label class="alan"><span>Telefon (WhatsApp)</span><input id="sTel" type="tel" value="${kacis(r.tel||sTelBul(r.tc,r.ad)||"")}" placeholder="05xx xxx xx xx"></label>
+      ${SODEME_HTML}
       <button class="ana-dugme" id="sOnayla" type="button" style="margin-top:12px">Siparişi oluştur</button></div>`;
   document.querySelectorAll("#sMilCip [data-mv]").forEach(b=>b.addEventListener("click", ()=>{ $("#sMil").value=b.dataset.mv; document.querySelectorAll("#sMilCip .hcip").forEach(x=>x.classList.remove("secili")); b.classList.add("secili"); }));
+  sOdemeBagla();
   $("#sOnayla").addEventListener("click", async ()=>{
     const ad = [];
-    document.querySelectorAll("[data-si]").forEach(inp=>{ const i=+inp.dataset.si; const n=Math.max(1,parseInt(inp.value)||1); const x=r.ilac[i]; ad.push({ad:x.ad,bar:x.bar,adet:n}); });
-    const o = { id:"s"+Date.now().toString(36), kaynak:"sgk", rec:r.rec, prot:r.prot, ad:r.ad, tc:r.tc, tel:$("#sTel").value.trim(), mil:$("#sMil").value, ilac:ad, durum:"verildi", tarih:new Date().toISOString(), sira:{verildi:new Date().toISOString()} };
+    document.querySelectorAll("[data-si]").forEach(inp=>{ const i=+inp.dataset.si; const n=Math.max(1,parseInt(inp.value)||1); const x=r.ilac[i]; const u=oz[x.bar]||{}; const not=[(u.adet_90!=null?"90g "+u.adet_90:""),(u.stok!=null?"stok "+u.stok:"")].filter(Boolean).join(" · "); ad.push({ad:x.ad,bar:x.bar,adet:n,not}); });
+    const tel=$("#sTel").value.trim();
+    const o = { id:"s"+Date.now().toString(36), kaynak:"sgk", rec:r.rec, prot:r.prot, ad:r.ad, tc:r.tc, tel, mil:$("#sMil").value, ilac:ad, odeme:sOdemeOku(), durum:"verildi", tarih:new Date().toISOString(), sira:{verildi:new Date().toISOString()} };
     S.kayit.push(o);
     S.aday.liste = (S.aday.liste||[]).filter(x=>x.rec!==r.rec);   // oluşturuldu → aday listesinden çıkar
-    await sKaydet(); await sAdayKaydet();
+    await sKaydet(); await sAdayKaydet(); await sTelHatirla(r.tc, r.ad, tel);
     S.gorunum="aktif"; siparisSayfasi();
   });
 }
@@ -2344,7 +2405,7 @@ function sSesCal(){
 }
 function sWhatsapp(id){
   const o = sBul(id); if(!o) return; const t = telNo(o.tel); if(!t) return alert("Telefon numarası yok veya geçersiz.");
-  const sablon = S_MESAJ[o.mil||"TR"] || S_MESAJ.TR;
+  const sablon = sMesaj(o.mil);
   const ad = (o.ad||"").trim().split(/\s+/).slice(0,1).join(" ");
   const msg = sablon.replace("{ad}", ad);
   window.open("https://wa.me/"+t+"?text="+encodeURIComponent(msg), "_blank");
@@ -2354,13 +2415,14 @@ function sWhatsapp(id){
 function sYerSec(id){
   const o = sBul(id); if(!o) return;
   const liste = S.ayar.yerler||[];
-  const se = liste.map(y=>`<button class="hcip" type="button" data-yd="${kacis(y)}">📍 ${kacis(y)}</button>`).join("");
+  const se = liste.map(y=>`<span style="display:inline-flex;align-items:center;margin:0 6px 6px 0"><button class="hcip" type="button" data-yd="${kacis(y)}" style="margin:0">📍 ${kacis(y)}</button><button class="hcip" type="button" data-ysil="${kacis(y)}" title="Yeri sil" style="margin:0 0 0 2px;padding:6px 9px;color:#C0552E">×</button></span>`).join("");
   $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
     <div class="liste-ust"><div><h1>Nereye koydun?</h1><p>${kacis(o.ad||"")} · ${kacis(o.rec||"")}</p></div></div>
-    <div class="hkart"><div class="hcipler">${se}</div>
+    <div class="hkart"><div>${se}</div>
       <label class="alan" style="margin-top:10px"><span>Yeni yer ekle</span><input id="yYeni" placeholder="ör. Raf 3"></label>
       <button class="hcip" id="yEkle" type="button">+ Ekle</button></div>`;
   document.querySelectorAll("[data-yd]").forEach(b=>b.addEventListener("click", async ()=>{ o.yer=b.dataset.yd; o.durum="hazir"; o.sira=o.sira||{}; o.sira.hazir=new Date().toISOString(); await sKaydet(); siparisSayfasi(); }));
+  document.querySelectorAll("[data-ysil]").forEach(b=>b.addEventListener("click", async ()=>{ const y=b.dataset.ysil; if(!confirm(`"${y}" yerini listeden silmek istiyor musun?`)) return; S.ayar.yerler=(S.ayar.yerler||[]).filter(x=>x!==y); await sAyarKaydet(); sYerSec(id); }));
   $("#yEkle").addEventListener("click", async ()=>{ const v=$("#yYeni").value.trim(); if(!v) return; if(!S.ayar.yerler.includes(v)){ S.ayar.yerler.push(v); await sAyarKaydet(); } sYerSec(id); });
 }
 function sMilletSec(id){
@@ -2372,6 +2434,61 @@ function sMilletSec(id){
   document.querySelectorAll("[data-md]").forEach(b=>b.addEventListener("click", async ()=>{ o.mil=b.dataset.md; await sKaydet(); siparisSayfasi(); }));
 }
 async function sSil(id){ if(!confirm("Bu siparişi silmek istediğine emin misin?")) return; S.kayit = S.kayit.filter(o=>o.id!==id); await sKaydet(); siparisSayfasi(); }
+// ---- Elden sipariş (reçete dışı, elle) ----
+function sEldenForm(){
+  const milCip = S_MILLET.map(m=>`<button type="button" class="hcip ${m[0]==="TR"?"secili":""}" data-mv="${m[0]}">${bayrak(m[1])} ${m[2]}</button>`).join("");
+  let say=1;
+  const satir = (i)=>`<div class="hilac" data-er="${i}" style="align-items:center;gap:6px">
+      <input placeholder="İlaç adı" data-en="${i}" style="flex:1;padding:8px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
+      <input type="number" min="1" value="1" data-ea="${i}" style="width:60px;padding:8px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
+      <button class="hcip" type="button" data-esil="${i}" title="Satırı sil" style="padding:6px 9px;color:#C0552E">×</button></div>`;
+  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
+    <div class="liste-ust"><div><h1>➕ Elden sipariş</h1><p>Reçete dışı — hasta elden ilaç istedi</p></div></div>
+    <div class="hkart">
+      <label class="alan"><span>Hasta adı</span><input id="eAd" placeholder="Ad Soyad"></label>
+      <label class="alan" style="margin-top:8px"><span>Telefon (WhatsApp)</span><input id="sTel" type="tel" placeholder="05xx xxx xx xx"></label>
+      <div class="alan" style="margin-top:10px"><span>Milliyet (mesaj dili)</span><div class="hcipler" id="sMilCip">${milCip}</div></div><input type="hidden" id="sMil" value="TR">
+      <div class="alan" style="margin-top:10px"><span>İlaçlar</span><div id="eIlac">${satir(0)}</div><button class="hcip" id="eEkle" type="button" style="margin-top:6px">+ İlaç ekle</button></div>
+      ${SODEME_HTML}
+      <button class="ana-dugme" id="sOnayla" type="button" style="margin-top:12px">Siparişi oluştur</button></div>`;
+  document.querySelectorAll("#sMilCip [data-mv]").forEach(b=>b.addEventListener("click", ()=>{ $("#sMil").value=b.dataset.mv; document.querySelectorAll("#sMilCip .hcip").forEach(x=>x.classList.remove("secili")); b.classList.add("secili"); }));
+  function silBagla(){ document.querySelectorAll("[data-esil]").forEach(b=>{ b.onclick=()=>{ if(document.querySelectorAll("#eIlac [data-er]").length<=1) return; b.closest("[data-er]").remove(); }; }); }
+  silBagla();
+  $("#eEkle").addEventListener("click", ()=>{ $("#eIlac").insertAdjacentHTML("beforeend", satir(say++)); silBagla(); });
+  sOdemeBagla();
+  $("#sOnayla").addEventListener("click", async ()=>{
+    const adSoyad = $("#eAd").value.trim(); if(!adSoyad) return alert("Hasta adı gerekli.");
+    const ad=[]; document.querySelectorAll("#eIlac [data-er]").forEach(row=>{ const nm=row.querySelector("[data-en]").value.trim(); if(!nm) return; const n=Math.max(1,parseInt(row.querySelector("[data-ea]").value)||1); ad.push({ad:nm,adet:n}); });
+    if(!ad.length) return alert("En az bir ilaç yaz.");
+    const tel=$("#sTel").value.trim();
+    const o={ id:"s"+Date.now().toString(36), kaynak:"elden", rec:"ELDEN", prot:"", ad:adSoyad, tc:"", tel, mil:$("#sMil").value, ilac:ad, odeme:sOdemeOku(), durum:"verildi", tarih:new Date().toISOString(), sira:{verildi:new Date().toISOString()} };
+    S.kayit.push(o); await sKaydet(); await sTelHatirla("", adSoyad, tel);
+    S.gorunum="aktif"; siparisSayfasi();
+  });
+}
+// ---- Ayarlar: WhatsApp mesajı + yer listesi ----
+function sAyarEkrani(){
+  const m = (S.ayar.mesaj && S.ayar.mesaj.TR) || S_MESAJ.TR;
+  const yerSe = (S.ayar.yerler||[]).map(y=>`<span style="display:inline-flex;align-items:center;margin:0 6px 6px 0"><span class="hcip" style="margin:0">📍 ${kacis(y)}</span><button class="hcip" type="button" data-ysil="${kacis(y)}" title="Sil" style="margin:0 0 0 2px;padding:6px 9px;color:#C0552E">×</button></span>`).join("");
+  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
+    <div class="liste-ust"><div><h1>⚙️ Ayarlar</h1><p>WhatsApp mesajı ve yer listesi</p></div></div>
+    <div class="hkart">
+      <label class="alan"><span>WhatsApp mesajı (Türkçe)</span>
+        <textarea id="aMsj" rows="4" style="width:100%;padding:10px;border:1px solid var(--cizgi);border-radius:10px;background:var(--yuzey);color:var(--murekkep);resize:vertical;font-family:inherit">${kacis(m)}</textarea></label>
+      <p class="hkucuk" style="margin:6px 0 0"><b>{ad}</b> yazdığın yere hastanın adı gelir. Yabancı hastalara mesaj otomatik kendi dillerinde gider (çeviriler hazır). Türkçe metni çok değiştirirsen bana söyle, çevirileri de güncelleyeyim.</p>
+      <div style="display:flex;gap:8px;margin-top:8px"><button class="hcip" id="aMsjKaydet" type="button">Mesajı kaydet</button><button class="hcip" id="aMsjSifirla" type="button">Varsayılana dön</button></div>
+    </div>
+    <div class="hkart">
+      <span class="hkucuk">Yerler (hazırlananı nereye koydun)</span>
+      <div style="margin-top:8px">${yerSe||'<span class="hkucuk">Yer yok</span>'}</div>
+      <label class="alan" style="margin-top:8px"><span>Yeni yer</span><input id="aYer" placeholder="ör. Raf 3"></label>
+      <button class="hcip" id="aYerEkle" type="button" style="margin-top:6px">+ Ekle</button>
+    </div>`;
+  $("#aMsjKaydet").addEventListener("click", async ()=>{ S.ayar.mesaj=S.ayar.mesaj||{}; S.ayar.mesaj.TR=$("#aMsj").value.trim()||S_MESAJ.TR; await sAyarKaydet(); const b=$("#aMsjKaydet"); b.textContent="✓ Kaydedildi"; setTimeout(()=>b.textContent="Mesajı kaydet",1500); });
+  $("#aMsjSifirla").addEventListener("click", async ()=>{ if(S.ayar.mesaj) delete S.ayar.mesaj.TR; await sAyarKaydet(); sAyarEkrani(); });
+  $("#aYerEkle").addEventListener("click", async ()=>{ const v=$("#aYer").value.trim(); if(!v) return; S.ayar.yerler=S.ayar.yerler||[]; if(!S.ayar.yerler.includes(v)){ S.ayar.yerler.push(v); await sAyarKaydet(); } sAyarEkrani(); });
+  document.querySelectorAll("[data-ysil]").forEach(b=>b.addEventListener("click", async ()=>{ const y=b.dataset.ysil; if(!confirm(`"${y}" silinsin mi?`)) return; S.ayar.yerler=(S.ayar.yerler||[]).filter(x=>x!==y); await sAyarKaydet(); sAyarEkrani(); }));
+}
 
 $("#siparisDugme").addEventListener("click", ()=>{ location.hash = "siparis"; });
 $("#hastaDugme").addEventListener("click", ()=>{ location.hash = "hastalar"; });
