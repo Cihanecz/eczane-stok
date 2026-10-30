@@ -2083,7 +2083,7 @@ function hSablonDuzenle(){
      ayar.siparis_ayar: yerler + ses (PII değil, düz JSON)
    ===================================================================== */
 const S = { aday:null, kayit:[], eksikDb:{zaman:null,liste:[]}, eksikGizli:[], tel:{}, ara:"", hastaIdx:null, alimSon:{zaman:null,ilac:{}}, ayar:{ yerler:["Banko","Buzdolabı"], ses:true, mesaj:{} }, gorunum:"bekleyen" };
-const S_DURUM_AD = { verildi:"🟠 Sipariş verildi", geldi:"📦 Geldi", hazir:"✅ Hazırlandı", haber:"💬 Haber verildi", teslim:"🎉 Teslim edildi" };
+const S_DURUM_AD = { verildi:"🟠 Sipariş verildi", depoda:"🏪 Depodan sipariş edildi", geldi:"📦 Geldi", hazir:"✅ Hazırlandı", haber:"💬 Haber verildi", teslim:"🎉 Teslim edildi" };
 const S_MILLET = [["TR","tr","Türkçe"],["EN","gb","İngilizce"],["DE","de","Almanca"],["RU","ru","Rusça"],["AR","sa","Arapça"],["FA","ir","Farsça"],["UK","ua","Ukraynaca"],["FR","fr","Fransızca"],["ES","es","İspanyolca"],["PT","pt","Portekizce"]];
 const bayrak = cc => `<img src="https://flagcdn.com/20x15/${cc}.png" srcset="https://flagcdn.com/40x30/${cc}.png 2x" width="20" height="15" alt="" style="border-radius:2px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(0,0,0,.08)">`;
 const S_MESAJ = {
@@ -2290,6 +2290,7 @@ function sCiz(){
   document.querySelectorAll("[data-smil]").forEach(b=>b.addEventListener("click", ()=>sMilletSec(b.dataset.smil)));
   document.querySelectorAll("[data-ssil]").forEach(b=>b.addEventListener("click", ()=>sSil(b.dataset.ssil)));
   document.querySelectorAll("[data-sode]").forEach(b=>b.addEventListener("click", ()=>sOdemeDuzenle(b.dataset.sode)));
+  document.querySelectorAll("[data-sdepo]").forEach(b=>b.addEventListener("click", ()=>sDepoEkle(b.dataset.sdepo)));
 }
 function sAdayKart(r){
   const il = (r.ilac||[]).map(x=>`<div class="hilac"><span class="n">${kacis(x.ad)}</span><span class="hetk kirmizi">${x.eksik} eksik</span>${x.stok>0?`<span class="hetk">stok ${x.stok}</span>`:""}</div>`).join("");
@@ -2376,7 +2377,7 @@ function sKart(o){
   const tel = telNo(o.tel);
   const elden = o.kaynak==="elden";
   let dug = "";
-  if(o.durum==="verildi") dug += `<button class="wa" type="button" data-sdur="geldi" data-sid="${o.id}">📦 Geldi</button>`;
+  if(o.durum==="verildi" || o.durum==="depoda"){ dug += `<button class="hcip" type="button" data-sdepo="${o.id}">🏪 Depoya ekle</button><button class="wa" type="button" data-sdur="geldi" data-sid="${o.id}">📦 Geldi</button>`; }
   if(o.durum==="geldi")   dug += `<button class="wa" type="button" data-syer="${o.id}">✅ Hazırla / yere koy</button>`;
   if(o.durum==="hazir" || o.durum==="haber"){
     dug += tel ? `<button class="wa" type="button" data-swa="${o.id}">💬 WhatsApp ${bayrak(mil[1])}</button>` : `<span class="hetk kirmizi">telefon yok</span>`;
@@ -2409,6 +2410,31 @@ async function sOdemeDuzenle(id){
   if(tam) $("#sOdendi").checked = true;
   sOdemeBagla();
   $("#sOdeKaydet").addEventListener("click", async ()=>{ o.odeme = sOdemeOku(); await sKaydet(); S.gorunum = o.durum==="teslim"?"arsiv":"aktif"; sCiz(); });
+}
+// Siparişteki ilaçları depo fiyatları/MF ile göster; seçeneğe dokununca mevcut sepet modaliyle depo sepetine ekler, durum "depoda" olur
+async function sDepoEkle(id){
+  const o = sBul(id); if(!o) return;
+  $("#icerik").innerHTML = `<div class="hkart"><p class="hkucuk" style="margin:0">Depo fiyatları yükleniyor…</p></div>`;
+  let DP=null; try{ DP=await depoYukle(); }catch(e){}
+  const idx={}; if(DP&&DP.u) for(const u of DP.u) idx[u.b]=u;
+  const satir = (o.ilac||[]).map(x=>{
+    const u = x.bar ? idx[x.bar] : null;
+    if(!u) return `<div class="hkart"><div class="ad">${kacis(x.ad)} <span class="hkucuk">· ${x.adet} sipariş</span></div><p class="hkucuk" style="margin:4px 0 0">Depo fiyatı bulunamadı${x.bar?"":" (barkod yok)"}.</p></div>`;
+    const oneri = mfOneri(u);
+    const dep = ["as","sn","bek"].map(k=>{ const d=u[k]; if(!d) return ""; const secs=depoSecenekler(d).slice(0,4); if(!secs.length) return "";
+      return `<div style="margin-top:6px"><b>${DEPO_AD[k]}</b>${d.s===0?' <span class="hetk kirmizi">stok yok</span>':''} <span>${secs.map(s=>`<button class="hcip" type="button" style="margin:2px 4px 2px 0" data-dep="${k}" data-bar="${kacis(x.bar)}" data-ad="${kacis(x.ad)}" data-a="${s.a}" data-m="${s.m||0}">${secenekAd(s)} → ${para(kdvli(s.n,u))}</button>`).join("")}</span></div>`;
+    }).join("");
+    return `<div class="hkart"><div class="ad">${kacis(x.ad)} <span class="hkucuk">· ${x.adet} sipariş · stok ${u.st??0}</span></div>
+      ${oneri?`<p class="hkucuk" style="margin:4px 0">${mfSatir(oneri.en,u)}</p>`:""}
+      ${dep||'<p class="hkucuk" style="margin:4px 0 0">Depolarda fiyat yok.</p>'}</div>`;
+  }).join("");
+  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
+    <div class="liste-ust"><div><h1>🏪 Depoya ekle</h1><p>${kacis(o.ad||"")} · ${o.kaynak==="elden"?"elden":kacis(o.rec||"")} · <span class="hkucuk">seçeneğe dokun → adet sor → depo sepetine ekler</span></p></div></div>
+    ${satir||'<div class="hkart"><p class="hkucuk" style="margin:0">İlaç yok.</p></div>'}`;
+  document.querySelectorAll("[data-dep]").forEach(b=>b.addEventListener("click", async ()=>{
+    if(o.durum==="verildi"){ o.durum="depoda"; o.sira=o.sira||{}; o.sira.depoda=new Date().toISOString(); await sKaydet(); }
+    sepetAc(b.dataset.dep, b.dataset.bar, b.dataset.ad, +b.dataset.a, +b.dataset.m);
+  }));
 }
 async function sOlusturForm(rec){
   const r = ((S.aday&&S.aday.liste)||[]).find(x=>x.rec===rec); if(!r) return;
