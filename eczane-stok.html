@@ -2145,7 +2145,7 @@ function sYoklamaBaslat(){
       const son = await ayarOku("sgk_son");
       if(son){ const c = JSON.parse(await hCoz(H.anahtar, son.deger)); if(c.zaman && c.zaman!==S.aday.sonZaman){ if(await sSonBirlestir(c)){ if(S.ayar.ses) sSesCal(c.ad); sCiz(); } } }
     }catch(e){}
-  }, 8000);
+  }, 2000);
 }
 function sSifreSor(tuz, kont){
   $("#icerik").innerHTML = hSifreFormu("Sipariş / hasta şifresi", "Sipariş ve hasta bilgileri bu şifreyle korunur.", false, "Aç");
