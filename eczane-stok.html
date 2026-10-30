@@ -2435,10 +2435,11 @@ async function sDepoEkle(id){
       <button class="hcip" type="button" data-depara="${kacis(x.bar||x.ad)}" data-sip="${o.id}">🔎 Depolarda ara</button></div>`;
     const oneri = mfOneri(u);
     const dep = ["as","sn","bek"].map(k=>{ const d=u[k]; if(!d) return ""; const secs=depoSecenekler(d).slice(0,4); if(!secs.length) return "";
-      return `<div style="margin-top:6px"><b>${DEPO_AD[k]}</b>${d.s===0?' <span class="hetk kirmizi">stok yok</span>':''} <span>${secs.map(s=>`<button class="hcip" type="button" style="margin:2px 4px 2px 0" data-dep="${k}" data-bar="${kacis(x.bar)}" data-ad="${kacis(x.ad)}" data-a="${s.a}" data-m="${s.m||0}">${secenekAd(s)} → ${para(kdvli(s.n,u))}</button>`).join("")}</span></div>`;
+      return `<div style="margin-top:6px"><b>${DEPO_AD[k]}</b>${d.s===0?' <span class="hetk kirmizi">stok yok</span>':''} <span>${secs.map(s=>`<button class="hcip" type="button" style="margin:2px 4px 2px 0" data-dep="${k}" data-bar="${kacis(x.bar)}" data-ad="${kacis(x.ad)}" data-a="${s.a}" data-m="${s.m||0}">${secenekAd(s)} → ${tl(kdvli(s.n,u))}</button>`).join("")}</span></div>`;
     }).join("");
+    const oneriTxt = oneri ? (()=>{ const h=oneri.en, mk=MF_KARAR[h.karar]||["",""]; return `${mk[0]} <b>${mk[1]}</b> — ${DEPO_AD[h.k]} <b>${h.a}+${h.m}</b>: stokla birlikte ${ayMetin(h.erime)} erir · kutu %${Math.round(h.indirim*100)} ucuz${h.kazanc>0?` · kazanç ~${tl(kdvli(h.kazanc,u))}`:""}`; })() : "";
     return `<div class="hkart"><div class="ad">${kacis(x.ad)} <span class="hkucuk">· ${x.adet} sipariş · stok ${u.st??0}</span></div>
-      ${oneri?`<p class="hkucuk" style="margin:4px 0">${mfSatir(oneri.en,u)}</p>`:""}
+      ${oneriTxt?`<p class="hkucuk" style="margin:4px 0">${oneriTxt}</p>`:""}
       ${dep||'<p class="hkucuk" style="margin:4px 0 0">Depolarda fiyat yok.</p>'}</div>`;
   }).join("");
   $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
