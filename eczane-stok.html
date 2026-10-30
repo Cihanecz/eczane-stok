@@ -2144,6 +2144,15 @@ async function sIlacAra(term){
                                    : db.from("urun_ozet").select("barkod,ad,stok,adet_90,psf").ilike("ara",`%${t.split(/\s+/).join("%")}%`);
   try { const { data } = await sorgu.order("stok",{ascending:false}).limit(8); return data||[]; } catch(e){ return []; }
 }
+// bir ilacın satış/stok/para + MF özeti (elden ve ürün ekleme ekranlarında gösterilir)
+async function sIlacAciklama(bar){
+  if(!bar) return "";
+  let z=null; try{ const { data }=await db.from("urun_ozet").select("adet_90,stok,stok_maliyet,kac_ay_yeter").eq("barkod",bar).maybeSingle(); z=data; }catch(e){}
+  let mf=""; try{ const DP=await depoYukle(); const u=DP&&DP.u&&DP.u.find(x=>x.b===bar); if(u){ const o=mfOneri(u); if(o){ const h=o.en, mk=MF_KARAR[h.karar]||["",""]; mf=` · <b>MF:</b> ${mk[0]} ${DEPO_AD[h.k]} ${h.a}+${h.m}`; } } }catch(e){}
+  const p=[]; if(z){ if(z.adet_90!=null) p.push(`3 ayda ~${sayi(z.adet_90)} satıyor`); if(z.stok!=null) p.push(`stok ${sayi(z.stok)} kutu`); if(z.stok_maliyet) p.push(`~${tl(z.stok_maliyet)} para bağlı`); if(z.kac_ay_yeter>0) p.push(`~${Number(z.kac_ay_yeter).toFixed(1)} ay yeter`); }
+  if(!p.length && !mf) return "";
+  return `📊 ${p.join(" · ")}${mf}`;
+}
 // input + hemen altındaki kutu. getir(deger)->[{_html,...}]; sec(secili) çağrılır.
 function sOneriKutu(input, kutu, getir, sec){
   let zaman=null;
@@ -2451,8 +2460,11 @@ async function sDepoEkle(id){
       return `<div class="hkart"><div class="ad">${kacis(x.ad)} <span class="hkucuk">· ${x.adet} sipariş</span></div><p class="hkucuk" style="margin:4px 0 6px">Barkod yok — adla ara:</p><button class="hcip" type="button" data-depara="${kacis(x.ad)}" data-sip="${o.id}">🔎 Depolarda ara</button></div>`;
     }
     const oneri = mfOneri(u);
-    const dep = ["as","sn","bek"].map(k=>{ const d=u[k]; if(!d) return ""; const secs=depoSecenekler(d).slice(0,4); if(!secs.length) return "";
-      return `<div style="margin-top:6px"><b>${DEPO_AD[k]}</b>${d.s===0?' <span class="hetk kirmizi">stok yok</span>':''} <span>${secs.map(s=>`<button class="hcip" type="button" style="margin:2px 4px 2px 0" data-dep="${k}" data-bar="${kacis(x.bar)}" data-ad="${kacis(x.ad)}" data-a="${s.a}" data-m="${s.m||0}">${secenekAd(s)} → ${tl(kdvli(s.n,u))}</button>`).join("")}</span></div>`;
+    const dBtn = (k,a,m,n,etiket)=>`<button class="hcip" type="button" style="margin:2px 4px 2px 0${m>0?'':';border-style:dashed'}" data-dep="${k}" data-bar="${kacis(x.bar)}" data-ad="${kacis(x.ad)}" data-a="${a}" data-m="${m}">${etiket} → ${tl(kdvli(n,u))}</button>`;
+    const dep = ["as","sn","bek"].map(k=>{ const d=u[k]; if(!d) return ""; const tek=mfTaban(d); const mfSecs=depoSecenekler(d).filter(s=>s.m>0).slice(0,4);
+      if(!(tek>0) && !mfSecs.length) return "";
+      const btns = (tek>0?dBtn(k,1,0,tek,"MF'siz 1 adet"):"") + mfSecs.map(s=>dBtn(k,s.a,s.m||0,s.n,secenekAd(s))).join("");
+      return `<div style="margin-top:6px"><b>${DEPO_AD[k]}</b>${d.s===0?' <span class="hetk kirmizi">stok yok</span>':''} <span>${btns}</span></div>`;
     }).join("");
     const oneriTxt = oneri ? (()=>{ const h=oneri.en, mk=MF_KARAR[h.karar]||["",""]; return `${mk[0]} <b>${mk[1]}</b> — ${DEPO_AD[h.k]} <b>${h.a}+${h.m}</b>: stokla birlikte ${ayMetin(h.erime)} erir · kutu %${Math.round(h.indirim*100)} ucuz${h.kazanc>0?` · kazanç ~${tl(kdvli(h.kazanc,u))}`:""}`; })() : "";
     return `<div class="hkart"><div class="ad">${kacis(x.ad)} <span class="hkucuk">· ${x.adet} sipariş</span></div>
@@ -2500,8 +2512,11 @@ function sDaRender(s){
   let out="";
   for(const k of sira){ const d=(s.depolar||{})[k]; if(!d || (d.durum && d.durum!=="ok")) continue;
     const u=(d.u||[]); if(!u.length) continue;
-    const prod=u[0]; const kd=prod.k!=null?Number(prod.k):10; const secs=depoSecenekler(prod).slice(0,4); if(!secs.length) continue;
-    out += `<div style="margin-top:6px"><b>${DEPO_AD[k]||k}</b>${prod.s===0?' <span class="hetk kirmizi">stok yok</span>':prod.s===1?' <span class="hetk" style="color:var(--yesil)">stok var</span>':''} <span>${secs.map(oo=>`<button class="hcip" type="button" style="margin:2px 4px 2px 0" data-dax="${k}|0|${oo.a}|${oo.m||0}">${secenekAd(oo)} → ${tl(oo.n*(1+kd/100))}</button>`).join("")}</span></div>`;
+    const prod=u[0]; const kd=prod.k!=null?Number(prod.k):10; const tek=mfTaban(prod); const mfSecs=depoSecenekler(prod).filter(o=>o.m>0).slice(0,4);
+    if(!(tek>0) && !mfSecs.length) continue;
+    const dx=(a,m,n,etiket)=>`<button class="hcip" type="button" style="margin:2px 4px 2px 0${m>0?'':';border-style:dashed'}" data-dax="${k}|0|${a}|${m}">${etiket} → ${tl(n*(1+kd/100))}</button>`;
+    const btns=(tek>0?dx(1,0,tek,"MF'siz 1 adet"):"")+mfSecs.map(o=>dx(o.a,o.m||0,o.n,secenekAd(o))).join("");
+    out += `<div style="margin-top:6px"><b>${DEPO_AD[k]||k}</b>${prod.s===0?' <span class="hetk kirmizi">stok yok</span>':prod.s===1?' <span class="hetk" style="color:var(--yesil)">stok var</span>':''} <span>${btns}</span></div>`;
   }
   return out || `<p class="hkucuk" style="margin:4px 0">Depolarda bulunamadı.</p>`;
 }
@@ -2518,9 +2533,10 @@ function sUrunEkleForm(id){
         <input id="ueFiyat" type="number" min="0" step="0.01" placeholder="Fiyat (TL)" style="flex:1;padding:9px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
       </div>
       <p class="hkucuk" id="ueTop" style="margin:8px 0 0">İlacı yazıp seçince satış fiyatı otomatik gelir, değiştirebilirsin.</p>
+      <p class="hkucuk" id="ueAcik" style="margin:4px 0 0;color:var(--soluk)"></p>
       <button class="ana-dugme" id="ueKaydet" type="button" style="margin-top:12px">Siparişe ekle</button></div>`;
   function topYaz(){ const n=Math.max(1,parseInt($("#ueAdet").value)||1); const f=Number($("#ueFiyat").value)||0; $("#ueTop").innerHTML = f>0?`Bu ürün: <b>${sPara(f*n)}</b> · siparişin yeni toplamı: <b>${sPara((Number(o.odeme&&o.odeme.toplam)||0)+f*n)}</b>`:"İlacı yazıp seçince satış fiyatı otomatik gelir, değiştirebilirsin."; }
-  function ueDoldur(u){ $("#ueAd").value=u.ad; bar=u.bar||u.barkod||""; if((u.psf>0) && !$("#ueFiyat").value) $("#ueFiyat").value=Math.round(u.psf*100)/100; topYaz(); }
+  function ueDoldur(u){ $("#ueAd").value=u.ad; bar=u.bar||u.barkod||""; if((u.psf>0) && !$("#ueFiyat").value) $("#ueFiyat").value=Math.round(u.psf*100)/100; topYaz(); sIlacAciklama(bar).then(t=>{ const el=$("#ueAcik"); if(el) el.innerHTML=t; }); }
   sOneriKutu($("#ueAd"), $("#ueOne"), async v=>(await sIlacAra(v)).map(u=>({_html:`${kacis(u.ad)} <span style="color:var(--soluk)">· stok ${u.stok??0}${u.psf!=null?` · ${sPara(u.psf)}`:""}</span>`, ad:u.ad, bar:u.barkod, psf:u.psf})), ueDoldur);
   $("#ueAd").addEventListener("blur", ()=>{ setTimeout(async ()=>{ if(bar || $("#ueFiyat").value || !$("#ueAd").value.trim()) return; const r=await sIlacAra($("#ueAd").value); if(r[0]) ueDoldur(r[0]); }, 250); });
   $("#ueAdet").addEventListener("input", topYaz); $("#ueFiyat").addEventListener("input", topYaz);
@@ -2645,7 +2661,8 @@ function sEldenForm(){
         <input type="number" min="1" value="1" data-ea="${i}" title="Adet" style="width:54px;padding:8px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
         <input type="number" min="0" step="0.01" placeholder="Fiyat" data-ef="${i}" title="Tane fiyatı (TL) — seçince otomatik gelir" style="width:88px;padding:8px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
         <button class="hcip" type="button" data-esil="${i}" title="Satırı sil" style="padding:6px 9px;color:#C0552E">×</button></div>
-      <div data-eone="${i}" style="${SONE_STIL}"></div></div>`;
+      <div data-eone="${i}" style="${SONE_STIL}"></div>
+      <div data-eacik="${i}" class="hkucuk" style="margin:2px 0 0;color:var(--soluk)"></div></div>`;
   $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
     <div class="liste-ust"><div><h1>➕ Elden sipariş</h1><p>Reçete dışı — hasta elden ilaç istedi</p></div></div>
     <div class="hkart">
@@ -2668,12 +2685,12 @@ function sEldenForm(){
   function ilacBagla(i){ const inp=document.querySelector(`[data-en="${i}"]`), kutu=document.querySelector(`[data-eone="${i}"]`); if(!inp||!kutu) return;
     sOneriKutu(inp, kutu, async v=> (await sIlacAra(v)).map(u=>({_html:`${kacis(u.ad)} <span style="color:var(--soluk)">· stok ${u.stok??0}${u.psf!=null?` · ${sPara(u.psf)}`:""}</span>`, ad:u.ad, bar:u.barkod, stok:u.stok, adet_90:u.adet_90, psf:u.psf})),
       u=>{ inp.value=u.ad; inp.dataset.eb=u.bar||""; inp.dataset.enot=[(u.adet_90!=null?"90g "+u.adet_90:""),(u.stok!=null?"stok "+u.stok:"")].filter(Boolean).join(" · ");
-           const row=inp.closest("[data-erw]"); const ef=row&&row.querySelector("[data-ef]"); if(ef && u.psf>0 && !ef.value) ef.value=Math.round(u.psf*100)/100; eldenTotal(); }); }
+           const row=inp.closest("[data-erw]"); const ef=row&&row.querySelector("[data-ef]"); if(ef && u.psf>0 && !ef.value) ef.value=Math.round(u.psf*100)/100; eldenTotal(); sIlacAciklama(u.bar).then(t=>{ const el=document.querySelector('[data-eacik="'+i+'"]'); if(el) el.innerHTML=t; }); }); }
   ilacBagla(0);
   function silBagla(){ document.querySelectorAll("[data-esil]").forEach(b=>{ b.onclick=()=>{ if(document.querySelectorAll("#eIlac [data-er]").length<=1) return; b.closest("[data-erw]").remove(); eldenTotal(); }; }); }
   silBagla();
   $("#eIlac").addEventListener("input", e=>{ if(e.target.matches("[data-ea],[data-ef]")) eldenTotal(); });
-  $("#eIlac").addEventListener("focusout", e=>{ if(!e.target.matches("[data-en]")) return; const inp=e.target; setTimeout(async ()=>{ const row=inp.closest("[data-erw]"); if(!row) return; const ef=row.querySelector("[data-ef]"); if(inp.dataset.eb || !inp.value.trim() || (ef&&ef.value)) return; const r=await sIlacAra(inp.value); if(r[0]){ inp.dataset.eb=r[0].barkod||""; inp.dataset.enot=[(r[0].adet_90!=null?"90g "+r[0].adet_90:""),(r[0].stok!=null?"stok "+r[0].stok:"")].filter(Boolean).join(" · "); if(ef && r[0].psf>0) ef.value=Math.round(r[0].psf*100)/100; eldenTotal(); } }, 250); });
+  $("#eIlac").addEventListener("focusout", e=>{ if(!e.target.matches("[data-en]")) return; const inp=e.target; setTimeout(async ()=>{ const row=inp.closest("[data-erw]"); if(!row) return; const ef=row.querySelector("[data-ef]"); if(inp.dataset.eb || !inp.value.trim() || (ef&&ef.value)) return; const r=await sIlacAra(inp.value); if(r[0]){ inp.dataset.eb=r[0].barkod||""; inp.dataset.enot=[(r[0].adet_90!=null?"90g "+r[0].adet_90:""),(r[0].stok!=null?"stok "+r[0].stok:"")].filter(Boolean).join(" · "); if(ef && r[0].psf>0) ef.value=Math.round(r[0].psf*100)/100; eldenTotal(); const i2=inp.dataset.en; sIlacAciklama(r[0].barkod).then(t=>{ const el=document.querySelector('[data-eacik="'+i2+'"]'); if(el) el.innerHTML=t; }); } }, 250); });
   $("#eEkle").addEventListener("click", ()=>{ const i=say++; $("#eIlac").insertAdjacentHTML("beforeend", satir(i)); ilacBagla(i); silBagla(); });
   sOdemeBagla();
   $("#sTop").addEventListener("input", e=>{ if(e.isTrusted) topElle=true; });   // elle değiştirince otomatik toplam durur
