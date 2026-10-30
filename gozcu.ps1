@@ -74,6 +74,19 @@ function RxEksikBak {
     $script:eksikPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\rx-eksik.ps1`"" -WindowStyle Hidden -PassThru
   } catch { }
 }
+# HASTA KART FEED: tum Rx hastalari -> hasta_kart (elden siparis oneri). Saatte bir yeter.
+$script:kartSon = [datetime]::MinValue; $script:kartPr = $null
+function RxKartBak {
+  try {
+    if ($script:kartPr -and -not $script:kartPr.HasExited) { return }
+    if (((Get-Date) - $script:kartSon).TotalMinutes -lt 60) { return }
+    if (-not (Get-Process -Name "RxMediaPharmaEYS" -ErrorAction SilentlyContinue)) { return }
+    if (-not (Test-Path (Join-Path $KOK "rx-kart.ps1"))) { return }
+    if (-not (Test-Path (Join-Path $KOK "giris.dat"))) { return }
+    $script:kartSon = Get-Date
+    $script:kartPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\rx-kart.ps1`"" -WindowStyle Hidden -PassThru
+  } catch { }
+}
 Log "Gözcü başladı"
 $deneme = @{}
 $depoSon = [datetime]::MinValue
@@ -81,6 +94,7 @@ $tur = 0
 while ($true) {
   # 60 sn'lik ana döngü; arada 15 sn'de bir sepet isteklerine bak
   for ($k = 0; $k -lt 4; $k++) { SepetDonguBak; RxEksikBak; Start-Sleep 15 }
+  RxKartBak
   OtoGuncelle
   # Depolar (Rx'e dokunmaz): depo kaydı (depo.dat) VEYA eklenti-aktif işareti (depo-aktif.txt) varsa 08:00-21:00 arası saatte bir fiyat/MF çek
   $h = (Get-Date).Hour
