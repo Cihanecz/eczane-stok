@@ -60,6 +60,20 @@ function OtoGuncelle {
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\guncelle.ps1`" -Repo $GH_REPO -Sha $sha" -WindowStyle Hidden | Out-Null
   } catch { }
 }
+# EKSIK SGK FEED: Rx EYS calisiyorsa 2 dk'da bir rx-eksik.ps1 (SADECE-OKUMA) -> Supabase sgk_eksik_db
+# Hicbir PC'de ek kurulum gerekmez: ana PC'deki gozcu merkezi DB'yi okur, tum PC'ler ayni web listesini gorur.
+$script:eksikSon = [datetime]::MinValue; $script:eksikPr = $null
+function RxEksikBak {
+  try {
+    if ($script:eksikPr -and -not $script:eksikPr.HasExited) { return }      # onceki calisma bitmediyse bekle
+    if (((Get-Date) - $script:eksikSon).TotalMinutes -lt 2) { return }       # 2 dk'da bir
+    if (-not (Get-Process -Name "RxMediaPharmaEYS" -ErrorAction SilentlyContinue)) { return }  # DB kapaliysa atla
+    if (-not (Test-Path (Join-Path $KOK "rx-eksik.ps1"))) { return }
+    if (-not (Test-Path (Join-Path $KOK "giris.dat"))) { return }
+    $script:eksikSon = Get-Date
+    $script:eksikPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\rx-eksik.ps1`"" -WindowStyle Hidden -PassThru
+  } catch { }
+}
 Log "Gözcü başladı"
 $deneme = @{}
 $depoSon = [datetime]::MinValue
@@ -67,6 +81,7 @@ $tur = 0
 while ($true) {
   # 60 sn'lik ana döngü; arada 15 sn'de bir sepet isteklerine bak
   for ($k = 0; $k -lt 4; $k++) { SepetDonguBak; Start-Sleep 15 }
+  RxEksikBak
   OtoGuncelle
   # Depolar (Rx'e dokunmaz): depo kaydı (depo.dat) VEYA eklenti-aktif işareti (depo-aktif.txt) varsa 08:00-21:00 arası saatte bir fiyat/MF çek
   $h = (Get-Date).Hour
