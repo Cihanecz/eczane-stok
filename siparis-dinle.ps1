@@ -28,6 +28,7 @@ public class HotKeyWin {
 $C=0x0002; $S=0x0004; $A=0x0001; $WM_HOTKEY=0x0312
 # Oncelik: Alt'siz (AltGr sorunu olmasin), once harf sonra fonksiyon tuslari
 $adaylar = @(
+  @{ ad='F8'; mod=0; vk=0x77 },
   @{ ad='Ctrl+Shift+D'; mod=($C -bor $S); vk=0x44 },
   @{ ad='Ctrl+Shift+G'; mod=($C -bor $S); vk=0x47 },
   @{ ad='Ctrl+Shift+B'; mod=($C -bor $S); vk=0x42 },
