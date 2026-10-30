@@ -66,7 +66,7 @@ $script:eksikSon = [datetime]::MinValue; $script:eksikPr = $null
 function RxEksikBak {
   try {
     if ($script:eksikPr -and -not $script:eksikPr.HasExited) { return }      # onceki calisma bitmediyse bekle
-    if (((Get-Date) - $script:eksikSon).TotalMinutes -lt 2) { return }       # 2 dk'da bir
+    if (((Get-Date) - $script:eksikSon).TotalSeconds -lt 25) { return }      # ~25 sn'de bir (anlik)
     if (-not (Get-Process -Name "RxMediaPharmaEYS" -ErrorAction SilentlyContinue)) { return }  # DB kapaliysa atla
     if (-not (Test-Path (Join-Path $KOK "rx-eksik.ps1"))) { return }
     if (-not (Test-Path (Join-Path $KOK "giris.dat"))) { return }
@@ -80,8 +80,7 @@ $depoSon = [datetime]::MinValue
 $tur = 0
 while ($true) {
   # 60 sn'lik ana döngü; arada 15 sn'de bir sepet isteklerine bak
-  for ($k = 0; $k -lt 4; $k++) { SepetDonguBak; Start-Sleep 15 }
-  RxEksikBak
+  for ($k = 0; $k -lt 4; $k++) { SepetDonguBak; RxEksikBak; Start-Sleep 15 }
   OtoGuncelle
   # Depolar (Rx'e dokunmaz): depo kaydı (depo.dat) VEYA eklenti-aktif işareti (depo-aktif.txt) varsa 08:00-21:00 arası saatte bir fiyat/MF çek
   $h = (Get-Date).Hour
