@@ -86,13 +86,25 @@ function RxKartBak {
     $script:kartPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\rx-kart.ps1`"" -WindowStyle Hidden -PassThru
   } catch { }
 }
+# ALIM FEED: son alislar -> alim_son (web "geldi" otomatik). ~45 sn'de bir yeter.
+$script:alimSon = [datetime]::MinValue; $script:alimPr = $null
+function RxAlimBak {
+  try {
+    if ($script:alimPr -and -not $script:alimPr.HasExited) { return }
+    if (((Get-Date) - $script:alimSon).TotalSeconds -lt 45) { return }
+    if (-not (Test-Path (Join-Path $KOK "rx-alim.ps1"))) { return }
+    if (-not (Test-Path (Join-Path $KOK "giris.dat"))) { return }
+    $script:alimSon = Get-Date
+    $script:alimPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\rx-alim.ps1`"" -WindowStyle Hidden -PassThru
+  } catch { }
+}
 Log "Gözcü başladı"
 $deneme = @{}
 $depoSon = [datetime]::MinValue
 $tur = 0
 while ($true) {
   # 60 sn'lik ana döngü; arada 15 sn'de bir sepet isteklerine bak
-  for ($k = 0; $k -lt 4; $k++) { SepetDonguBak; EksikDonguBak; Start-Sleep 15 }
+  for ($k = 0; $k -lt 4; $k++) { SepetDonguBak; EksikDonguBak; RxAlimBak; Start-Sleep 15 }
   RxKartBak
   OtoGuncelle
   # Depolar (Rx'e dokunmaz): depo kaydı (depo.dat) VEYA eklenti-aktif işareti (depo-aktif.txt) varsa 08:00-21:00 arası saatte bir fiyat/MF çek

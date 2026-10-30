@@ -61,9 +61,12 @@ copy (
          trim(coalesce(ch.adi,'')||' '||coalesce(ch.soyadi,'')),
          coalesce(ch.tckn,''), coalesce(nullif(ch.gsm1,''),ch.gsm2,''),
          coalesce(m.urun_adi,''), coalesce(m.urun_barkod,''),
-         coalesce(m.stok_miktari,0)::text, coalesce(fk.yazilan_adet,0)::text
+         coalesce(m.stok_miktari,0)::text, coalesce(fk.yazilan_adet,0)::text,
+         (coalesce(s.fiyat_farki,0)+coalesce(s.mua_kat_payi_elden,0)+coalesce(s.rec_kat_payi_elden,0)
+           +case when s.ilac_katilim_payi_elden then coalesce(sf.hasta_payi,0) else 0 end)::text
   from eys_tbl_satis_recete s
   join eys_view_satis_recete vsr on vsr.id=s.id and vsr.karekod_bilgi=false
+  join eys_tbl_satis_fatura sf on sf.id=s.fatura_id
   join eys_tbl_satis_fatura_kalem fk on fk.satis_fatura_id=s.fatura_id
   left join eys_tbl_mustahzar_temel m on m.urun_id=fk.urun_id
   left join eys_tbl_cari_hasta ch on ch.id=s.hasta_id
@@ -76,12 +79,13 @@ copy (
 ) to stdout with (format csv)
 "@
 function EksikListe {
-  $rows = PsqlCsv $SQL @('id','erec','tarih','ad','tc','tel','ilacad','bar','stok','yaz')
+  $rows = PsqlCsv $SQL @('id','erec','tarih','ad','tc','tel','ilacad','bar','stok','yaz','tutar')
   $grup=[ordered]@{}
   foreach($r in $rows){
     $id=Bos $r.id; if($id -eq ""){ continue }
     if(-not $grup.Contains($id)){
-      $grup[$id]=[ordered]@{ rec=$id; erec=(Bos $r.erec); tarih=(Bos $r.tarih); ad=(Bos $r.ad); tc=(Bos $r.tc); tel=(Bos $r.tel); ilac=@() }
+      $t=0.0; try{ $t=[math]::Round([decimal]::Parse((Bos $r.tutar),[Globalization.CultureInfo]::InvariantCulture),2) }catch{}
+      $grup[$id]=[ordered]@{ rec=$id; erec=(Bos $r.erec); tarih=(Bos $r.tarih); ad=(Bos $r.ad); tc=(Bos $r.tc); tel=(Bos $r.tel); tutar=$t; ilac=@() }
     }
     $bar=Bos $r.bar; if($bar -eq ""){ continue }
     $grup[$id].ilac += [ordered]@{ bar=$bar; ad=(Bos $r.ilacad); yaz=([int](Bos $r.yaz)); stok=([int]([decimal]::Parse((Bos $r.stok),[Globalization.CultureInfo]::InvariantCulture))) }

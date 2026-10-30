@@ -2082,7 +2082,7 @@ function hSablonDuzenle(){
      ayar.siparisler  : web yazar — onaylanan siparişler + durum
      ayar.siparis_ayar: yerler + ses (PII değil, düz JSON)
    ===================================================================== */
-const S = { aday:null, kayit:[], eksikDb:{zaman:null,liste:[]}, eksikGizli:[], tel:{}, ara:"", hastaIdx:null, ayar:{ yerler:["Banko","Buzdolabı"], ses:true, mesaj:{} }, gorunum:"bekleyen" };
+const S = { aday:null, kayit:[], eksikDb:{zaman:null,liste:[]}, eksikGizli:[], tel:{}, ara:"", hastaIdx:null, alimSon:{zaman:null,ilac:{}}, ayar:{ yerler:["Banko","Buzdolabı"], ses:true, mesaj:{} }, gorunum:"bekleyen" };
 const S_DURUM_AD = { verildi:"🟠 Sipariş verildi", geldi:"📦 Geldi", hazir:"✅ Hazırlandı", haber:"💬 Haber verildi", teslim:"🎉 Teslim edildi" };
 const S_MILLET = [["TR","tr","Türkçe"],["EN","gb","İngilizce"],["DE","de","Almanca"],["RU","ru","Rusça"],["AR","sa","Arapça"],["FA","ir","Farsça"],["UK","ua","Ukraynaca"],["FR","fr","Fransızca"],["ES","es","İspanyolca"],["PT","pt","Portekizce"]];
 const bayrak = cc => `<img src="https://flagcdn.com/20x15/${cc}.png" srcset="https://flagcdn.com/40x30/${cc}.png 2x" width="20" height="15" alt="" style="border-radius:2px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(0,0,0,.08)">`;
@@ -2163,7 +2163,7 @@ async function siparisSayfasi(){
   if(!tuz || !kont){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button><div class="liste-ust"><div><h1>📦 Sipariş</h1><p>Önce <b>Hastalar</b> ekranından hasta şifresini belirle; sipariş verileri de o şifreyle korunur.</p></div></div>`; return; }
   if(!await hAnahtarHazirla(kont.deger)) return sSifreSor(tuz.deger, kont.deger);
   try {
-    const [a, s, son, cfg, edb, egz, tl] = await Promise.all([ayarOku("sgk_aday"), ayarOku("siparisler"), ayarOku("sgk_son"), ayarOku("siparis_ayar"), ayarOku("sgk_eksik_db"), ayarOku("sgk_eksik_gizli"), ayarOku("siparis_tel")]);
+    const [a, s, son, cfg, edb, egz, tl, al] = await Promise.all([ayarOku("sgk_aday"), ayarOku("siparisler"), ayarOku("sgk_son"), ayarOku("siparis_ayar"), ayarOku("sgk_eksik_db"), ayarOku("sgk_eksik_gizli"), ayarOku("siparis_tel"), ayarOku("alim_son")]);
     S.aday = a ? JSON.parse(await hCoz(H.anahtar, a.deger)) : { sonZaman:null, liste:[] };
     if(!S.aday.liste) S.aday.liste = [];
     S.kayit = s ? JSON.parse(await hCoz(H.anahtar, s.deger)) : [];
@@ -2173,6 +2173,8 @@ async function siparisSayfasi(){
     if(!S.eksikDb.liste) S.eksikDb.liste = [];
     try { S.eksikGizli = egz ? JSON.parse(await hCoz(H.anahtar, egz.deger)) : []; } catch(e){ S.eksikGizli = []; }
     if(son){ try{ await sSonBirlestir(JSON.parse(await hCoz(H.anahtar, son.deger))); }catch(e){} }
+    try { S.alimSon = al ? JSON.parse(al.deger) : {zaman:null,ilac:{}}; if(!S.alimSon.ilac) S.alimSon.ilac={}; } catch(e){ S.alimSon={zaman:null,ilac:{}}; }
+    await sAlimKontrol();
   } catch(e){ return hataGoster(e); }
   sCiz();
   sYoklamaBaslat();
@@ -2204,6 +2206,8 @@ function sYoklamaBaslat(){
       if(son){ const c = JSON.parse(await hCoz(H.anahtar, son.deger)); if(c.zaman && c.zaman!==S.aday.sonZaman){ if(await sSonBirlestir(c)){ degisti=true; sesCal=true; } } }
       const edb = await ayarOku("sgk_eksik_db");
       if(edb){ const e = JSON.parse(await hCoz(H.anahtar, edb.deger)); if(e.zaman && e.zaman!==(S.eksikDb&&S.eksikDb.zaman)){ const onceki=sEksikDbAcik().length; S.eksikDb=e; if(!S.eksikDb.liste)S.eksikDb.liste=[]; degisti=true; if(sEksikDbAcik().length>onceki) sesCal=true; } }
+      const al = await ayarOku("alim_son");
+      if(al){ try{ const a=JSON.parse(al.deger); if(a.zaman && a.zaman!==(S.alimSon&&S.alimSon.zaman)){ S.alimSon=a; if(!S.alimSon.ilac)S.alimSon.ilac={}; if(await sAlimKontrol()){ degisti=true; sesCal=true; } } }catch(e){} }
       if(degisti){ if(sesCal && S.ayar.ses) sSesCal(); sCiz(); }
     }catch(e){}
   }, 2000);
@@ -2224,12 +2228,16 @@ function sAdayAcik(){
   const alinmis = new Set(S.kayit.filter(o=>o.kaynak==="sgk").map(o=>o.rec));
   return ((S.aday&&S.aday.liste)||[]).filter(r=>!alinmis.has(r.rec));
 }
+function sBannerStil(){ if(document.getElementById("sYanipStil")) return; const st=document.createElement("style"); st.id="sYanipStil"; st.textContent="@keyframes sYanip{0%,100%{background:#C0552E}50%{background:#7d2a10}} .sGeldiBanner{animation:sYanip 1s infinite;color:#fff;padding:14px 16px;border-radius:12px;font-weight:700;cursor:pointer;margin:10px 0 4px;box-shadow:0 2px 12px rgba(192,85,46,.45);font-size:15px}"; document.head.appendChild(st); }
 function sCiz(){
   const acikAll = S.kayit.filter(o=>o.durum!=="teslim");
   const adayAll = sAdayAcik();
   const dbEksikAll = sEksikDbAcik();
   const acik = sSuz(acikAll), aday = sSuz(adayAll), dbEksik = sSuz(dbEksikAll);
   const gizliAll = sGizliAcik();
+  const geldiBek = S.kayit.filter(o=>o.durum==="geldi" && !o.geldiGor);
+  const geldiBanner = geldiBek.length ? `<div class="sGeldiBanner" id="sGeldiB">📦 ${geldiBek.length} sipariş geldi — hazırlamak için dokun</div>` : "";
+  sBannerStil();
   const yeniSay = adayAll.length + dbEksikAll.length;
   const son = S.eksikDb&&S.eksikDb.zaman ? "Otomatik güncel: "+tarihSaat(S.eksikDb.zaman) : "Rx'ten otomatik eksik reçeteler buraya düşer";
   let g = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
@@ -2246,7 +2254,7 @@ function sCiz(){
       <button class="hcip ${S.gorunum==="aktif"?"secili":""}" type="button" data-sg="aktif">📦 Aktif siparişler <b>${acikAll.length}</b></button>
       <button class="hcip ${S.gorunum==="gizli"?"secili":""}" type="button" data-sg="gizli" style="margin-left:auto">🙈 Gizlenenler <b>${gizliAll.length}</b></button>
       <button class="hcip ${S.gorunum==="arsiv"?"secili":""}" type="button" data-sg="arsiv">🗂️ Arşiv</button>
-    </div>`;
+    </div>${geldiBanner}`;
   if(S.gorunum==="bekleyen"){
     let b = "";
     if(dbEksik.length) b += `<div class="hbolum"><h2>Eksik SGK reçeteleri <span class="say">${dbEksik.length}</span></h2>${dbEksik.map(sEksikDbKart).join("")}</div>`;
@@ -2267,6 +2275,7 @@ function sCiz(){
   const ara=$("#sAra"); if(ara){ ara.addEventListener("input", ()=>{ S.ara=ara.value; const p=ara.selectionStart; sCiz(); const n=$("#sAra"); if(n){ n.focus(); try{ n.setSelectionRange(p,p); }catch(e){} } }); }
   const eb=$("#sElden"); if(eb) eb.addEventListener("click", sEldenForm);
   const ab=$("#sAyar"); if(ab) ab.addEventListener("click", sAyarEkrani);
+  const gb=$("#sGeldiB"); if(gb) gb.addEventListener("click", async ()=>{ S.kayit.forEach(o=>{ if(o.durum==="geldi") o.geldiGor=true; }); await sKaydet(); S.gorunum="aktif"; sCiz(); });
   const ses=$("#sSes"); if(ses) ses.addEventListener("change", ()=>{ S.ayar.ses=ses.checked; sAyarKaydet(); });
   const yb=$("#sYenile"); if(yb) yb.addEventListener("click", ()=>{ yb.textContent="⏳ Yenileniyor…"; siparisSayfasi(); });
   document.querySelectorAll("[data-sg]").forEach(b=>b.addEventListener("click", ()=>{ S.gorunum=b.dataset.sg; sCiz(); }));
@@ -2348,6 +2357,7 @@ async function sOlusturFormDb(rec){
       ${SODEME_HTML}
       <button class="ana-dugme" id="sOnayla" type="button" style="margin-top:12px">Siparişi oluştur</button></div>`;
   document.querySelectorAll("#sMilCip [data-mv]").forEach(b=>b.addEventListener("click", ()=>{ $("#sMil").value=b.dataset.mv; document.querySelectorAll("#sMilCip .hcip").forEach(x=>x.classList.remove("secili")); b.classList.add("secili"); }));
+  if(r.tutar>0 && $("#sTop")) $("#sTop").value=r.tutar;   // Hasta Tutari otomatik on-dolum (duzenlenebilir)
   sOdemeBagla();
   $("#sOnayla").addEventListener("click", async ()=>{
     const ad = [];
@@ -2439,9 +2449,22 @@ async function sOlusturForm(rec){
 }
 async function sDurumGecir(id, yeni){
   const o = sBul(id); if(!o) return; o.durum=yeni; o.sira=o.sira||{}; o.sira[yeni]=new Date().toISOString();
+  if(yeni==="geldi") o.geldiGor=true;   // elle geldi dedi -> banner yanmaz
   await sKaydet();
   if(yeni==="geldi" && S.ayar.ses) sSesCal(o.ad);
   siparisSayfasi();
+}
+// OTOMATIK GELDI: siparis tarihinde/sonrasinda alinmis ilac varsa durum=geldi (alim_son feed'i)
+async function sAlimKontrol(){
+  const ilac = (S.alimSon&&S.alimSon.ilac)||{}; let degisti=false, geldiVar=false;
+  for(const o of S.kayit){
+    if(o.durum!=="verildi" && o.durum!=="depoda") continue;
+    const sipTarih = (o.tarih||"").slice(0,10);
+    const geldi = (o.ilac||[]).some(x=> x.bar && ilac[x.bar] && ilac[x.bar].t && ilac[x.bar].t >= sipTarih);
+    if(geldi){ o.durum="geldi"; o.sira=o.sira||{}; o.sira.geldi=new Date().toISOString(); o.geldiGor=false; degisti=true; geldiVar=true; }
+  }
+  if(degisti) await sKaydet();
+  return geldiVar;
 }
 function sSesCal(){
   if(Date.now()-S_SES_SON < 1500) return; S_SES_SON=Date.now();
