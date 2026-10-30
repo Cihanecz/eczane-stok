@@ -2082,7 +2082,7 @@ function hSablonDuzenle(){
      ayar.siparisler  : web yazar — onaylanan siparişler + durum
      ayar.siparis_ayar: yerler + ses (PII değil, düz JSON)
    ===================================================================== */
-const S = { aday:null, kayit:[], eksikDb:{zaman:null,liste:[]}, eksikGizli:[], tel:{}, ara:"", ayar:{ yerler:["Banko","Buzdolabı"], ses:true, mesaj:{} }, gorunum:"bekleyen" };
+const S = { aday:null, kayit:[], eksikDb:{zaman:null,liste:[]}, eksikGizli:[], tel:{}, ara:"", hastaIdx:null, ayar:{ yerler:["Banko","Buzdolabı"], ses:true, mesaj:{} }, gorunum:"bekleyen" };
 const S_DURUM_AD = { verildi:"🟠 Sipariş verildi", geldi:"📦 Geldi", hazir:"✅ Hazırlandı", haber:"💬 Haber verildi", teslim:"🎉 Teslim edildi" };
 const S_MILLET = [["TR","tr","Türkçe"],["EN","gb","İngilizce"],["DE","de","Almanca"],["RU","ru","Rusça"],["AR","sa","Arapça"],["FA","ir","Farsça"],["UK","ua","Ukraynaca"],["FR","fr","Fransızca"],["ES","es","İspanyolca"],["PT","pt","Portekizce"]];
 const bayrak = cc => `<img src="https://flagcdn.com/20x15/${cc}.png" srcset="https://flagcdn.com/40x30/${cc}.png 2x" width="20" height="15" alt="" style="border-radius:2px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(0,0,0,.08)">`;
@@ -2123,6 +2123,34 @@ function sTelBul(tc,ad){ const k=sTelAnahtar(tc,ad); return (S.tel&&S.tel[k]) ||
 async function sTelHatirla(tc,ad,tel){ const t=telNo(tel); const k=sTelAnahtar(tc,ad); if(!k) return; if(t){ S.tel[k]=tel; } await sTelDepoKaydet(); }
 async function sTelDepoKaydet(){ try { await ayarYaz("siparis_tel", await hSifrele(H.anahtar, JSON.stringify(S.tel||{}))); } catch(e){} }
 function sSuz(list){ const q=(S.ara||"").trim().toLocaleLowerCase("tr"); if(!q) return list; return list.filter(o=>(((o.ad||"")+" "+(o.rec||"")).toLocaleLowerCase("tr")).includes(q)); }
+// ---- Elden siparişte otomatik tamamlama ----
+// tüm hasta kartları (rx-kart feed -> hasta_kart, şifreli); bir kez yüklenip önbelleğe alınır
+async function sHastaYukle(){
+  if(S.hastaIdx!==null) return S.hastaIdx;
+  S.hastaIdx = [];
+  try { const k=await ayarOku("hasta_kart"); if(k){ const o=JSON.parse(await hCoz(H.anahtar,k.deger)); S.hastaIdx=(o.liste||[]).map(x=>({ad:x.ad||"",tc:x.tc||"",tel:x.tel||"",q:(x.ad||"").toLocaleLowerCase("tr")})); } } catch(e){ S.hastaIdx=[]; }
+  return S.hastaIdx;
+}
+function sHastaAra(term){ const q=(term||"").trim().toLocaleLowerCase("tr"); if(q.length<2||!S.hastaIdx) return []; const r=[]; for(const h of S.hastaIdx){ if(h.q.includes(q)){ r.push(h); if(r.length>=8) break; } } return r; }
+async function sIlacAra(term){
+  const t = araMetni(term); if(!t || t.length<2) return [];
+  const sorgu = /^\d{4,}$/.test(t) ? db.from("urun_ozet").select("barkod,ad,stok,adet_90").like("barkod",`%${t}%`)
+                                   : db.from("urun_ozet").select("barkod,ad,stok,adet_90").ilike("ara",`%${t.split(/\s+/).join("%")}%`);
+  try { const { data } = await sorgu.order("stok",{ascending:false}).limit(8); return data||[]; } catch(e){ return []; }
+}
+// input + hemen altındaki kutu. getir(deger)->[{_html,...}]; sec(secili) çağrılır.
+function sOneriKutu(input, kutu, getir, sec){
+  let zaman=null;
+  function kapat(){ kutu.innerHTML=""; kutu.style.display="none"; }
+  function ac(liste){ if(!liste || !liste.length){ kapat(); return; }
+    kutu.innerHTML = liste.map((x,i)=>`<button type="button" class="sOne" data-i="${i}" style="display:block;width:100%;text-align:left;padding:9px 10px;border:none;border-bottom:1px solid var(--cizgi);background:var(--yuzey);color:var(--murekkep);cursor:pointer;font-size:14px">${x._html}</button>`).join("");
+    kutu.style.display="block";
+    kutu.querySelectorAll(".sOne").forEach(b=>b.addEventListener("mousedown", e=>{ e.preventDefault(); sec(liste[+b.dataset.i]); kapat(); }));
+  }
+  input.addEventListener("input", ()=>{ clearTimeout(zaman); const v=input.value; zaman=setTimeout(async ()=>{ try{ ac(await getir(v)); }catch(e){ kapat(); } }, 180); });
+  input.addEventListener("blur", ()=>setTimeout(kapat, 180));
+}
+const SONE_STIL = "display:none;border:1px solid var(--cizgi);border-top:none;border-radius:0 0 10px 10px;max-height:220px;overflow:auto;margin-bottom:8px";
 let S_SES_SON = 0;
 function sBul(id){ return S.kayit.find(o=>o.id===id); }
 
@@ -2201,6 +2229,7 @@ function sCiz(){
   const adayAll = sAdayAcik();
   const dbEksikAll = sEksikDbAcik();
   const acik = sSuz(acikAll), aday = sSuz(adayAll), dbEksik = sSuz(dbEksikAll);
+  const gizliAll = sGizliAcik();
   const yeniSay = adayAll.length + dbEksikAll.length;
   const son = S.eksikDb&&S.eksikDb.zaman ? "Otomatik güncel: "+tarihSaat(S.eksikDb.zaman) : "Rx'ten otomatik eksik reçeteler buraya düşer";
   let g = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
@@ -2215,7 +2244,8 @@ function sCiz(){
     <div class="hcipler">
       <button class="hcip ${S.gorunum==="bekleyen"?"secili":""}" type="button" data-sg="bekleyen">🆕 Eksik reçeteler <b>${yeniSay}</b></button>
       <button class="hcip ${S.gorunum==="aktif"?"secili":""}" type="button" data-sg="aktif">📦 Aktif siparişler <b>${acikAll.length}</b></button>
-      <button class="hcip ${S.gorunum==="arsiv"?"secili":""}" type="button" data-sg="arsiv" style="margin-left:auto">🗂️ Arşiv</button>
+      <button class="hcip ${S.gorunum==="gizli"?"secili":""}" type="button" data-sg="gizli" style="margin-left:auto">🙈 Gizlenenler <b>${gizliAll.length}</b></button>
+      <button class="hcip ${S.gorunum==="arsiv"?"secili":""}" type="button" data-sg="arsiv">🗂️ Arşiv</button>
     </div>`;
   if(S.gorunum==="bekleyen"){
     let b = "";
@@ -2224,6 +2254,10 @@ function sCiz(){
     g += b || `<div class="hkart"><p class="hkucuk" style="margin:0">${S.ara?"Aramana uyan eksik reçete yok.":"Şu an eksik reçete yok. Rx'te karekodu tamamlanmamış SGK reçetesi oldukça <b>otomatik</b> burada görünür."}</p></div>`;
   } else if(S.gorunum==="aktif"){
     g += acik.length ? acik.map(sKart).join("") : `<div class="hkart"><p class="hkucuk" style="margin:0">${S.ara?"Aramana uyan aktif sipariş yok.":"Aktif sipariş yok."}</p></div>`;
+  } else if(S.gorunum==="gizli"){
+    const giz = sSuz(gizliAll);
+    g += giz.length ? `<div class="hbolum"><h2>Gizlenen reçeteler <span class="say">${giz.length}</span></h2>${giz.map(sGizliKart).join("")}</div>`
+                    : `<div class="hkart"><p class="hkucuk" style="margin:0">${S.ara?"Aramana uyan gizli kayıt yok.":"Gizlenen reçete yok. Eksik listesinde ‘Gizle’ dediklerin buraya düşer, buradan geri alabilirsin."}</p></div>`;
   } else {
     const ars = sSuz(S.kayit.filter(o=>o.durum==="teslim")).slice().reverse();
     g += ars.length ? `<div class="hbolum"><h2>Teslim edilenler <span class="say">${ars.length}</span></h2>${ars.map(sKart).join("")}</div>`
@@ -2240,6 +2274,7 @@ function sCiz(){
   document.querySelectorAll("[data-sred]").forEach(b=>b.addEventListener("click", ()=>sAdayRed(b.dataset.sred)));
   document.querySelectorAll("[data-soldb]").forEach(b=>b.addEventListener("click", ()=>sOlusturFormDb(b.dataset.soldb)));
   document.querySelectorAll("[data-sgiz]").forEach(b=>b.addEventListener("click", ()=>sGizle(b.dataset.sgiz)));
+  document.querySelectorAll("[data-sgal]").forEach(b=>b.addEventListener("click", ()=>sGeriAl(b.dataset.sgal)));
   document.querySelectorAll("[data-sdur]").forEach(b=>b.addEventListener("click", ()=>sDurumGecir(b.dataset.sid, b.dataset.sdur)));
   document.querySelectorAll("[data-swa]").forEach(b=>b.addEventListener("click", ()=>sWhatsapp(b.dataset.swa)));
   document.querySelectorAll("[data-syer]").forEach(b=>b.addEventListener("click", ()=>sYerSec(b.dataset.syer)));
@@ -2281,6 +2316,15 @@ async function sGizle(rec){
   S.eksikGizli = S.eksikGizli||[]; if(!S.eksikGizli.includes(rec)) S.eksikGizli.push(rec);
   await sGizliKaydet(); sCiz();
 }
+// gizlenen ama hâlâ feed'de olan (Rx'te tamamlanmamış) reçeteler
+function sGizliAcik(){ const g=new Set(S.eksikGizli||[]); return ((S.eksikDb&&S.eksikDb.liste)||[]).filter(r=>g.has(r.rec)); }
+function sGizliKart(r){
+  const il = (r.ilac||[]).map(x=>{ const yok=(x.stok||0)<=0; return `<div class="hilac"><span class="n">${kacis(x.ad)}</span><span class="hetk">${x.yaz} yazılan</span><span class="hetk ${yok?'kirmizi':''}">stok ${x.stok}</span></div>`; }).join("");
+  return `<div class="hkart"><div class="ad">${kacis(r.ad||"(isim yok)")} <span class="hkucuk">· ${kacis(r.rec)}${r.tarih?" · "+kacis(r.tarih):""} · 🙈 gizli</span></div>
+    <div class="hdugmeler"><button class="wa" type="button" data-sgal="${kacis(r.rec)}">↩️ Geri al</button></div>
+    <div class="ilaclar">${il}</div></div>`;
+}
+async function sGeriAl(rec){ S.eksikGizli=(S.eksikGizli||[]).filter(x=>x!==rec); await sGizliKaydet(); sCiz(); }
 async function sOlusturFormDb(rec){
   const r = ((S.eksikDb&&S.eksikDb.liste)||[]).find(x=>x.rec===rec); if(!r) return;
   let oz = {};
@@ -2437,32 +2481,46 @@ async function sSil(id){ if(!confirm("Bu siparişi silmek istediğine emin misin
 // ---- Elden sipariş (reçete dışı, elle) ----
 function sEldenForm(){
   const milCip = S_MILLET.map(m=>`<button type="button" class="hcip ${m[0]==="TR"?"secili":""}" data-mv="${m[0]}">${bayrak(m[1])} ${m[2]}</button>`).join("");
-  let say=1;
-  const satir = (i)=>`<div class="hilac" data-er="${i}" style="align-items:center;gap:6px">
-      <input placeholder="İlaç adı" data-en="${i}" style="flex:1;padding:8px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
-      <input type="number" min="1" value="1" data-ea="${i}" style="width:60px;padding:8px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
-      <button class="hcip" type="button" data-esil="${i}" title="Satırı sil" style="padding:6px 9px;color:#C0552E">×</button></div>`;
+  let say=1, eTc="";
+  const alanStil="flex:1;padding:8px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)";
+  const satir = (i)=>`<div data-erw="${i}" style="margin-bottom:6px">
+      <div class="hilac" data-er="${i}" style="align-items:center;gap:6px">
+        <input placeholder="İlaç adı veya barkod" data-en="${i}" autocomplete="off" style="${alanStil}">
+        <input type="number" min="1" value="1" data-ea="${i}" style="width:60px;padding:8px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
+        <button class="hcip" type="button" data-esil="${i}" title="Satırı sil" style="padding:6px 9px;color:#C0552E">×</button></div>
+      <div data-eone="${i}" style="${SONE_STIL}"></div></div>`;
   $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
     <div class="liste-ust"><div><h1>➕ Elden sipariş</h1><p>Reçete dışı — hasta elden ilaç istedi</p></div></div>
     <div class="hkart">
-      <label class="alan"><span>Hasta adı</span><input id="eAd" placeholder="Ad Soyad"></label>
+      <label class="alan"><span>Hasta adı <span class="hkucuk">(Rx'te kayıtlıysa yazarken çıkar)</span></span><input id="eAd" autocomplete="off" placeholder="Ad Soyad"></label>
+      <div id="eAdOne" style="${SONE_STIL}"></div>
       <label class="alan" style="margin-top:8px"><span>Telefon (WhatsApp)</span><input id="sTel" type="tel" placeholder="05xx xxx xx xx"></label>
       <div class="alan" style="margin-top:10px"><span>Milliyet (mesaj dili)</span><div class="hcipler" id="sMilCip">${milCip}</div></div><input type="hidden" id="sMil" value="TR">
       <div class="alan" style="margin-top:10px"><span>İlaçlar</span><div id="eIlac">${satir(0)}</div><button class="hcip" id="eEkle" type="button" style="margin-top:6px">+ İlaç ekle</button></div>
       ${SODEME_HTML}
       <button class="ana-dugme" id="sOnayla" type="button" style="margin-top:12px">Siparişi oluştur</button></div>`;
   document.querySelectorAll("#sMilCip [data-mv]").forEach(b=>b.addEventListener("click", ()=>{ $("#sMil").value=b.dataset.mv; document.querySelectorAll("#sMilCip .hcip").forEach(x=>x.classList.remove("secili")); b.classList.add("secili"); }));
-  function silBagla(){ document.querySelectorAll("[data-esil]").forEach(b=>{ b.onclick=()=>{ if(document.querySelectorAll("#eIlac [data-er]").length<=1) return; b.closest("[data-er]").remove(); }; }); }
+  // hasta adı otomatik tamamlama (tüm Rx hastaları)
+  sHastaYukle();
+  sOneriKutu($("#eAd"), $("#eAdOne"),
+    async v=> sHastaAra(v).map(h=>({...h, _html:`${kacis(h.ad)}${h.tel?` <span style="color:var(--soluk)">· ${kacis(h.tel)}</span>`:""}`})),
+    h=>{ $("#eAd").value=h.ad; eTc=h.tc||""; if(h.tel && !$("#sTel").value.trim()) $("#sTel").value=h.tel; });
+  // ilaç otomatik tamamlama (urun_ozet) — her satıra
+  function ilacBagla(i){ const inp=document.querySelector(`[data-en="${i}"]`), kutu=document.querySelector(`[data-eone="${i}"]`); if(!inp||!kutu) return;
+    sOneriKutu(inp, kutu, async v=> (await sIlacAra(v)).map(u=>({_html:`${kacis(u.ad)} <span style="color:var(--soluk)">· stok ${u.stok??0}${u.adet_90!=null?` · 90g ${u.adet_90}`:""}</span>`, ad:u.ad, bar:u.barkod, stok:u.stok, adet_90:u.adet_90})),
+      u=>{ inp.value=u.ad; inp.dataset.eb=u.bar||""; inp.dataset.enot=[(u.adet_90!=null?"90g "+u.adet_90:""),(u.stok!=null?"stok "+u.stok:"")].filter(Boolean).join(" · "); }); }
+  ilacBagla(0);
+  function silBagla(){ document.querySelectorAll("[data-esil]").forEach(b=>{ b.onclick=()=>{ if(document.querySelectorAll("#eIlac [data-er]").length<=1) return; b.closest("[data-erw]").remove(); }; }); }
   silBagla();
-  $("#eEkle").addEventListener("click", ()=>{ $("#eIlac").insertAdjacentHTML("beforeend", satir(say++)); silBagla(); });
+  $("#eEkle").addEventListener("click", ()=>{ const i=say++; $("#eIlac").insertAdjacentHTML("beforeend", satir(i)); ilacBagla(i); silBagla(); });
   sOdemeBagla();
   $("#sOnayla").addEventListener("click", async ()=>{
     const adSoyad = $("#eAd").value.trim(); if(!adSoyad) return alert("Hasta adı gerekli.");
-    const ad=[]; document.querySelectorAll("#eIlac [data-er]").forEach(row=>{ const nm=row.querySelector("[data-en]").value.trim(); if(!nm) return; const n=Math.max(1,parseInt(row.querySelector("[data-ea]").value)||1); ad.push({ad:nm,adet:n}); });
+    const ad=[]; document.querySelectorAll("#eIlac [data-en]").forEach(inp=>{ const nm=inp.value.trim(); if(!nm) return; const row=inp.closest("[data-er]"); const n=Math.max(1,parseInt(row.querySelector("[data-ea]").value)||1); const it={ad:nm,adet:n}; if(inp.dataset.eb) it.bar=inp.dataset.eb; if(inp.dataset.enot) it.not=inp.dataset.enot; ad.push(it); });
     if(!ad.length) return alert("En az bir ilaç yaz.");
     const tel=$("#sTel").value.trim();
-    const o={ id:"s"+Date.now().toString(36), kaynak:"elden", rec:"ELDEN", prot:"", ad:adSoyad, tc:"", tel, mil:$("#sMil").value, ilac:ad, odeme:sOdemeOku(), durum:"verildi", tarih:new Date().toISOString(), sira:{verildi:new Date().toISOString()} };
-    S.kayit.push(o); await sKaydet(); await sTelHatirla("", adSoyad, tel);
+    const o={ id:"s"+Date.now().toString(36), kaynak:"elden", rec:"ELDEN", prot:"", ad:adSoyad, tc:eTc, tel, mil:$("#sMil").value, ilac:ad, odeme:sOdemeOku(), durum:"verildi", tarih:new Date().toISOString(), sira:{verildi:new Date().toISOString()} };
+    S.kayit.push(o); await sKaydet(); await sTelHatirla(eTc, adSoyad, tel);
     S.gorunum="aktif"; siparisSayfasi();
   });
 }
