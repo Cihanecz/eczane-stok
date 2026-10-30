@@ -2082,7 +2082,7 @@ function hSablonDuzenle(){
      ayar.siparisler  : web yazar — onaylanan siparişler + durum
      ayar.siparis_ayar: yerler + ses (PII değil, düz JSON)
    ===================================================================== */
-const S = { aday:null, kayit:[], ayar:{ yerler:["Banko","Buzdolabı"], ses:true }, gorunum:"bekleyen" };
+const S = { aday:null, kayit:[], eksikDb:{zaman:null,liste:[]}, eksikGizli:[], ayar:{ yerler:["Banko","Buzdolabı"], ses:true }, gorunum:"bekleyen" };
 const S_DURUM_AD = { verildi:"🟠 Sipariş verildi", geldi:"📦 Geldi", hazir:"✅ Hazırlandı", haber:"💬 Haber verildi", teslim:"🎉 Teslim edildi" };
 const S_MILLET = [["TR","tr","Türkçe"],["EN","gb","İngilizce"],["DE","de","Almanca"],["RU","ru","Rusça"],["AR","sa","Arapça"],["FA","ir","Farsça"],["UK","ua","Ukraynaca"],["FR","fr","Fransızca"],["ES","es","İspanyolca"],["PT","pt","Portekizce"]];
 const bayrak = cc => `<img src="https://flagcdn.com/20x15/${cc}.png" srcset="https://flagcdn.com/40x30/${cc}.png 2x" width="20" height="15" alt="" style="border-radius:2px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(0,0,0,.08)">`;
@@ -2110,11 +2110,14 @@ async function siparisSayfasi(){
   if(!tuz || !kont){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button><div class="liste-ust"><div><h1>📦 Sipariş</h1><p>Önce <b>Hastalar</b> ekranından hasta şifresini belirle; sipariş verileri de o şifreyle korunur.</p></div></div>`; return; }
   if(!await hAnahtarHazirla(kont.deger)) return sSifreSor(tuz.deger, kont.deger);
   try {
-    const [a, s, son, cfg] = await Promise.all([ayarOku("sgk_aday"), ayarOku("siparisler"), ayarOku("sgk_son"), ayarOku("siparis_ayar")]);
+    const [a, s, son, cfg, edb, egz] = await Promise.all([ayarOku("sgk_aday"), ayarOku("siparisler"), ayarOku("sgk_son"), ayarOku("siparis_ayar"), ayarOku("sgk_eksik_db"), ayarOku("sgk_eksik_gizli")]);
     S.aday = a ? JSON.parse(await hCoz(H.anahtar, a.deger)) : { sonZaman:null, liste:[] };
     if(!S.aday.liste) S.aday.liste = [];
     S.kayit = s ? JSON.parse(await hCoz(H.anahtar, s.deger)) : [];
     if(cfg){ try{ S.ayar = Object.assign(S.ayar, JSON.parse(cfg.deger)); }catch(e){} }
+    try { S.eksikDb = edb ? JSON.parse(await hCoz(H.anahtar, edb.deger)) : { zaman:null, liste:[] }; } catch(e){ S.eksikDb = { zaman:null, liste:[] }; }
+    if(!S.eksikDb.liste) S.eksikDb.liste = [];
+    try { S.eksikGizli = egz ? JSON.parse(await hCoz(H.anahtar, egz.deger)) : []; } catch(e){ S.eksikGizli = []; }
     if(son){ try{ await sSonBirlestir(JSON.parse(await hCoz(H.anahtar, son.deger))); }catch(e){} }
   } catch(e){ return hataGoster(e); }
   sCiz();
@@ -2142,8 +2145,12 @@ function sYoklamaBaslat(){
     if(location.hash.replace(/^#/,"")!=="siparis"){ clearInterval(S_YOKLA); S_YOKLA=null; return; }
     if(!H.anahtar) return;
     try{
+      let degisti=false, sesCal=false;
       const son = await ayarOku("sgk_son");
-      if(son){ const c = JSON.parse(await hCoz(H.anahtar, son.deger)); if(c.zaman && c.zaman!==S.aday.sonZaman){ if(await sSonBirlestir(c)){ if(S.ayar.ses) sSesCal(c.ad); sCiz(); } } }
+      if(son){ const c = JSON.parse(await hCoz(H.anahtar, son.deger)); if(c.zaman && c.zaman!==S.aday.sonZaman){ if(await sSonBirlestir(c)){ degisti=true; sesCal=true; } } }
+      const edb = await ayarOku("sgk_eksik_db");
+      if(edb){ const e = JSON.parse(await hCoz(H.anahtar, edb.deger)); if(e.zaman && e.zaman!==(S.eksikDb&&S.eksikDb.zaman)){ const onceki=sEksikDbAcik().length; S.eksikDb=e; if(!S.eksikDb.liste)S.eksikDb.liste=[]; degisti=true; if(sEksikDbAcik().length>onceki) sesCal=true; } }
+      if(degisti){ if(sesCal && S.ayar.ses) sSesCal(); sCiz(); }
     }catch(e){}
   }, 2000);
 }
@@ -2166,21 +2173,25 @@ function sAdayAcik(){
 function sCiz(){
   const acik = S.kayit.filter(o=>o.durum!=="teslim");
   const aday = sAdayAcik();
-  const son = S.aday&&S.aday.sonZaman ? "Son tarama: "+tarihSaat(S.aday.sonZaman) : "Henüz tarama gelmedi (Medula Listele ekranında Ctrl+Shift+D)";
+  const dbEksik = sEksikDbAcik();
+  const yeniSay = aday.length + dbEksik.length;
+  const son = S.eksikDb&&S.eksikDb.zaman ? "Otomatik güncel: "+tarihSaat(S.eksikDb.zaman) : "Rx'ten otomatik eksik reçeteler buraya düşer";
   let g = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
-    <div class="liste-ust"><div><h1>📦 Sipariş Takibi</h1><p>${son} · ${aday.length} yeni eksik reçete · ${acik.length} aktif sipariş</p></div>
+    <div class="liste-ust"><div><h1>📦 Sipariş Takibi</h1><p>${son} · ${yeniSay} eksik reçete · ${acik.length} aktif sipariş</p></div>
       <div style="display:flex;align-items:center;gap:12px">
-        <button class="hcip" id="sYenile" type="button" title="Yeni taramaları getir">🔄 Yenile</button>
+        <button class="hcip" id="sYenile" type="button" title="Yenile">🔄 Yenile</button>
         <label class="hkucuk" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="sSes" ${S.ayar.ses?"checked":""}> 🔔 Sesli uyarı</label>
       </div></div>
     <div class="hcipler">
-      <button class="hcip ${S.gorunum==="bekleyen"?"secili":""}" type="button" data-sg="bekleyen">🆕 Yeni eksikler <b>${aday.length}</b></button>
+      <button class="hcip ${S.gorunum==="bekleyen"?"secili":""}" type="button" data-sg="bekleyen">🆕 Eksik reçeteler <b>${yeniSay}</b></button>
       <button class="hcip ${S.gorunum==="aktif"?"secili":""}" type="button" data-sg="aktif">📦 Aktif siparişler <b>${acik.length}</b></button>
       <button class="hcip ${S.gorunum==="arsiv"?"secili":""}" type="button" data-sg="arsiv" style="margin-left:auto">🗂️ Arşiv</button>
     </div>`;
   if(S.gorunum==="bekleyen"){
-    g += aday.length ? `<div class="hbolum"><h2>SGK reçetesi bekleyenler <span class="say">${aday.length}</span></h2>${aday.map(sAdayKart).join("")}</div>`
-                     : `<div class="hkart"><p class="hkucuk" style="margin:0">Şu an siparişe alınacak yeni eksik reçete yok. Medula <b>Listele</b> ekranında <b>Ctrl+Shift+D</b> ile taratırsan (okutulmayan ilaçlar) burada görünür.</p></div>`;
+    let b = "";
+    if(dbEksik.length) b += `<div class="hbolum"><h2>Eksik SGK reçeteleri <span class="say">${dbEksik.length}</span></h2>${dbEksik.map(sEksikDbKart).join("")}</div>`;
+    if(aday.length)    b += `<div class="hbolum"><h2>Elle taranan <span class="say">${aday.length}</span></h2>${aday.map(sAdayKart).join("")}</div>`;
+    g += b || `<div class="hkart"><p class="hkucuk" style="margin:0">Şu an eksik reçete yok. Rx'te karekodu tamamlanmamış SGK reçetesi oldukça <b>otomatik</b> burada görünür.</p></div>`;
   } else if(S.gorunum==="aktif"){
     g += acik.length ? acik.map(sKart).join("") : `<div class="hkart"><p class="hkucuk" style="margin:0">Aktif sipariş yok.</p></div>`;
   } else {
@@ -2194,6 +2205,8 @@ function sCiz(){
   document.querySelectorAll("[data-sg]").forEach(b=>b.addEventListener("click", ()=>{ S.gorunum=b.dataset.sg; sCiz(); }));
   document.querySelectorAll("[data-sol]").forEach(b=>b.addEventListener("click", ()=>sOlusturForm(b.dataset.sol)));
   document.querySelectorAll("[data-sred]").forEach(b=>b.addEventListener("click", ()=>sAdayRed(b.dataset.sred)));
+  document.querySelectorAll("[data-soldb]").forEach(b=>b.addEventListener("click", ()=>sOlusturFormDb(b.dataset.soldb)));
+  document.querySelectorAll("[data-sgiz]").forEach(b=>b.addEventListener("click", ()=>sGizle(b.dataset.sgiz)));
   document.querySelectorAll("[data-sdur]").forEach(b=>b.addEventListener("click", ()=>sDurumGecir(b.dataset.sid, b.dataset.sdur)));
   document.querySelectorAll("[data-swa]").forEach(b=>b.addEventListener("click", ()=>sWhatsapp(b.dataset.swa)));
   document.querySelectorAll("[data-syer]").forEach(b=>b.addEventListener("click", ()=>sYerSec(b.dataset.syer)));
@@ -2210,6 +2223,61 @@ function sAdayKart(r){
 async function sAdayRed(rec){
   S.aday.liste = (S.aday.liste||[]).filter(r=>r.rec!==rec);
   await sAdayKaydet(); sCiz();
+}
+/* ---- DB tabanlı eksik (rx-eksik.ps1 feed -> sgk_eksik_db): karekodu tamamlanmamis
+   SGK receteleri. Otomatik, OCR'siz, tum PC'lerde. Siparis verilince (alinmis) ya da
+   gizlenince listeden duser; recete Rx'te tamamlaninca feed'den de duser. ---- */
+function sEksikDbAcik(){
+  const alinmis = new Set(S.kayit.filter(o=>o.kaynak==="sgk").map(o=>o.rec));
+  const gizli = new Set(S.eksikGizli||[]);
+  return ((S.eksikDb&&S.eksikDb.liste)||[]).filter(r=>!alinmis.has(r.rec) && !gizli.has(r.rec));
+}
+function sEksikDbKart(r){
+  const il = (r.ilac||[]).map(x=>{
+    const yok = (x.stok||0)<=0;
+    return `<div class="hilac"><span class="n">${kacis(x.ad)}</span><span class="hetk">${x.yaz} yazılan</span><span class="hetk ${yok?'kirmizi':''}">stok ${x.stok}</span></div>`;
+  }).join("");
+  return `<div class="hkart"><div class="ad">${kacis(r.ad||"(isim yok)")} <span class="hkucuk">· ${kacis(r.rec)}${r.tarih?" · "+kacis(r.tarih):""} · <b style="color:#C0552E">karekod eksik</b></span></div>
+    <div class="hdugmeler"><button class="wa" type="button" data-soldb="${kacis(r.rec)}">✅ Sipariş oluştur</button>
+      <button class="hcip" type="button" data-sgiz="${kacis(r.rec)}" title="Bu reçeteyi gizle">✖ Gizle</button></div>
+    <div class="ilaclar">${il}</div></div>`;
+}
+async function sGizliKaydet(){ try{ await ayarYaz("sgk_eksik_gizli", await hSifrele(H.anahtar, JSON.stringify(S.eksikGizli||[]))); }catch(e){} }
+async function sGizle(rec){
+  S.eksikGizli = S.eksikGizli||[]; if(!S.eksikGizli.includes(rec)) S.eksikGizli.push(rec);
+  await sGizliKaydet(); sCiz();
+}
+async function sOlusturFormDb(rec){
+  const r = ((S.eksikDb&&S.eksikDb.liste)||[]).find(x=>x.rec===rec); if(!r) return;
+  let oz = {};
+  try { const barlar=(r.ilac||[]).map(x=>x.bar).filter(Boolean); if(barlar.length){ const {data}=await db.from("urun_ozet").select("barkod,adet_90,kac_ay_yeter,stok").in("barkod",barlar); for(const u of data||[]) oz[u.barkod]=u; } } catch(e){}
+  const satir = (r.ilac||[]).map((x,i)=>{
+    const u=oz[x.bar]||{}; const yok=(x.stok||0)<=0;
+    const s90 = u.adet_90!=null ? ("90 günde "+u.adet_90+" sattı") : "satış verisi yok";
+    const ay = (u.kac_ay_yeter!=null && u.kac_ay_yeter>0) ? (" · ~"+Number(u.kac_ay_yeter).toFixed(1)+" ay yeter") : "";
+    return `<div class="hilac" style="align-items:center">
+      <label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;min-width:0"><input type="checkbox" data-sc="${i}" ${yok?"checked":""}>
+        <span class="n">${kacis(x.ad)} <span class="hkucuk">${s90}${ay} · stok ${x.stok||0}</span></span></label>
+      <input type="number" min="1" value="${x.yaz||1}" data-si="${i}" style="width:66px;padding:6px;border:1px solid var(--cizgi);border-radius:8px;background:var(--yuzey);color:var(--murekkep)">
+      <span class="hkucuk">adet</span></div>`;
+  }).join("");
+  const milCip = S_MILLET.map(m=>`<button type="button" class="hcip ${m[0]==="TR"?"secili":""}" data-mv="${m[0]}">${bayrak(m[1])} ${m[2]}</button>`).join("");
+  $("#icerik").innerHTML = `<button class="geri" type="button" onclick="sCiz()">‹ Geri</button>
+    <div class="liste-ust"><div><h1>Sipariş oluştur</h1><p>${kacis(r.ad||"")} · ${kacis(r.rec)} · <span class="hkucuk">işaretli ilaçlar sipariş edilir (stoksuzlar ön-işaretli)</span></p></div></div>
+    <div class="hkart"><div class="ilaclar">${satir}</div>
+      <div class="alan" style="margin-top:12px"><span>Milliyet (mesaj dili)</span><div class="hcipler" id="sMilCip">${milCip}</div></div><input type="hidden" id="sMil" value="TR">
+      <label class="alan"><span>Telefon (WhatsApp)</span><input id="sTel" type="tel" value="${kacis(r.tel||"")}" placeholder="05xx xxx xx xx"></label>
+      <button class="ana-dugme" id="sOnayla" type="button" style="margin-top:12px">Siparişi oluştur</button></div>`;
+  document.querySelectorAll("#sMilCip [data-mv]").forEach(b=>b.addEventListener("click", ()=>{ $("#sMil").value=b.dataset.mv; document.querySelectorAll("#sMilCip .hcip").forEach(x=>x.classList.remove("secili")); b.classList.add("secili"); }));
+  $("#sOnayla").addEventListener("click", async ()=>{
+    const ad = [];
+    document.querySelectorAll("[data-sc]").forEach(chk=>{ if(!chk.checked) return; const i=+chk.dataset.sc; const inp=document.querySelector(`[data-si="${i}"]`); const n=Math.max(1,parseInt(inp&&inp.value)||1); const x=r.ilac[i]; ad.push({ad:x.ad,bar:x.bar,adet:n}); });
+    if(!ad.length) return alert("En az bir ilaç seçin.");
+    const o = { id:"s"+Date.now().toString(36), kaynak:"sgk", rec:r.rec, prot:r.erec||"", ad:r.ad, tc:r.tc, tel:$("#sTel").value.trim(), mil:$("#sMil").value, ilac:ad, durum:"verildi", tarih:new Date().toISOString(), sira:{verildi:new Date().toISOString()} };
+    S.kayit.push(o);
+    await sKaydet();
+    S.gorunum="aktif"; siparisSayfasi();
+  });
 }
 function sKart(o){
   const il = (o.ilac||[]).map(x=>`<div class="hilac"><span class="n">${kacis(x.ad)}</span><span class="hetk">${x.adet} adet</span></div>`).join("");
