@@ -87,7 +87,9 @@ function TaraGiris($w1,$b,$hBar){
     $ilac += [pscustomobject]@{ bar=$bk.T; adet=[int]$adet; ad=$iad }
     $dbg += " $($bk.T):a$adet"
   }
-  $script:KKDBG = "GIRIS ad='$ad' tel='$tel' tc=$tc rec=$rec adi@$ax-$sx ilac=$($ilac.Count) |$dbg"
+  $nums=(@($w1|?{ $_.T -match '\d{4,}' }|Sort-Object Y,X|%{ "$($_.T)[$($_.X),$($_.Y)]" }|Select-Object -First 14) -join ' ')
+  $hdrs=(@($w1|?{ $_.T -match '^(Barkod|Stok|Verilebilece|Tel|No)' }|%{ "$($_.T)[$($_.X),$($_.Y)]" }|Select-Object -First 14) -join ' ')
+  $script:KKDBG = "GIRIS ad='$ad' tel='$tel' ilac=$($ilac.Count) adi@$ax-$sx |$dbg || NUM: $nums || HDR: $hdrs"
   if($ilac.Count -eq 0){ return $null }
   return [pscustomobject]@{ mod='giris'; ad=$ad; tel=$tel; tc=$tc; rec=$rec; ilac=$ilac }
 }
