@@ -2602,7 +2602,7 @@ async function sAlimKontrol(){
 }
 function sSesCal(){
   if(Date.now()-S_SES_SON < 1500) return; S_SES_SON=Date.now();
-  try { const u = new SpeechSynthesisUtterance("Sipariş geldi"); u.lang="tr-TR"; speechSynthesis.speak(u); } catch(e){}  // gizlilik: hasta adı söylenmez
+  try { const u = new SpeechSynthesisUtterance("Sipaariş geldi"); u.lang="tr-TR"; u.rate=0.8; u.pitch=1; speechSynthesis.speak(u); } catch(e){}  // gizlilik: hasta adı söylenmez; yavaş ve net okunsun diye
 }
 function sWhatsapp(id){
   const o = sBul(id); if(!o) return; const t = telNo(o.tel); if(!t) return alert("Telefon numarası yok veya geçersiz.");
