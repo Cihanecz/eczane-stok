@@ -2122,6 +2122,7 @@ function sTelAnahtar(tc,ad){ return (String(tc||"").trim() || ("ad:"+String(ad||
 function sTelBul(tc,ad){ const k=sTelAnahtar(tc,ad); return (S.tel&&S.tel[k]) || ""; }
 async function sTelHatirla(tc,ad,tel){ const t=telNo(tel); const k=sTelAnahtar(tc,ad); if(!k) return; if(t){ S.tel[k]=tel; } await sTelDepoKaydet(); }
 async function sTelDepoKaydet(){ try { await ayarYaz("siparis_tel", await hSifrele(H.anahtar, JSON.stringify(S.tel||{}))); } catch(e){} }
+function sTelUnutBagla(tc,ad){ const b=$("#sTelUnut"); if(!b) return; b.addEventListener("click", async ()=>{ delete S.tel[sTelAnahtar(tc,ad)]; await sTelDepoKaydet(); const t=$("#sTel"); if(t) t.value=""; b.remove(); }); }
 function sSuz(list){ const q=(S.ara||"").trim().toLocaleLowerCase("tr"); if(!q) return list; return list.filter(o=>(((o.ad||"")+" "+(o.rec||"")).toLocaleLowerCase("tr")).includes(q)); }
 // ---- Elden siparişte otomatik tamamlama ----
 // tüm hasta kartları (rx-kart feed -> hasta_kart, şifreli); bir kez yüklenip önbelleğe alınır
@@ -2316,7 +2317,7 @@ function sEksikDbKart(r){
     const yok = (x.stok||0)<=0;
     return `<div class="hilac"><span class="n">${kacis(x.ad)}</span><span class="hetk">${x.yaz} yazılan</span><span class="hetk ${yok?'kirmizi':''}">stok ${x.stok}</span></div>`;
   }).join("");
-  return `<div class="hkart"><div class="ad">${kacis(r.ad||"(isim yok)")} <span class="hkucuk">· ${kacis(r.rec)}${r.tarih?" · "+kacis(r.tarih):""} · <b style="color:#C0552E">karekod eksik</b></span></div>
+  return `<div class="hkart"><div class="ad">${kacis(r.ad||"(isim yok)")} <span class="hkucuk">· ${kacis(r.rec)}${r.tarih?" · "+kacis(r.tarih):""} · <b style="color:#C0552E">karekod eksik</b>${r.tutar>0?` · 💰 hasta ${sPara(r.tutar)}`:""}</span></div>
     <div class="hdugmeler"><button class="wa" type="button" data-soldb="${kacis(r.rec)}">✅ Sipariş oluştur</button>
       <button class="hcip" type="button" data-sgiz="${kacis(r.rec)}" title="Bu reçeteyi gizle">✖ Gizle</button></div>
     <div class="ilaclar">${il}</div></div>`;
@@ -2355,11 +2356,13 @@ async function sOlusturFormDb(rec){
     <div class="hkart"><div class="ilaclar">${satir}</div>
       <div class="alan" style="margin-top:12px"><span>Milliyet (mesaj dili)</span><div class="hcipler" id="sMilCip">${milCip}</div></div><input type="hidden" id="sMil" value="TR">
       <label class="alan"><span>Telefon (WhatsApp)</span><input id="sTel" type="tel" value="${kacis(r.tel||sTelBul(r.tc,r.ad)||"")}" placeholder="05xx xxx xx xx"></label>
+      ${sTelBul(r.tc,r.ad)?`<button class="hcip" id="sTelUnut" type="button" style="margin:2px 0 4px;color:#C0552E">🗑️ Kayıtlı numarayı unut</button>`:""}
       ${SODEME_HTML}
       <button class="ana-dugme" id="sOnayla" type="button" style="margin-top:12px">Siparişi oluştur</button></div>`;
   document.querySelectorAll("#sMilCip [data-mv]").forEach(b=>b.addEventListener("click", ()=>{ $("#sMil").value=b.dataset.mv; document.querySelectorAll("#sMilCip .hcip").forEach(x=>x.classList.remove("secili")); b.classList.add("secili"); }));
   if(r.tutar>0 && $("#sTop")) $("#sTop").value=r.tutar;   // Hasta Tutari otomatik on-dolum (duzenlenebilir)
   sOdemeBagla();
+  sTelUnutBagla(r.tc,r.ad);
   $("#sOnayla").addEventListener("click", async ()=>{
     const ad = [];
     document.querySelectorAll("[data-sc]").forEach(chk=>{ if(!chk.checked) return; const i=+chk.dataset.sc; const inp=document.querySelector(`[data-si="${i}"]`); const n=Math.max(1,parseInt(inp&&inp.value)||1); const x=r.ilac[i]; const u=oz[x.bar]||{}; const not=[(u.adet_90!=null?"90g "+u.adet_90:""),(u.stok!=null?"stok "+u.stok:"")].filter(Boolean).join(" · "); ad.push({ad:x.ad,bar:x.bar,adet:n,not}); });
@@ -2458,10 +2461,12 @@ async function sOlusturForm(rec){
     <div class="hkart"><div class="ilaclar">${satir}</div>
       <div class="alan" style="margin-top:12px"><span>Milliyet (mesaj dili)</span><div class="hcipler" id="sMilCip">${milCip}</div></div><input type="hidden" id="sMil" value="TR">
       <label class="alan"><span>Telefon (WhatsApp)</span><input id="sTel" type="tel" value="${kacis(r.tel||sTelBul(r.tc,r.ad)||"")}" placeholder="05xx xxx xx xx"></label>
+      ${sTelBul(r.tc,r.ad)?`<button class="hcip" id="sTelUnut" type="button" style="margin:2px 0 4px;color:#C0552E">🗑️ Kayıtlı numarayı unut</button>`:""}
       ${SODEME_HTML}
       <button class="ana-dugme" id="sOnayla" type="button" style="margin-top:12px">Siparişi oluştur</button></div>`;
   document.querySelectorAll("#sMilCip [data-mv]").forEach(b=>b.addEventListener("click", ()=>{ $("#sMil").value=b.dataset.mv; document.querySelectorAll("#sMilCip .hcip").forEach(x=>x.classList.remove("secili")); b.classList.add("secili"); }));
   sOdemeBagla();
+  sTelUnutBagla(r.tc,r.ad);
   $("#sOnayla").addEventListener("click", async ()=>{
     const ad = [];
     document.querySelectorAll("[data-si]").forEach(inp=>{ const i=+inp.dataset.si; const n=Math.max(1,parseInt(inp.value)||1); const x=r.ilac[i]; const u=oz[x.bar]||{}; const not=[(u.adet_90!=null?"90g "+u.adet_90:""),(u.stok!=null?"stok "+u.stok:"")].filter(Boolean).join(" · "); ad.push({ad:x.ad,bar:x.bar,adet:n,not}); });
