@@ -455,6 +455,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       <button class="ust-dugme hasta" id="saymDugme" type="button" aria-label="Stok sayımı"><span>🔢</span><span class="ek-yazi">Stok Sayımı</span></button>
       <button class="ust-dugme hasta" id="puanDugme" type="button" aria-label="Puan"><span>🎁</span><span class="ek-yazi">Puan</span></button>
       <button class="ust-dugme hasta" id="todoDugme" type="button" aria-label="To Do List"><span>✅</span><span class="ek-yazi">To Do</span></button>
+      <button class="ust-dugme hasta" id="mumDugme" type="button" aria-label="Mümessil"><span>🤝</span><span class="ek-yazi">Mümessil</span></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button" aria-label="Çıkış" title="Çıkış"><span>🚪</span><span class="ek-yazi">Çıkış</span></button>
       <button class="ust-dugme" id="yenileDugme" type="button" aria-label="Yenile" title="Her şeyi yenile"><span>🔄</span><span class="ek-yazi">Yenile</span></button>
@@ -781,12 +782,12 @@ function yonlendir(){
   document.body.dataset.ekran = (h.split("/")[0] || "ana");
   window.scrollTo(0,0);
   const _base = h.split("/")[0] || "";
-  if(["","neverelim","ilacbul","hastalar","siparis","depolar","sayim","puan","todo"].includes(_base)) SON_BOLUM = _base;
+  if(["","neverelim","ilacbul","hastalar","siparis","depolar","sayim","puan","todo","mumessil"].includes(_base)) SON_BOLUM = _base;
   if(h.startsWith("urun/")) return urunKarti(h.slice(5));
   if(h.startsWith("liste/")) return liste(h.slice(6));
   if(h.startsWith("ara/")) return aramaSonucu(h.slice(4));
   if(h.startsWith("depoara/")) return depoAraSayfasi(h.slice(8));
-  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif"); $("#ibDugme").classList.remove("aktif"); $("#siparisDugme").classList.remove("aktif"); $("#saymDugme").classList.remove("aktif"); $("#puanDugme").classList.remove("aktif"); $("#todoDugme").classList.remove("aktif");
+  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif"); $("#ibDugme").classList.remove("aktif"); $("#siparisDugme").classList.remove("aktif"); $("#saymDugme").classList.remove("aktif"); $("#puanDugme").classList.remove("aktif"); $("#todoDugme").classList.remove("aktif"); $("#mumDugme").classList.remove("aktif");
   if(h==="neverelim" || h.startsWith("neverelim/")) return neVerelim(h.slice(10));
   if(h==="ilacbul" || h.startsWith("ilacbul/")) return ilacBul(h.slice(8));
   if(h==="hastalar") return hastaSayfasi();
@@ -794,6 +795,7 @@ function yonlendir(){
   if(h==="sayim") return saymaSayfasi();
   if(h==="puan") return puanSayfasi();
   if(h==="todo") return todoSayfasi();
+  if(h==="mumessil") return mumSayfasi();
   if(h==="depolar") return depoSayfasi();
   return anaEkran().then(()=>{ try{ tdAnaKutu(); }catch(e){} });
 }
@@ -3262,6 +3264,164 @@ async function tdAnaKutu(){
     ic.insertBefore(kutu, ic.firstChild);
   }catch(e){}
 }
+
+/* ====== MUMESSIL SEKME ====== */
+/* ====== MÜMESSİL TAKİBİ (ana program sekmesi) — veri Supabase ayar: mum_* ====== */
+const MUM={liste:[],sozler:[],karaFirma:[],secili:null,ara:""};
+function mumTel(t){ let d=String(t||"").replace(/\D/g,""); if(d.startsWith("90"))return d; if(d.startsWith("0"))return "90"+d.slice(1); if(d.length===10)return "90"+d; return d; }
+function mumWa(tel,mesaj){ const n=mumTel(tel), m=encodeURIComponent(mesaj||""); window.open(`https://wa.me/${n}?text=${m}`,"_blank"); }
+function mumNorm(s){ return String(s||"").toLocaleLowerCase("tr").trim(); }
+function mumUuid(){ try{return crypto.randomUUID();}catch(e){return "m"+Date.now()+Math.random().toString(36).slice(2,8);} }
+function mumBugun(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+
+async function mumOku(){
+  const [a,b,c]=await Promise.all([ayarOku("mum_mumessil"),ayarOku("mum_soz"),ayarOku("mum_kara_firma")]);
+  MUM.liste = a?JSON.parse(a.deger):[];
+  MUM.sozler = b?JSON.parse(b.deger):[];
+  MUM.karaFirma = c?JSON.parse(c.deger):[];
+}
+async function mumKaydetListe(){ await ayarYaz("mum_mumessil", JSON.stringify(MUM.liste)); }
+async function mumKaydetSoz(){ await ayarYaz("mum_soz", JSON.stringify(MUM.sozler)); }
+async function mumKaydetKara(){ await ayarYaz("mum_kara_firma", JSON.stringify(MUM.karaFirma)); }
+
+function mumBul(id){ return MUM.liste.find(m=>m.id===id); }
+function mumSozleri(mumId){ return MUM.sozler.filter(s=>s.mumId===mumId); }
+function mumGecikti(s){ if(s.durum!=="bekliyor"||!s.hedef) return false; const d=new Date(s.hedef); d.setHours(23,59,59,0); return d.getTime()<Date.now(); }
+function firmaKaraMi(firma){ return MUM.karaFirma.some(f=>mumNorm(f)===mumNorm(firma) && mumNorm(firma)!==""); }
+function mumKirmizi(m){ return m.kara || firmaKaraMi(m.firma) || mumSozleri(m.id).some(mumGecikti); }
+function mumOran(mumId){ const s=mumSozleri(mumId).filter(x=>x.durum==="tuttu"||x.durum==="tutmadi"); const t=s.filter(x=>x.durum==="tuttu").length; return {tuttu:t, toplam:s.length, yuzde: s.length? Math.round(t/s.length*100):null}; }
+function mumTarihMetin(s){ if(!s.hedef) return ""; const bg=mumBugun(); const hd=new Date(s.hedef); hd.setHours(0,0,0,0); const f=Math.round((hd-bg)/864e5); return f===0?"bugün":f===1?"yarın":f<0?(-f)+" gün gecikti":f+" gün sonra"; }
+
+/* ---------- liste ---------- */
+async function mumSayfasi(){
+  $("#mumDugme").classList.add("aktif");
+  yukleniyor(); await mumOku();
+  const gec=MUM.sozler.filter(mumGecikti);
+  const q=mumNorm(MUM.ara);
+  let liste=MUM.liste;
+  if(q) liste=MUM.liste.filter(m=> mumNorm(m.firma+" "+m.ad+" "+m.soyad).includes(q) || String(m.telefon||"").includes(q.replace(/\D/g,"")));
+  liste=liste.slice().sort((a,b)=> (mumKirmizi(b)?1:0)-(mumKirmizi(a)?1:0) || mumNorm(a.firma).localeCompare(mumNorm(b.firma)));
+  const kart=m=>{ const o=mumOran(m.id); const acik=mumSozleri(m.id).filter(s=>s.durum==="bekliyor").length; const kirmizi=mumKirmizi(m); return `<button class="satir" onclick="MUM.ac('${m.id}')" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px;${kirmizi?'border:1px solid var(--kirmizi)':''}">
+    <span>${kirmizi?'🚩 ':''}<b>${kacis(m.firma||"—")}</b> · ${kacis((m.ad||"")+" "+(m.soyad||""))}<br>
+      <small style="color:var(--soluk)">${kacis(m.telefon||"")}${o.toplam?` · söz tutma %${o.yuzde} (${o.tuttu}/${o.toplam})`:""}${m.kara?' · <span style="color:var(--kirmizi)">kara liste</span>':firmaKaraMi(m.firma)?' · <span style="color:var(--kirmizi)">firma kara</span>':''}</small></span>
+    <span style="white-space:nowrap">${acik?`<b>${acik}</b> <small style="color:var(--soluk)">açık söz</small>`:""}</span></button>`; };
+  $("#icerik").innerHTML=`
+  <button class="geri" onclick="location.hash=''">‹ Ana ekran</button>
+  <div class="liste-ust"><div><h1 style="margin:0">🤝 Mümessil</h1><p style="margin:2px 0 0">${MUM.liste.length} mümessil. Söz ekle, getireceği tarihi gir; tarihi geçen sözler uyarıda kalır.</p></div>
+    <button class="ana-dugme" onclick="MUM.yeni()" style="padding:8px 12px">+ Yeni mümessil</button></div>
+  ${gec.length?`<div class="kart" style="border:1px solid var(--kirmizi);background:var(--kirmizi-acik);margin-bottom:12px"><b style="color:var(--kirmizi)">⚠️ ${gec.length} söz gecikti</b><div style="margin-top:6px;font-size:13px">${gec.slice(0,6).map(s=>{const m=mumBul(s.mumId);return `• ${kacis(m?(m.firma+" / "+m.ad):"?")} — ${kacis(s.metin.slice(0,40))} <small style="color:var(--kirmizi)">(${kacis(mumTarihMetin(s))})</small>`;}).join("<br>")}${gec.length>6?`<br>+${gec.length-6} daha`:""}</div></div>`:""}
+  <div style="margin:8px 0 12px"><input id="mumAra" type="search" value="${kacis(MUM.ara||"")}" placeholder="Firma, isim veya telefon ara…" style="width:100%;padding:11px 14px;border:1px solid var(--cizgi);border-radius:12px;font-size:16px"></div>
+  <div style="display:grid;gap:8px">${liste.length?liste.map(kart).join(""):`<div class="bos" style="padding:24px;text-align:center;color:var(--soluk)">${MUM.liste.length?"Eşleşen yok.":"Henüz mümessil yok. '+ Yeni mümessil' ile ekle."}</div>`}</div>`;
+  const inp=$("#mumAra"); if(inp) inp.addEventListener("input",()=>{ clearTimeout(MUM._t); MUM._t=setTimeout(()=>{ MUM.ara=inp.value; _mumListeYenile(); },250); });
+}
+function _mumListeYenile(){ /* arama anında filtre için hafif */ const q=mumNorm(MUM.ara); let liste=MUM.liste; if(q) liste=MUM.liste.filter(m=> mumNorm(m.firma+" "+m.ad+" "+m.soyad).includes(q) || String(m.telefon||"").includes(q.replace(/\D/g,""))); liste=liste.slice().sort((a,b)=>(mumKirmizi(b)?1:0)-(mumKirmizi(a)?1:0)||mumNorm(a.firma).localeCompare(mumNorm(b.firma)));
+  const kutu=document.querySelector("#icerik > div:last-child"); if(!kutu) return;
+  const kart=m=>{ const o=mumOran(m.id); const acik=mumSozleri(m.id).filter(s=>s.durum==="bekliyor").length; const kirmizi=mumKirmizi(m); return `<button class="satir" onclick="MUM.ac('${m.id}')" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px;${kirmizi?'border:1px solid var(--kirmizi)':''}"><span>${kirmizi?'🚩 ':''}<b>${kacis(m.firma||"—")}</b> · ${kacis((m.ad||"")+" "+(m.soyad||""))}<br><small style="color:var(--soluk)">${kacis(m.telefon||"")}${o.toplam?` · söz tutma %${o.yuzde} (${o.tuttu}/${o.toplam})`:""}</small></span><span style="white-space:nowrap">${acik?`<b>${acik}</b> <small style="color:var(--soluk)">açık söz</small>`:""}</span></button>`; };
+  kutu.innerHTML=liste.length?liste.map(kart).join(""):`<div class="bos" style="padding:24px;text-align:center;color:var(--soluk)">Eşleşen yok.</div>`;
+}
+
+/* ---------- detay ---------- */
+function mumDetay(id){
+  const m=mumBul(id); if(!m) return mumSayfasi();
+  const o=mumOran(id);
+  const sozler=mumSozleri(id).slice().sort((a,b)=> (a.durum==="bekliyor"?0:1)-(b.durum==="bekliyor"?0:1) || new Date(a.hedef||0)-new Date(b.hedef||0));
+  const acik=sozler.filter(s=>s.durum==="bekliyor"), kapali=sozler.filter(s=>s.durum!=="bekliyor");
+  const sozKart=s=>{ const gec=mumGecikti(s); return `<div class="kart" style="${gec?'border:1px solid var(--kirmizi);background:var(--kirmizi-acik)':''}">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+      <div><b>${kacis(s.metin)}</b><br><small style="color:${gec?'var(--kirmizi)':'var(--soluk)'}">🎯 ${s.hedef?kacis(new Date(s.hedef).toLocaleDateString("tr-TR")):"—"} (${kacis(mumTarihMetin(s))}) · verildi ${kacis(new Date(s.verilis).toLocaleDateString("tr-TR"))}${s.uzatma&&s.uzatma.length?` · ${s.uzatma.length} kez uzatıldı`:""}</small></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+      <button class="mini" style="border-color:var(--yesil);color:var(--yesil)" onclick="MUM.tuttu('${s.id}')">✓ Getirdi</button>
+      <button class="mini" onclick="MUM.uzat('${s.id}')">⏳ Uzat</button>
+      <button class="mini" style="border-color:var(--kirmizi);color:var(--kirmizi)" onclick="MUM.tutmadi('${s.id}')">✗ Tutmadı</button>
+      <button class="mini" style="border-color:var(--yesil);color:var(--yesil)" onclick="MUM.waSoz('${s.id}')">🟢 WhatsApp</button>
+    </div></div>`; };
+  const kapaliKart=s=>`<div class="kart" style="opacity:.8;display:flex;justify-content:space-between;gap:10px"><span>${s.durum==="tuttu"?"✓":"✗"} ${kacis(s.metin)}<br><small style="color:var(--soluk)">${s.durum==="tuttu"?"tuttu":"tutmadı"} · ${s.sonuc?kacis(new Date(s.sonuc).toLocaleDateString("tr-TR")):""}</small></span><button class="mini" onclick="MUM.sozSil('${s.id}')">sil</button></div>`;
+  $("#icerik").innerHTML=`
+  <button class="geri" onclick="mumSayfasi()">‹ Mümessiller</button>
+  <div class="liste-ust"><div><h1 style="margin:0">${kacis(m.firma||"—")}</h1>
+    <p style="margin:2px 0 0">${kacis((m.ad||"")+" "+(m.soyad||""))}${m.telefon?" · "+kacis(m.telefon):""}${o.toplam?` · <b>söz tutma %${o.yuzde}</b> (${o.tuttu}/${o.toplam})`:""}</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="ana-dugme" onclick="MUM.duzenle('${id}')" style="padding:8px 12px">✎ Düzenle</button></div></div>
+  ${mumKirmizi(m)?`<div class="kart" style="border:1px solid var(--kirmizi);background:var(--kirmizi-acik);margin-bottom:12px;color:var(--kirmizi)"><b>🚩 Dikkat:</b> ${m.kara?"Bu mümessil kara listede. ":""}${firmaKaraMi(m.firma)?"Firma kara listede. ":""}${mumSozleri(m.id).some(mumGecikti)?"Geciken sözü var. ":""}${m.karaNot?"<br><small>"+kacis(m.karaNot)+"</small>":""}</div>`:""}
+  <div class="kart" style="margin-bottom:12px">
+    <b>+ Söz ekle</b>
+    <input id="sMetin" placeholder="Ne sözü verdi? (ör. 5 kutu X getirecek, raf hediye edecek)" style="width:100%;padding:10px;border:1px solid var(--cizgi);border-radius:10px;margin-top:8px">
+    <label style="display:block;margin:8px 0 2px;font-size:13px;color:var(--soluk)">Getireceği tarih</label>
+    <input id="sHedef" type="date" style="width:100%;padding:10px;border:1px solid var(--cizgi);border-radius:10px">
+    <button class="ana-dugme" onclick="MUM.sozEkle('${id}')" style="width:100%;margin-top:10px">Söz ekle</button>
+  </div>
+  ${acik.length?`<h2 style="font-size:16px;margin:16px 0 8px">Açık sözler <span style="color:var(--soluk)">(${acik.length})</span></h2><div style="display:grid;gap:8px">${acik.map(sozKart).join("")}</div>`:`<div class="bos" style="color:var(--soluk)">Açık söz yok.</div>`}
+  ${kapali.length?`<h2 style="font-size:15px;color:var(--soluk);margin:18px 0 8px">Geçmiş (${kapali.length})</h2><div style="display:grid;gap:6px">${kapali.map(kapaliKart).join("")}</div>`:""}
+  <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="mini" style="border-color:var(--kirmizi);color:var(--kirmizi)" onclick="MUM.karaKisi('${id}')">${m.kara?"🚩 Kara listeden çıkar (kişi)":"🚩 Kişiyi kara listeye al"}</button>
+    <button class="mini" style="border-color:var(--kirmizi);color:var(--kirmizi)" onclick="MUM.karaFirmaTik('${id}')">${firmaKaraMi(m.firma)?"Firmayı kara listeden çıkar":"Firmayı kara listeye al"}</button>
+    <button class="mini" onclick="MUM.sil('${id}')">🗑 Mümessili sil</button>
+  </div>`;
+}
+
+/* ---------- form ---------- */
+function mumForm(id){
+  const m = id?mumBul(id):{id:null,firma:"",ad:"",soyad:"",telefon:""};
+  const stil="width:100%;padding:10px;border:1px solid var(--cizgi);border-radius:10px;margin-top:4px";
+  $("#icerik").innerHTML=`
+  <button class="geri" onclick="${id?`mumDetay('${id}')`:'mumSayfasi()'}">‹ Geri</button>
+  <div class="liste-ust"><div><h1>${id?"Mümessili düzenle":"Yeni mümessil"}</h1></div></div>
+  <div class="kart" style="display:grid;gap:10px;max-width:520px">
+    <label style="font-size:13px;color:var(--soluk)">Firma *<input id="mF" value="${kacis(m.firma||"")}" style="${stil}"></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label style="font-size:13px;color:var(--soluk)">Ad *<input id="mA" value="${kacis(m.ad||"")}" style="${stil}"></label>
+      <label style="font-size:13px;color:var(--soluk)">Soyad<input id="mS" value="${kacis(m.soyad||"")}" style="${stil}"></label>
+    </div>
+    <label style="font-size:13px;color:var(--soluk)">Telefon<input id="mT" value="${kacis(m.telefon||"")}" placeholder="05xx…" style="${stil}"></label>
+    <div style="display:flex;gap:10px;margin-top:6px"><button class="ana-dugme" onclick="MUM.kaydet('${id||""}')" style="flex:1">${id?"Kaydet":"Ekle"}</button>
+      <button class="mini" onclick="${id?`mumDetay('${id}')`:'mumSayfasi()'}">Vazgeç</button></div>
+  </div>`;
+}
+
+window.MUM=Object.assign(MUM,{
+  ac(id){ MUM.secili=id; mumDetay(id); },
+  yeni(){ mumForm(null); },
+  duzenle(id){ mumForm(id); },
+  async kaydet(id){
+    const firma=$("#mF").value.trim(), ad=$("#mA").value.trim();
+    if(!firma){ alert("Firma gir."); return; } if(!ad){ alert("Ad gir."); return; }
+    let m = id?mumBul(id):{id:mumUuid(),kara:false,karaNot:"",olusturma:new Date().toISOString()};
+    m.firma=firma; m.ad=ad; m.soyad=$("#mS").value.trim(); m.telefon=$("#mT").value.trim();
+    if(!id) MUM.liste.push(m);
+    // kara liste uyarısı: aynı isim/telefon daha önce kara mı
+    const benzer=MUM.liste.find(x=>x.id!==m.id && (x.kara||firmaKaraMi(x.firma)) && (mumTel(x.telefon)&&mumTel(x.telefon)===mumTel(m.telefon) || mumNorm(x.ad+x.soyad)===mumNorm(m.ad+m.soyad)));
+    await mumKaydetListe();
+    if(benzer && !id) alert("⚠️ Dikkat: Bu isim/telefon daha önce kara listeye alınmış ("+kacis(benzer.firma)+"). Sözüne güvenme.");
+    MUM.secili=m.id; mumDetay(m.id);
+  },
+  async sozEkle(mumId){
+    const metin=$("#sMetin").value.trim(); if(!metin){ alert("Söz metni gir."); return; }
+    const hedef=$("#sHedef").value; if(!hedef){ alert("Getireceği tarihi seç."); return; }
+    MUM.sozler.push({id:mumUuid(),mumId,metin,verilis:new Date().toISOString(),hedef,durum:"bekliyor",uzatma:[]});
+    await mumKaydetSoz(); mumDetay(mumId);
+  },
+  async tuttu(sid){ const s=MUM.sozler.find(x=>x.id===sid); if(!s)return; s.durum="tuttu"; s.sonuc=new Date().toISOString(); await mumKaydetSoz(); mumDetay(s.mumId); },
+  async tutmadi(sid){ const s=MUM.sozler.find(x=>x.id===sid); if(!s)return; if(!confirm("Bu söz 'tutulmadı' olarak arşive atılsın mı?"))return; s.durum="tutmadi"; s.sonuc=new Date().toISOString(); await mumKaydetSoz();
+    const m=mumBul(s.mumId); if(m && !m.kara && confirm((m.ad||"")+" kara listeye alınsın mı? (bir daha sözüne güvenme)")){ m.kara=true; m.karaNot=(m.karaNot?m.karaNot+" ":"")+"Söz tutmadı: "+s.metin.slice(0,40); await mumKaydetListe(); }
+    mumDetay(s.mumId); },
+  async uzat(sid){ const s=MUM.sozler.find(x=>x.id===sid); if(!s)return;
+    const sec=prompt("Ne kadar uzatılsın? Yaz: '2hafta', '1ay' ya da tarih (GG.AA.YYYY)","2hafta"); if(sec===null)return;
+    let yeni; const t=s.hedef?new Date(s.hedef):new Date();
+    if(/2\s*hafta/i.test(sec)){ t.setDate(t.getDate()+14); yeni=t.toISOString().slice(0,10); }
+    else if(/1\s*ay/i.test(sec)){ t.setMonth(t.getMonth()+1); yeni=t.toISOString().slice(0,10); }
+    else { const p=sec.split(/[.\/-]/); if(p.length===3){ yeni=`${p[2]}-${String(p[1]).padStart(2,"0")}-${String(p[0]).padStart(2,"0")}`; } }
+    if(!yeni){ alert("Anlaşılmadı. '2hafta', '1ay' ya da GG.AA.YYYY yaz."); return; }
+    s.uzatma=s.uzatma||[]; s.uzatma.push({eski:s.hedef,yeni,zaman:new Date().toISOString()}); s.hedef=yeni; s.durum="bekliyor";
+    await mumKaydetSoz(); mumDetay(s.mumId); },
+  waSoz(sid){ const s=MUM.sozler.find(x=>x.id===sid); if(!s)return; const m=mumBul(s.mumId); if(!m)return; if(!mumTel(m.telefon)){ alert("Telefon yok."); return; }
+    const msg=`Merhaba ${m.ad||""} ${m.soyad||""}, ${m.firma||""} — ${s.hedef?new Date(s.hedef).toLocaleDateString("tr-TR"):""} için verdiğiniz sözü ("${s.metin}") hatırlatmak istedik. Teşekkürler.`;
+    mumWa(m.telefon,msg); },
+  async sozSil(sid){ if(!confirm("Bu söz kalıcı silinsin mi?"))return; const s=MUM.sozler.find(x=>x.id===sid); MUM.sozler=MUM.sozler.filter(x=>x.id!==sid); await mumKaydetSoz(); if(s)mumDetay(s.mumId); },
+  async karaKisi(id){ const m=mumBul(id); if(!m)return; m.kara=!m.kara; if(m.kara){ m.karaNot=prompt("Not (neden kara listede?)", m.karaNot||"")||m.karaNot||""; } await mumKaydetListe(); mumDetay(id); },
+  async karaFirmaTik(id){ const m=mumBul(id); if(!m||!m.firma)return; if(firmaKaraMi(m.firma)){ MUM.karaFirma=MUM.karaFirma.filter(f=>mumNorm(f)!==mumNorm(m.firma)); } else { MUM.karaFirma.push(m.firma); } await mumKaydetKara(); mumDetay(id); },
+  async sil(id){ const m=mumBul(id); if(!m)return; if(!confirm((m.firma||"")+" / "+(m.ad||"")+" mümessilini ve tüm sözlerini sil?"))return; MUM.liste=MUM.liste.filter(x=>x.id!==id); MUM.sozler=MUM.sozler.filter(s=>s.mumId!==id); MUM.secili=null; await Promise.all([mumKaydetListe(),mumKaydetSoz()]); mumSayfasi(); }
+});
+document.getElementById("mumDugme").addEventListener("click", ()=>{ location.hash="mumessil"; });
 
 $("#siparisDugme").addEventListener("click", ()=>{ location.hash = "siparis"; });
 /* ===================== STOK SAYIMI (karekod toplu tarama) ===================== */
