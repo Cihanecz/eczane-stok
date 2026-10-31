@@ -449,6 +449,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       <button class="ust-dugme hasta" id="puanDugme" type="button" aria-label="Puan"><span>🎁</span><span class="ek-yazi">Puan</span></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button" aria-label="Çıkış" title="Çıkış"><span>🚪</span><span class="ek-yazi">Çıkış</span></button>
+      <button class="ust-dugme" id="yenileDugme" type="button" aria-label="Yenile" title="Her şeyi yenile"><span>🔄</span><span class="ek-yazi">Yenile</span></button>
     </div>
   </header>
   <main class="sayfa" id="icerik" tabindex="-1"></main>
@@ -3201,6 +3202,7 @@ async function saymaSayfasi(){
   document.getElementById("syTemiz").onclick=async()=>{ if(!confirm("Sayım listesini temizle? (telefon ve PC'de sıfırlanır)")) return; SY.set.clear(); SY.ad.clear(); const tk=document.getElementById("syTekrar"); if(tk)tk.textContent=0; document.getElementById("syOnizleme").style.display="none"; syStop(); syCizUI(); try{ await ayarYaz("sayim_oturum",JSON.stringify({zaman:new Date().toISOString(),liste:[]})); }catch(e){} const d=document.getElementById("syDurum"); if(d)d.textContent="Temizlendi."; };
 }
 document.getElementById("saymDugme").addEventListener("click", ()=>{ location.hash = "sayim"; });
+document.getElementById("yenileDugme").addEventListener("click", ()=>{ try{ location.reload(); }catch(e){ location.href=location.pathname+location.search; } });
 
 $("#hastaDugme").addEventListener("click", ()=>{ location.hash = "hastalar"; });
 $("#depoDugme").addEventListener("click", ()=>{ location.hash = "depolar"; });
