@@ -326,6 +326,7 @@ window.TODO={
     if(CFG.rol==="yonetici" && (!CFGV.calisanlar||!CFGV.calisanlar.length) && CFG.ilkKadro){ CFGV.calisanlar=CFG.ilkKadro; await cfgYaz(); }
     await bakimYap();
     ciz();
+    try{ if(("Notification" in window)&&Notification.permission==="granted"&&("serviceWorker" in navigator)&&("PushManager" in window)) pushAbone().catch(()=>{}); }catch(e){}
     try{ sonGoruldu=Date.now(); localStorage.setItem("todo_songor_"+(CFG.kisiId||"x"), String(sonGoruldu)); }catch(e){}
     setInterval(()=>tazele(true), 20000);
     document.addEventListener("visibilitychange",()=>{ if(!document.hidden) tazele(false); });
