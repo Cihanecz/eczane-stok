@@ -454,6 +454,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       <button class="ust-dugme hasta" id="siparisDugme" type="button" aria-label="Sipariş takibi"><span>📦</span><span class="ek-yazi">Sipariş</span><b class="hrozet gizli" id="siparisRozet"></b></button>
       <button class="ust-dugme hasta" id="saymDugme" type="button" aria-label="Stok sayımı"><span>🔢</span><span class="ek-yazi">Stok Sayımı</span></button>
       <button class="ust-dugme hasta" id="puanDugme" type="button" aria-label="Puan"><span>🎁</span><span class="ek-yazi">Puan</span></button>
+      <button class="ust-dugme hasta" id="todoDugme" type="button" aria-label="To Do List"><span>✅</span><span class="ek-yazi">To Do</span></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button" aria-label="Çıkış" title="Çıkış"><span>🚪</span><span class="ek-yazi">Çıkış</span></button>
       <button class="ust-dugme" id="yenileDugme" type="button" aria-label="Yenile" title="Her şeyi yenile"><span>🔄</span><span class="ek-yazi">Yenile</span></button>
@@ -780,18 +781,19 @@ function yonlendir(){
   document.body.dataset.ekran = (h.split("/")[0] || "ana");
   window.scrollTo(0,0);
   const _base = h.split("/")[0] || "";
-  if(["","neverelim","ilacbul","hastalar","siparis","depolar","sayim","puan"].includes(_base)) SON_BOLUM = _base;
+  if(["","neverelim","ilacbul","hastalar","siparis","depolar","sayim","puan","todo"].includes(_base)) SON_BOLUM = _base;
   if(h.startsWith("urun/")) return urunKarti(h.slice(5));
   if(h.startsWith("liste/")) return liste(h.slice(6));
   if(h.startsWith("ara/")) return aramaSonucu(h.slice(4));
   if(h.startsWith("depoara/")) return depoAraSayfasi(h.slice(8));
-  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif"); $("#ibDugme").classList.remove("aktif"); $("#siparisDugme").classList.remove("aktif"); $("#saymDugme").classList.remove("aktif"); $("#puanDugme").classList.remove("aktif");
+  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif"); $("#ibDugme").classList.remove("aktif"); $("#siparisDugme").classList.remove("aktif"); $("#saymDugme").classList.remove("aktif"); $("#puanDugme").classList.remove("aktif"); $("#todoDugme").classList.remove("aktif");
   if(h==="neverelim" || h.startsWith("neverelim/")) return neVerelim(h.slice(10));
   if(h==="ilacbul" || h.startsWith("ilacbul/")) return ilacBul(h.slice(8));
   if(h==="hastalar") return hastaSayfasi();
   if(h==="siparis") return siparisSayfasi();
   if(h==="sayim") return saymaSayfasi();
   if(h==="puan") return puanSayfasi();
+  if(h==="todo") return todoSayfasi();
   if(h==="depolar") return depoSayfasi();
   return anaEkran();
 }
@@ -3178,6 +3180,70 @@ function pAyarWaTopla(){
   Object.keys(PUAN_TIP_AD).forEach(tip=>{ const el=document.getElementById("wa_"+tip); if(el) cf.waLang[dil][tip]=el.value; });
 }
 document.getElementById("puanDugme").addEventListener("click", ()=>{ location.hash="puan"; });
+
+/* ====== TO DO SEKME ====== */
+/* ====== TO DO LIST (ana program sekmesi — ortak/PC görünümü) ====== */
+const TD={cfg:{calisanlar:[],sablonlar:[]}, gorevler:[], sekme:"bekleyen", secWho:null};
+async function tdOku(){
+  const [c,t]=await Promise.all([
+    db.from("ayar").select("deger").eq("anahtar","todo_cfg").maybeSingle(),
+    db.from("ayar").select("anahtar,deger").like("anahtar","todo_t_%")
+  ]);
+  TD.cfg = (c&&c.data&&c.data.deger)? JSON.parse(c.data.deger):{calisanlar:[],sablonlar:[]};
+  TD.gorevler = ((t&&t.data)||[]).map(r=>{try{return JSON.parse(r.deger);}catch(e){return null;}}).filter(Boolean);
+}
+async function tdYaz(g){ await db.from("ayar").upsert({anahtar:"todo_t_"+g.id,deger:JSON.stringify(g),guncelleme:new Date().toISOString()}); }
+function tdKisiAd(id){ if(id==="genel")return "Genel"; const k=(TD.cfg.calisanlar||[]).find(x=>x.id===id); return k?k.ad:id; }
+function tdTarih(g){ if(!g.tarih)return ""; const bg=new Date(); bg.setHours(0,0,0,0); const gd=new Date(g.tarih); gd.setHours(0,0,0,0); const f=Math.round((gd-bg)/864e5); let s=f===0?"Bugün":f===1?"Yarın":f===-1?"Dün":f<0?(-f)+" gün gecikti":f+" gün sonra"; if(g.saat)s+=" "+g.saat; return s; }
+function tdGec(g){ if(g.durum!=="bekliyor"||!g.tarih)return false; const d=new Date(g.tarih+"T"+(g.saat||"23:59")); return d.getTime()<Date.now(); }
+
+async function todoSayfasi(){
+  $("#todoDugme").classList.add("aktif");
+  yukleniyor(); await tdOku();
+  const bekleyen=TD.gorevler.filter(g=>g.durum==="bekliyor").sort((a,b)=>((a.tarih||"")+(a.saat||"")).localeCompare((b.tarih||"")+(b.saat||"")));
+  const onay=TD.gorevler.filter(g=>g.durum==="yapildi").sort((a,b)=>new Date(a.yapilmaZamani)-new Date(b.yapilmaZamani));
+  const arsiv=TD.gorevler.filter(g=>g.durum==="arsiv").sort((a,b)=>new Date(b.arsivZamani||0)-new Date(a.arsivZamani||0)).slice(0,80);
+  const sek=(k,et,n,kirmizi)=>`<button type="button" onclick="TD.sek('${k}')" style="padding:8px 13px;border:1px solid ${TD.sekme===k?'var(--mavi)':'var(--cizgi)'};border-radius:999px;background:${TD.sekme===k?'var(--mavi)':'var(--yuzey)'};color:${TD.sekme===k?'#fff':'var(--murekkep)'};font-size:14px;cursor:pointer">${et}${n?` <b style="background:${kirmizi&&!TD.sekme.includes(k)?'var(--kirmizi)':'rgba(0,0,0,.12)'};color:${TD.sekme===k?'#fff':'inherit'};padding:0 6px;border-radius:999px;font-size:12px">${n}</b>`:""}</button>`;
+  let govde="";
+  if(TD.sekme==="bekleyen"){
+    govde = bekleyen.length? bekleyen.map(tdKart).join("") : `<div class="bos" style="padding:24px;text-align:center;color:var(--soluk)">Bekleyen görev yok.</div>`;
+  } else if(TD.sekme==="onay"){
+    govde = onay.length? onay.map(tdOnayKart).join("") : `<div class="bos" style="padding:24px;text-align:center;color:var(--soluk)">Onay bekleyen görev yok.</div>`;
+  } else {
+    govde = arsiv.length? arsiv.map(g=>`<div class="kart" style="display:flex;justify-content:space-between;gap:10px"><span style="opacity:.75"><b>${kacis(g.baslik)}</b><br><small style="color:var(--soluk)">${kacis(tdKisiAd(g.yapan)||"")} · ${g.arsivZamani?kacis(new Date(g.arsivZamani).toLocaleDateString("tr-TR")):""}</small></span></div>`).join("") : `<div class="bos" style="padding:24px;text-align:center;color:var(--soluk)">Arşiv boş.</div>`;
+  }
+  $("#icerik").innerHTML = `
+  <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
+  <div class="liste-ust"><div><h1 style="margin:0">✅ To Do List</h1><p style="margin:2px 0 0">Ortak görevler. Görev vermek/düzenlemek telefondaki Yönetici uygulamasında; burada görür, yapıldı işaretler, onaylarsın.</p></div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px">${sek("bekleyen","📋 Bekleyen",bekleyen.length)} ${sek("onay","✅ Onay",onay.length,true)} ${sek("arsiv","🗄️ Arşiv")}</div>
+  <div id="tdGovde">${govde}</div>`;
+}
+function tdKart(g){
+  const whoAcik = TD.secWho===g.id;
+  const btnlar = (TD.cfg.calisanlar||[]).map(k=>`<button onclick="TD.yap('${g.id}','${k.id}')" style="padding:7px 11px;border:1px solid var(--cizgi);border-radius:9px;background:var(--yuzey2);cursor:pointer;font-size:13px">${kacis(k.ad)}</button>`).join("");
+  return `<div class="kart" style="display:flex;flex-direction:column;gap:8px;border:1px solid ${tdGec(g)?'var(--kirmizi)':'var(--cizgi)'}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div><b>${kacis(g.baslik)}</b>${g.aciklama?`<br><small style="color:var(--soluk)">${kacis(g.aciklama)}</small>`:""}
+        <br><small style="color:var(--soluk)"><span style="padding:1px 7px;border-radius:999px;background:rgba(0,0,0,.08)">${kacis(tdKisiAd(g.kime))}</span>${g.tarih?" · "+kacis(tdTarih(g)):""}${g.sablonId?" · 🔁":""}</small></div>
+      <button onclick="TD.who('${g.id}')" style="padding:7px 12px;border:1px solid var(--yesil);border-radius:9px;background:var(--yesil-acik);color:var(--yesil);cursor:pointer;white-space:nowrap">✓ Yapıldı</button>
+    </div>
+    ${whoAcik?`<div style="border-top:1px solid var(--cizgi);padding-top:8px"><small style="color:var(--soluk)">Kim yaptı?</small><br><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${btnlar||'<small style="color:var(--soluk)">Çalışan tanımlı değil</small>'} <button onclick="TD.who(null)" style="padding:7px 11px;border:1px solid var(--cizgi);border-radius:9px;background:var(--yuzey);cursor:pointer;font-size:13px">vazgeç</button></div></div>`:""}
+  </div>`;
+}
+function tdOnayKart(g){
+  return `<div class="kart" style="display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--yesil)">
+    <div><b>${kacis(g.baslik)}</b><br><small style="color:var(--soluk)"><b>${kacis(tdKisiAd(g.yapan)||"?")}</b> yaptı · ${kacis(new Date(g.yapilmaZamani).toLocaleString("tr-TR"))}</small></div>
+    <div style="display:flex;gap:6px"><button onclick="TD.arsivle('${g.id}')" style="padding:7px 11px;border:1px solid var(--yesil);border-radius:9px;background:var(--yesil-acik);color:var(--yesil);cursor:pointer">✓ Arşivle</button><button onclick="TD.geri('${g.id}')" style="padding:7px 11px;border:1px solid var(--kirmizi);border-radius:9px;background:var(--kirmizi-acik);color:var(--kirmizi);cursor:pointer">↩ Geri</button></div>
+  </div>`;
+}
+window.TD=Object.assign(TD,{
+  sek(k){ TD.sekme=k; TD.secWho=null; todoSayfasi(); },
+  who(id){ TD.secWho=id; const g=$("#tdGovde"); if(g){ const bek=TD.gorevler.filter(x=>x.durum==="bekliyor").sort((a,b)=>((a.tarih||"")+(a.saat||"")).localeCompare((b.tarih||"")+(b.saat||""))); g.innerHTML=bek.map(tdKart).join(""); } },
+  async yap(id,kisi){ const g=TD.gorevler.find(x=>x.id===id); if(!g)return; g.durum="yapildi"; g.yapan=kisi; g.yapilmaZamani=new Date().toISOString(); await tdYaz(g); TD.secWho=null; todoSayfasi(); },
+  async arsivle(id){ const g=TD.gorevler.find(x=>x.id===id); if(!g)return; g.durum="arsiv"; g.arsivZamani=new Date().toISOString(); await tdYaz(g); todoSayfasi(); },
+  async geri(id){ const g=TD.gorevler.find(x=>x.id===id); if(!g)return; g.durum="bekliyor"; g.yapan=null; g.yapilmaZamani=null; await tdYaz(g); todoSayfasi(); }
+});
+document.getElementById("todoDugme").addEventListener("click", ()=>{ location.hash="todo"; });
 
 $("#siparisDugme").addEventListener("click", ()=>{ location.hash = "siparis"; });
 /* ===================== STOK SAYIMI (karekod toplu tarama) ===================== */
