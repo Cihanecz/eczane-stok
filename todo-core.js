@@ -319,6 +319,7 @@ window.TODO={
 
 /* ---------- başlat ---------- */
 (async function(){
+  try{ if("serviceWorker" in navigator) navigator.serviceWorker.register("todo-sw.js").catch(()=>{}); }catch(e){}
   try{
     await veriOku();
     // ilk kurulum: çalışan listesi boşsa ve yöneticiysek çekirdek kadro
