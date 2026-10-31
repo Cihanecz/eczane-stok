@@ -50,3 +50,5 @@ h2.sol{color:var(--soluk);font-size:15px}
 .pin-kutu{max-width:320px;margin:60px auto;padding:24px;text-align:center;background:var(--yuzey);border:1px solid var(--cizgi);border-radius:18px;box-shadow:var(--golge);display:grid;gap:14px}
 .pin-in{border:1px solid var(--cizgi);border-radius:10px;padding:12px;text-align:center;font-size:20px;letter-spacing:4px;background:var(--bg);color:var(--ink)}
 .pin-hata{color:#e0675f;font-size:13px;min-height:16px}
+.bil-banner{background:var(--ana-soft);color:var(--ana);border:1px solid var(--ana);border-radius:14px;padding:13px 15px;margin-bottom:14px;font-weight:700;cursor:pointer;text-align:center}
+.bil-banner small{font-weight:400;color:var(--soluk)}

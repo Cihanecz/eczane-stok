@@ -120,6 +120,12 @@ async function gorevGeriAl(id){ const g=GOREVLER.find(x=>x.id===id); if(!g) retu
 async function gorevArsivle(id){ const g=GOREVLER.find(x=>x.id===id); if(!g) return; g.durum="arsiv"; g.arsivZamani=new Date().toISOString(); await gorevYaz(g); }
 async function gorevSil(id){ GOREVLER=GOREVLER.filter(x=>x.id!==id); await gorevSilDb(id); }
 
+function bildirimBanner(){
+  let g=false; try{ g=("Notification" in window)&&Notification.permission==="granted"; }catch(e){ g=false; }
+  if(g) return "";
+  return `<div class="bil-banner" onclick="TODO.bildirimIzin()">🔔 Bildirimleri aç <small>— görev gelince telefonuna haber düşsün</small></div>`;
+}
+
 /* ===================== ÇALIŞAN GÖRÜNÜMÜ ===================== */
 function calisanEkran(){
   const benim=GOREVLER.filter(g=>banaAit(g));
@@ -141,6 +147,7 @@ function calisanEkran(){
   <header class="tbar"><div class="tbar-ic"><div class="tbar-ad">👋 ${kacis(ad)}</div>${renkSecici()}</div>
     <div class="tbar-alt">${kacis(CFG.eczaneAd||"")} · Görevlerim</div></header>
   <main class="twrap">
+    ${bildirimBanner()}
     ${aktif.length?`<section><h2>Yapılacaklar <span class="say">${aktif.length}</span></h2>${aktif.map(kart).join("")}</section>`:`<div class="bos">🎉 Bekleyen görevin yok!</div>`}
     <section class="kendi"><button class="ekle-btn" onclick="TODO.kendineEkle()">+ Kendime hatırlatma ekle</button></section>
     ${yapilan.length?`<section><h2 class="sol">Yaptıklarım</h2>${yapilan.map(yKart).join("")}</section>`:""}
@@ -170,7 +177,7 @@ function yoneticiEkran(){
     ${say("calisan")}👥 Çalışanlar</button>
     ${say("arsiv")}🗄️ Arşiv</button>
   </nav>
-  <main class="twrap">${govde}</main>`;
+  <main class="twrap">${bildirimBanner()}${govde}</main>`;
   if(yTab==="ver") yVerBagla();
 }
 function yVerGovde(){
