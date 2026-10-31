@@ -52,6 +52,22 @@ function trink(){
 function bildirimGoster(baslik, govde){
   try{ if("Notification" in window && Notification.permission==="granted") new Notification(baslik,{body:govde,icon:"ikon-192.png"}); }catch(e){}
 }
+/* ---------- push ---------- */
+function b64ToU8(s){ const pad="=".repeat((4-s.length%4)%4); const b=(s+pad).replace(/-/g,"+").replace(/_/g,"/"); const raw=atob(b); return Uint8Array.from([...raw].map(c=>c.charCodeAt(0))); }
+async function pushAbone(){
+  if(!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("push-yok");
+  const p=await Notification.requestPermission();
+  if(p!=="granted") throw new Error("izin-yok");
+  const reg=await navigator.serviceWorker.register("todo-sw.js");
+  await navigator.serviceWorker.ready;
+  let sub=await reg.pushManager.getSubscription();
+  if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToU8(CFG.vapid)});
+  const sid="todo_sub_"+kimlik()+"_"+(await sha(JSON.stringify(sub.endpoint))).slice(0,14);
+  await sc.from("ayar").upsert({anahtar:sid, deger:JSON.stringify({owner:kimlik(), rol:CFG.rol, sub:sub.toJSON()}), guncelleme:new Date().toISOString()});
+}
+function pushGonder(hedef, baslik, govde){
+  try{ fetch(CFG.scURL+"/functions/v1/todo-push",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+CFG.scKEY,"apikey":CFG.scKEY},body:JSON.stringify({hedef,baslik,govde})}); }catch(e){}
+}
 
 /* ---------- veri ---------- */
 let CFGV={pin:null,sifreler:{},calisanlar:[],sablonlar:[]};
@@ -207,8 +223,8 @@ function yArsivGovde(){
 /* ---------- şifre kapısı ---------- */
 async function sha(s){ const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(s))); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
 function kimlik(){ return CFG.kisiId || "cihan"; }
-function kapiAcikMi(){ try{ return sessionStorage.getItem("todo_kapi_"+kimlik())==="1"; }catch(e){ return false; } }
-function kapiAc(){ try{ sessionStorage.setItem("todo_kapi_"+kimlik(),"1"); }catch(e){} }
+function kapiAcikMi(){ try{ return localStorage.getItem("todo_kapi_"+kimlik())==="1"; }catch(e){ return false; } }
+function kapiAc(){ try{ localStorage.setItem("todo_kapi_"+kimlik(),"1"); }catch(e){} }
 function sifreVar(){ return !!(CFGV.sifreler && CFGV.sifreler[kimlik()]); }
 function kapiCiz(){
   const olustur=!sifreVar();
@@ -274,6 +290,7 @@ window.TODO={
     const d=$("#vDurum"); d.textContent="Kaydediliyor…";
     if(tekrar==="yok"){ await gorevEkle({baslik:bas,aciklama:ack,kime,tarih:$("#vTarih").value||new Date().toISOString().slice(0,10),saat,olusturan:"yonetici"}); }
     else { const gun=$("#vGun")?Number($("#vGun").value):1; const s={id:uuid(),baslik:bas,aciklama:ack,kime,tekrar,gun,saat,aktif:true,olusturan:"yonetici",olusturmaZamani:new Date().toISOString()}; CFGV.sablonlar.push(s); await cfgYaz(); await bakimYap(); }
+    pushGonder(kime, "Yeni görev", bas);
     d.textContent="Verildi ✓"; $("#vBas").value=""; $("#vAck").value="";
     setTimeout(()=>{ yTab="takip"; ciz(); },700);
   },
@@ -283,7 +300,7 @@ window.TODO={
   async sifreDegistir(){ const eski=prompt("Mevcut şifre:"); if(eski===null) return; if(!CFGV.sifreler||CFGV.sifreler[kimlik()]!==await sha(eski)){ alert("Mevcut şifre hatalı."); return; } const yeni=prompt("Yeni şifre (en az 3 karakter):"); if(yeni===null) return; if(yeni.trim().length<3){ alert("En az 3 karakter."); return; } CFGV.sifreler[kimlik()]=await sha(yeni.trim()); try{ await cfgYaz(); alert("Şifre değiştirildi."); }catch(e){ alert("Kaydedilemedi."); } },
   async calisanEkle(){ const ad=$("#cAd").value.trim(); if(!ad) return; const id=ad.toLocaleLowerCase("tr").replace(/[^a-z0-9ğüşıöç]/g,"").slice(0,12)+Math.random().toString(36).slice(2,5); CFGV.calisanlar.push({id,ad}); await cfgYaz(); ciz(); },
   async calisanSil(id){ if(!confirm("Çalışan silinsin mi? (görevleri kalır)")) return; CFGV.calisanlar=CFGV.calisanlar.filter(k=>k.id!==id); await cfgYaz(); ciz(); },
-  async bildirimIzin(){ try{ const p=await Notification.requestPermission(); alert(p==="granted"?"Bildirimler açıldı. (Uygulama kapalıyken bildirim 2. aşamada aktifleşecek.)":"Bildirim izni verilmedi."); }catch(e){ alert("Bu cihaz bildirime izin vermiyor."); } }
+  async bildirimIzin(){ try{ await pushAbone(); alert("Bildirimler açıldı ✓ Artık sana görev gelince telefonuna bildirim düşer (uygulama kapalı olsa bile)."); }catch(e){ const m=String(e&&e.message||e); alert(m==="izin-yok"?"Bildirim izni verilmedi.":m==="push-yok"?"Bu tarayıcı push desteklemiyor. iPhone'da önce linki 'Ana Ekrana Ekle' yapıp o ikondan açman gerekiyor.":"Bildirim açılamadı. iPhone'da önce 'Ana Ekrana Ekle' yapıp uygulamadan aç, sonra tekrar dene."); } }
 };
 
 /* ---------- başlat ---------- */
