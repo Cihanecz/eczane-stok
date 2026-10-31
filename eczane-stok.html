@@ -55,7 +55,7 @@ a{color:inherit}
 /* ---------- üst çubuk ---------- */
 .ust{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   border-bottom:1px solid var(--cizgi);padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top))}
-.ust-ic{max-width:1320px;margin:0 auto;display:flex;align-items:center;gap:8px}
+.ust-ic{max-width:1320px;margin:0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:6px}
 .marka{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;white-space:nowrap;
   background:none;border:0;color:var(--murekkep);cursor:pointer;padding:4px 0}
 .marka svg{flex:none}
@@ -446,6 +446,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       <button class="ust-dugme hasta" id="ibDugme" type="button" aria-label="Bu ilaç neydi"><span>🔎</span><span class="ek-yazi">Bu İlaç Neydi?</span></button>
       <button class="ust-dugme hasta" id="siparisDugme" type="button" aria-label="Sipariş takibi"><span>📦</span><span class="ek-yazi">Sipariş</span><b class="hrozet gizli" id="siparisRozet"></b></button>
       <button class="ust-dugme hasta" id="saymDugme" type="button" aria-label="Stok sayımı"><span>🔢</span><span class="ek-yazi">Stok Sayımı</span></button>
+      <button class="ust-dugme hasta" id="puanDugme" type="button" aria-label="Puan"><span>🎁</span><span class="ek-yazi">Puan</span></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button" aria-label="Çıkış" title="Çıkış"><span>🚪</span><span class="ek-yazi">Çıkış</span></button>
     </div>
@@ -770,17 +771,18 @@ function yonlendir(){
   document.body.dataset.ekran = (h.split("/")[0] || "ana");
   window.scrollTo(0,0);
   const _base = h.split("/")[0] || "";
-  if(["","neverelim","ilacbul","hastalar","siparis","depolar","sayim"].includes(_base)) SON_BOLUM = _base;
+  if(["","neverelim","ilacbul","hastalar","siparis","depolar","sayim","puan"].includes(_base)) SON_BOLUM = _base;
   if(h.startsWith("urun/")) return urunKarti(h.slice(5));
   if(h.startsWith("liste/")) return liste(h.slice(6));
   if(h.startsWith("ara/")) return aramaSonucu(h.slice(4));
   if(h.startsWith("depoara/")) return depoAraSayfasi(h.slice(8));
-  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif"); $("#ibDugme").classList.remove("aktif"); $("#siparisDugme").classList.remove("aktif"); $("#saymDugme").classList.remove("aktif");
+  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif"); $("#ibDugme").classList.remove("aktif"); $("#siparisDugme").classList.remove("aktif"); $("#saymDugme").classList.remove("aktif"); $("#puanDugme").classList.remove("aktif");
   if(h==="neverelim" || h.startsWith("neverelim/")) return neVerelim(h.slice(10));
   if(h==="ilacbul" || h.startsWith("ilacbul/")) return ilacBul(h.slice(8));
   if(h==="hastalar") return hastaSayfasi();
   if(h==="siparis") return siparisSayfasi();
   if(h==="sayim") return saymaSayfasi();
+  if(h==="puan") return puanSayfasi();
   if(h==="depolar") return depoSayfasi();
   return anaEkran();
 }
@@ -2726,6 +2728,242 @@ function sAyarEkrani(){
   $("#aYerEkle").addEventListener("click", async ()=>{ const v=$("#aYer").value.trim(); if(!v) return; S.ayar.yerler=S.ayar.yerler||[]; if(!S.ayar.yerler.includes(v)){ S.ayar.yerler.push(v); await sAyarKaydet(); } sAyarEkrani(); });
   document.querySelectorAll("[data-ysil]").forEach(b=>b.addEventListener("click", async ()=>{ const y=b.dataset.ysil; if(!confirm(`"${y}" silinsin mi?`)) return; S.ayar.yerler=(S.ayar.yerler||[]).filter(x=>x!==y); await sAyarKaydet(); sAyarEkrani(); }));
 }
+
+
+/* ====== PUAN MODULU ====== */
+/* ===================== PUAN (sadakat) — ayar tablosunda JSON, şema değişikliği yok ===================== */
+const PUAN_VARSAYILAN_AYAR = {
+  config: {
+    tiers: [
+      { key:"normal", name:"Normal", min:0,     rate:2 },
+      { key:"bronz",  name:"Bronz",  min:5000,  rate:4 },
+      { key:"gumus",  name:"Gümüş",  min:10000, rate:6 },
+      { key:"altin",  name:"Altın",  min:20000, rate:8 }
+    ],
+    waMode:"web", dormantDays:60, birthdayGift:100, birthdayGiftTier:"altin"
+  }
+};
+const P = { ayar:null, musteri:[], islem:{}, secili:null, ara:"", yukluMu:false };
+
+function pTelTemiz(t){ let d=String(t||"").replace(/\D/g,""); if(d.startsWith("90"))return d; if(d.startsWith("0"))return "90"+d.slice(1); if(d.length===10)return "90"+d; return d; }
+function pWaAdres(tel,mesaj){ const n=pTelTemiz(tel), m=encodeURIComponent(mesaj||""); return (P.ayar.config.waMode==="wa") ? `https://wa.me/${n}?text=${m}` : `https://web.whatsapp.com/send?phone=${n}&text=${m}`; }
+function pSablon(s,d){ return String(s||"").replace(/\{(\w+)\}/g,(_,k)=> d[k]!=null?d[k]:""); }
+function pPara(n){ return Number(n||0).toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2})+" ₺"; }
+function pPuanStr(n){ return Number(n||0).toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function pHitap(c){ return c.cinsiyet==="k"?"Hanım":(c.cinsiyet==="e"?"Bey":""); }
+function pTierObj(key){ return P.ayar.config.tiers.find(t=>t.key===key) || P.ayar.config.tiers[0]; }
+function pIslemList(cid){ return P.islem[cid] || []; }
+function pBakiye(cid){ return Math.round(pIslemList(cid).reduce((s,x)=>s+Number(x.points||0),0)*100)/100; }
+function pHarcama(cid){ const g=Number(P.ayar.config.tierWindowGun||0); const sinir = g>0 ? Date.now()-g*864e5 : 0; return pIslemList(cid).filter(x=>x.type==="earn" && new Date(x.date).getTime()>=sinir).reduce((s,x)=>s+Number(x.spent||0),0); }
+function pOtoTier(cid){ const h=pHarcama(cid); let t=P.ayar.config.tiers[0]; for(const x of P.ayar.config.tiers){ if(h>=x.min) t=x; } return t; }
+function pTier(c){ if(c.manualTier){ const m=pTierObj(c.manualTier); if(m) return m; } return pOtoTier(c.id); }
+function pSonAktivite(c){ const l=pIslemList(c.id); return l.length? l[l.length-1].date : c.lastActivity||c.createdAt; }
+
+async function puanVeriYukle(){
+  try{
+    const [a,m,i] = await Promise.all([ayarOku("puan_ayar"), ayarOku("puan_musteri"), ayarOku("puan_islem")]);
+    P.ayar = a ? JSON.parse(a.deger) : JSON.parse(JSON.stringify(PUAN_VARSAYILAN_AYAR));
+    if(!P.ayar.config) P.ayar.config = JSON.parse(JSON.stringify(PUAN_VARSAYILAN_AYAR.config));
+    P.musteri = m ? JSON.parse(m.deger) : [];
+    P.islem = i ? JSON.parse(i.deger) : {};
+    P.yukluMu = true;
+  }catch(e){ P.ayar=P.ayar||JSON.parse(JSON.stringify(PUAN_VARSAYILAN_AYAR)); P.musteri=P.musteri||[]; P.islem=P.islem||{}; }
+}
+async function pAyarKaydet(){ await ayarYaz("puan_ayar", JSON.stringify(P.ayar)); }
+async function pMusteriKaydetBulut(){ await ayarYaz("puan_musteri", JSON.stringify(P.musteri)); }
+async function pIslemKaydetBulut(){ await ayarYaz("puan_islem", JSON.stringify(P.islem)); }
+
+function pUuid(){ try{ return crypto.randomUUID(); }catch(e){ return "px-"+Date.now()+"-"+Math.random().toString(36).slice(2,9); } }
+
+async function pKazandir(cid, tutar, oran){
+  const c=P.musteri.find(x=>x.id===cid); if(!c) return;
+  const puan = Math.round(Number(tutar)*Number(oran)/100*100)/100;
+  const tx={ id:pUuid(), customerId:cid, date:new Date().toISOString(), type:"earn", spent:Number(tutar), rate:Number(oran), points:puan, balanceAfter:0 };
+  (P.islem[cid] = P.islem[cid]||[]).push(tx);
+  c.balance = pBakiye(cid); tx.balanceAfter=c.balance; c.lastActivity=tx.date;
+  await Promise.all([pIslemKaydetBulut(), pMusteriKaydetBulut()]);
+}
+async function pKullan(cid, puan){
+  const c=P.musteri.find(x=>x.id===cid); if(!c) return;
+  const bak=pBakiye(cid); const kul=Number(puan);
+  if(kul>bak+0.001){ alert("Yetersiz puan. Bakiye: "+pPuanStr(bak)); return; }
+  const tx={ id:pUuid(), customerId:cid, date:new Date().toISOString(), type:"redeem", spent:null, rate:null, points:-kul, balanceAfter:0 };
+  (P.islem[cid] = P.islem[cid]||[]).push(tx);
+  c.balance=pBakiye(cid); tx.balanceAfter=c.balance; c.lastActivity=tx.date;
+  await Promise.all([pIslemKaydetBulut(), pMusteriKaydetBulut()]);
+}
+async function pIslemSil(cid, txid){
+  if(!confirm("Bu işlemi geri al? Bakiye yeniden hesaplanır.")) return;
+  P.islem[cid] = pIslemList(cid).filter(x=>x.id!==txid);
+  const c=P.musteri.find(x=>x.id===cid); if(c) c.balance=pBakiye(cid);
+  await Promise.all([pIslemKaydetBulut(), pMusteriKaydetBulut()]);
+  pDetay(cid);
+}
+async function pMusteriSil(cid){
+  const c=P.musteri.find(x=>x.id===cid); if(!c) return;
+  if(!confirm((c.ad||"")+" "+(c.soyad||"")+" müşterisini ve tüm işlemlerini sil?")) return;
+  P.musteri = P.musteri.filter(x=>x.id!==cid); delete P.islem[cid]; P.secili=null;
+  await Promise.all([pMusteriKaydetBulut(), pIslemKaydetBulut()]);
+  puanSayfasi();
+}
+
+/* ---- WhatsApp ---- */
+function pWaGonder(cid, metin){
+  const c=P.musteri.find(x=>x.id===cid); if(!c) return;
+  if(!pTelTemiz(c.telefon)){ alert("Telefon yok."); return; }
+  window.open(pWaAdres(c.telefon, metin), "_blank");
+}
+
+/* ===================== Ekranlar ===================== */
+async function puanSayfasi(){
+  $("#puanDugme").classList.add("aktif");
+  if(!P.yukluMu){ yukleniyor(); await puanVeriYukle(); }
+  const q=(P.ara||"").toLocaleLowerCase("tr");
+  let liste=P.musteri;
+  if(q){ liste=P.musteri.filter(c=> ((c.ad||"")+" "+(c.soyad||"")).toLocaleLowerCase("tr").includes(q) || String(c.telefon||"").includes(q.replace(/\D/g,"")) ); }
+  liste=liste.slice().sort((a,b)=> (new Date(pSonAktivite(b))-new Date(pSonAktivite(a))) );
+  const kart = c=>{ const t=pTier(c); return `<button class="satir" type="button" onclick="P.secili='${c.id}';pDetay('${c.id}')" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <span><b>${kacis((c.ad||"")+" "+(c.soyad||""))}</b> <small style="color:var(--soluk)">${kacis(c.telefon||"")}</small><br><span style="font-size:12px;color:var(--soluk)">${kacis(t.name)}</span></span>
+    <b style="white-space:nowrap">${pPuanStr(pBakiye(c.id))} <span style="font-size:11px;color:var(--soluk)">puan</span></b></button>`; };
+  $("#icerik").innerHTML = `
+  <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
+  <div class="liste-ust"><div><h1>🎁 Puan</h1><p>Sadakat puan defteri — ${P.musteri.length} müşteri. Müşteri seç, puan ver/kullan. Telefon ya da isimle ara.</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="ana-dugme" id="pYeni" type="button" style="padding:8px 12px">+ Yeni müşteri</button>
+      <button id="pYedekAl" type="button" style="padding:8px 12px;border:1px solid #e9ecef;border-radius:10px;background:#f6f7f9">⬇ Yedek al</button>
+      <button id="pYedekYukle" type="button" style="padding:8px 12px;border:1px solid #e9ecef;border-radius:10px;background:#f6f7f9">⬆ Yedek yükle</button>
+      <input id="pYedekInput" type="file" accept="application/json,.json" style="display:none">
+    </div>
+  </div>
+  <div style="margin:8px 0 12px"><input id="pAra" type="search" value="${kacis(P.ara||"")}" placeholder="Telefon veya isim ile ara…" style="width:100%;padding:11px 14px;border:1px solid #e9ecef;border-radius:12px;font-size:16px"></div>
+  <div style="display:grid;gap:8px">${liste.length? liste.slice(0,500).map(kart).join("") : `<div class="bos" style="padding:24px;text-align:center;color:var(--soluk)">${P.musteri.length? "Eşleşen müşteri yok." : "Henüz müşteri yok. '⬆ Yedek yükle' ile mevcut listeni aktar ya da '+ Yeni müşteri' ekle."}</div>`}</div>
+  <div style="color:var(--soluk);font-size:12px;margin-top:10px">Raporlar, doğum günleri ve Rx'ten ekleme sıradaki aşamada gelecek.</div>`;
+  const inp=$("#pAra"); if(inp){ inp.addEventListener("input", ()=>{ clearTimeout(P._t); P._t=setTimeout(()=>{ P.ara=inp.value; const v=inp.value, ss=inp.selectionStart; puanSayfasi().then(()=>{ const n=$("#pAra"); if(n){ n.focus(); try{n.setSelectionRange(ss,ss);}catch(e){} } }); },250); }); }
+  $("#pYeni").onclick=()=>pMusteriForm(null);
+  $("#pYedekAl").onclick=pYedekAl;
+  $("#pYedekYukle").onclick=()=>$("#pYedekInput").click();
+  $("#pYedekInput").onchange=pYedekYukle;
+}
+
+function pDetay(cid){
+  const c=P.musteri.find(x=>x.id===cid); if(!c) return puanSayfasi();
+  const t=pTier(c), bak=pBakiye(cid), oto=pOtoTier(cid);
+  const txs=pIslemList(cid).slice().reverse().slice(0,30);
+  const satirIslem = x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 2px;border-bottom:1px solid #eef0f2;font-size:13px">
+    <span>${x.type==="earn"?"➕ Kazandı":"➖ Kullandı"} · <small style="color:var(--soluk)">${new Date(x.date).toLocaleString("tr-TR")}</small>${x.type==="earn"?` · ${pPara(x.spent)} ×%${x.rate}`:""}</span>
+    <span><b style="color:${x.points>=0?'#16a34a':'#ef4444'}">${x.points>=0?"+":""}${pPuanStr(x.points)}</b> <button onclick="pIslemSil('${cid}','${x.id}')" title="Geri al" style="border:0;background:none;color:#ef4444;cursor:pointer">✕</button></span></div>`;
+  $("#icerik").innerHTML = `
+  <button class="geri" type="button" onclick="puanSayfasi()">‹ Müşteriler</button>
+  <div class="liste-ust"><div><h1>${kacis((c.ad||"")+" "+(c.soyad||""))}</h1>
+    <p>${kacis(t.name)}${c.manualTier?" (elle)":""} · ${kacis(c.telefon||"—")}${c.email?" · "+kacis(c.email):""}${(c.dogumGunu&&c.dogumGunu.gun)?" · 🎂 "+c.dogumGunu.gun+"."+c.dogumGunu.ay:""}</p></div>
+    <div style="display:flex;gap:8px"><button class="ana-dugme" onclick="pMusteriForm('${cid}')" style="padding:8px 12px">✎ Düzenle</button>
+      <button onclick="pWaGonder('${cid}', pSablon((P.ayar.config.waLang&&P.ayar.config.waLang[pMDil(P.musteri.find(x=>x.id==='${cid}'))]||{}).points||'Merhaba {ad} {hitap}, puan hesabınızda {puan} puan bulunuyor. İyi günler. {eczane}', pMsgDeger(P.musteri.find(x=>x.id==='${cid}'))))" style="padding:8px 12px;border:1px solid #25d366;border-radius:10px;background:#eafff2;color:#128c3e">🟢 WhatsApp</button></div>
+  </div>
+  <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px;margin-bottom:12px;text-align:center">
+    <div style="font-size:34px;font-weight:800">${pPuanStr(bak)} <span style="font-size:14px;color:var(--soluk)">puan</span></div>
+    <div style="color:var(--soluk);font-size:13px">1 puan = 1 ₺ · toplam ${pPara(bak)} değerinde · toplam alış ${pPara(pHarcama(cid))} → ${kacis(oto.name)}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:14px">
+      <b>➕ Puan kazandır</b>
+      <label style="display:block;margin:8px 0 2px;font-size:13px;color:var(--soluk)">Alışveriş tutarı (₺)</label>
+      <input id="pTutar" type="number" inputmode="decimal" placeholder="Örn. 1000" style="width:100%;padding:10px;border:1px solid #e9ecef;border-radius:10px">
+      <label style="display:block;margin:8px 0 2px;font-size:13px;color:var(--soluk)">Puan oranı (%) — seviye: ${t.rate}, değiştirebilirsin</label>
+      <input id="pOran" type="number" inputmode="decimal" value="${t.rate}" style="width:100%;padding:10px;border:1px solid #e9ecef;border-radius:10px">
+      <button class="ana-dugme" id="pKazanBtn" style="width:100%;margin-top:10px">+ Puan ekle</button>
+    </div>
+    <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:14px">
+      <b>➖ Puan kullan</b>
+      <label style="display:block;margin:8px 0 2px;font-size:13px;color:var(--soluk)">Kullanılacak puan</label>
+      <input id="pKulPuan" type="number" inputmode="decimal" placeholder="Örn. 50" style="width:100%;padding:10px;border:1px solid #e9ecef;border-radius:10px">
+      <button id="pTumKul" style="width:100%;margin-top:8px;padding:8px;border:1px solid #e9ecef;border-radius:10px;background:#f6f7f9">Tümünü kullan (${pPuanStr(bak)})</button>
+      <button class="ana-dugme" id="pKullanBtn" style="width:100%;margin-top:8px;background:#b4863b">Puanı kullan</button>
+    </div>
+  </div>
+  <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:14px;margin-bottom:12px">
+    <b>Son işlemler</b>
+    <div style="margin-top:8px">${txs.length? txs.map(satirIslem).join("") : `<div style="color:var(--soluk);font-size:13px;padding:8px 0">Henüz işlem yok.</div>`}</div>
+  </div>
+  <button onclick="pMusteriSil('${cid}')" style="border:0;background:none;color:#ef4444;cursor:pointer;font-size:13px">🗑 Müşteriyi sil</button>`;
+  $("#pKazanBtn").onclick=async()=>{ const tt=Number($("#pTutar").value), oo=Number($("#pOran").value); if(!(tt>0)){ alert("Tutar gir."); return; } const b=$("#pKazanBtn"); b.disabled=true; b.textContent="…"; await pKazandir(cid,tt,oo); pDetay(cid); };
+  $("#pTumKul").onclick=()=>{ $("#pKulPuan").value = pBakiye(cid); };
+  $("#pKullanBtn").onclick=async()=>{ const pp=Number($("#pKulPuan").value); if(!(pp>0)){ alert("Puan gir."); return; } const b=$("#pKullanBtn"); b.disabled=true; await pKullan(cid,pp); pDetay(cid); };
+}
+function pMDil(c){ return (c && c.dil) ? c.dil : "tr"; }
+function pMsgDeger(c){ return { ad:c.ad||"", soyad:c.soyad||"", hitap:pHitap(c), puan:pPuanStr(pBakiye(c.id)), hediye:P.ayar.config.birthdayGift, eczane:(typeof ECZANE_ADI!=="undefined"&&ECZANE_ADI)||"Eczane", seviye:pTier(c).name }; }
+
+function pMusteriForm(cid){
+  const c = cid ? P.musteri.find(x=>x.id===cid) : { id:null, ad:"", soyad:"", telefon:"", email:"", adres:"", cinsiyet:"", dil:"tr", tc:"", dogumGunu:{gun:"",ay:""}, manualTier:"" };
+  const dg=c.dogumGunu||{gun:"",ay:""};
+  const tierSec = `<option value="">Otomatik — harcamaya göre</option>`+P.ayar.config.tiers.map(t=>`<option value="${t.key}" ${c.manualTier===t.key?"selected":""}>${kacis(t.name)}</option>`).join("");
+  const stil="width:100%;padding:10px;border:1px solid #e9ecef;border-radius:10px;margin-top:4px";
+  $("#icerik").innerHTML = `
+  <button class="geri" type="button" onclick="${cid?`pDetay('${cid}')`:'puanSayfasi()'}">‹ Geri</button>
+  <div class="liste-ust"><div><h1>${cid?"Müşteriyi düzenle":"Yeni müşteri"}</h1><p>Rx'ten otomatik getirme sıradaki aşamada; şimdilik elle.</p></div></div>
+  <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px;display:grid;gap:10px;max-width:560px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label style="font-size:13px;color:var(--soluk)">Ad *<input id="fAd" value="${kacis(c.ad||"")}" style="${stil}"></label>
+      <label style="font-size:13px;color:var(--soluk)">Soyad<input id="fSoyad" value="${kacis(c.soyad||"")}" style="${stil}"></label>
+    </div>
+    <label style="font-size:13px;color:var(--soluk)">Telefon *<input id="fTel" value="${kacis(c.telefon||"")}" placeholder="05xx xxx xx xx" style="${stil}"></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label style="font-size:13px;color:var(--soluk)">E-posta<input id="fMail" value="${kacis(c.email||"")}" style="${stil}"></label>
+      <label style="font-size:13px;color:var(--soluk)">TC (opsiyonel)<input id="fTc" value="${kacis(c.tc||"")}" inputmode="numeric" style="${stil}"></label>
+    </div>
+    <label style="font-size:13px;color:var(--soluk)">Adres<input id="fAdres" value="${kacis(c.adres||"")}" style="${stil}"></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      <label style="font-size:13px;color:var(--soluk)">Cinsiyet<select id="fCins" style="${stil}"><option value="" ${!c.cinsiyet?"selected":""}>Belirtme</option><option value="k" ${c.cinsiyet==="k"?"selected":""}>Hanım</option><option value="e" ${c.cinsiyet==="e"?"selected":""}>Bey</option></select></label>
+      <label style="font-size:13px;color:var(--soluk)">Doğum günü<select id="fDgGun" style="${stil}"><option value="">Gün</option>${Array.from({length:31},(_,i)=>`<option value="${i+1}" ${dg.gun==i+1?"selected":""}>${i+1}</option>`).join("")}</select></label>
+      <label style="font-size:13px;color:var(--soluk)">&nbsp;<select id="fDgAy" style="${stil}"><option value="">Ay</option>${["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"].map((a,i)=>`<option value="${i+1}" ${dg.ay==i+1?"selected":""}>${a}</option>`).join("")}</select></label>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label style="font-size:13px;color:var(--soluk)">Mesaj dili<select id="fDil" style="${stil}">${["tr","en","ru","de","uk","ar","fa","it","fr","es"].map(d=>`<option value="${d}" ${(c.dil||"tr")===d?"selected":""}>${d.toUpperCase()}</option>`).join("")}</select></label>
+      <label style="font-size:13px;color:var(--soluk)">Seviye<select id="fTier" style="${stil}">${tierSec}</select></label>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="ana-dugme" id="fKaydet" style="flex:1">${cid?"Kaydet":"Ekle"}</button>
+      <button onclick="${cid?`pDetay('${cid}')`:'puanSayfasi()'}" style="padding:12px 16px;border:1px solid #e9ecef;border-radius:10px;background:#f6f7f9">Vazgeç</button>
+    </div>
+  </div>`;
+  $("#fKaydet").onclick=async()=>{
+    const ad=$("#fAd").value.trim(), tel=$("#fTel").value.trim();
+    if(!ad){ alert("Ad gir."); return; }
+    if(!pTelTemiz(tel)){ alert("Telefon gir."); return; }
+    const o = cid ? P.musteri.find(x=>x.id===cid) : { id:pUuid(), balance:0, createdAt:new Date().toISOString() };
+    o.ad=ad; o.soyad=$("#fSoyad").value.trim(); o.telefon=tel; o.email=$("#fMail").value.trim(); o.tc=$("#fTc").value.trim();
+    o.adres=$("#fAdres").value.trim(); o.cinsiyet=$("#fCins").value; o.dil=$("#fDil").value; o.manualTier=$("#fTier").value||null;
+    o.dogumGunu = ($("#fDgGun").value&&$("#fDgAy").value) ? {gun:Number($("#fDgGun").value), ay:Number($("#fDgAy").value)} : null;
+    o.lastActivity=o.lastActivity||new Date().toISOString();
+    if(!cid) P.musteri.push(o);
+    await pMusteriKaydetBulut();
+    P.secili=o.id; pDetay(o.id);
+  };
+}
+
+/* ---- Yedek ---- */
+function pYedekAl(){
+  const veri={ app:"eczane-puan", version:2, exportedAt:new Date().toISOString(), settings:P.ayar, customers:P.musteri, transactions:P.islem };
+  const blob=new Blob([JSON.stringify(veri,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="eczane-puan-yedek-"+new Date().toISOString().slice(0,10)+".json"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+async function pYedekYukle(e){
+  const f=e.target && e.target.files && e.target.files[0]; if(!f) return;
+  let d; try{ d=JSON.parse(await f.text()); }catch(err){ alert("Dosya okunamadı."); return; }
+  if(!d.customers){ alert("Bu bir Puan yedeği değil."); return; }
+  if(!confirm((d.customers.length||0)+" müşteri içe aktarılacak. Mevcut Puan listesinin ÜZERİNE yazılır. Devam?")) return;
+  P.ayar = d.settings && d.settings.config ? d.settings : (P.ayar||JSON.parse(JSON.stringify(PUAN_VARSAYILAN_AYAR)));
+  if(!P.ayar.config) P.ayar.config=JSON.parse(JSON.stringify(PUAN_VARSAYILAN_AYAR.config));
+  P.musteri = d.customers || [];
+  P.islem = d.transactions || {};
+  // bakiyeleri işlemlerden doğrula
+  for(const c of P.musteri){ c.balance = pBakiye(c.id); }
+  await Promise.all([pAyarKaydet(), pMusteriKaydetBulut(), pIslemKaydetBulut()]);
+  if(e.target) e.target.value="";
+  alert("İçe aktarıldı: "+P.musteri.length+" müşteri.");
+  P.yukluMu=true; puanSayfasi();
+}
+document.getElementById("puanDugme").addEventListener("click", ()=>{ location.hash="puan"; });
 
 $("#siparisDugme").addEventListener("click", ()=>{ location.hash = "siparis"; });
 /* ===================== STOK SAYIMI (karekod toplu tarama) ===================== */
