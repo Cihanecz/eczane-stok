@@ -38,10 +38,10 @@
 <div class="dugmeler">
   <button id="basla" class="yesil">▶ Canlı tara</button>
   <button id="dur" class="kirmizi" style="display:none">⏸ Durdur</button>
-  <button id="foto">📸 Foto çek (toplu)</button>
+  <button id="foto">📷 Foto çek / seç (toplu)</button>
   <button id="sifirla" class="gri">🗑 Temizle</button>
 </div>
-<input id="fotoInput" type="file" accept="image/*" capture="environment" style="display:none">
+<input id="fotoInput" type="file" accept="image/*" multiple style="display:none">
 
 <div class="ayar">
   <label>Çözünürlük
@@ -151,7 +151,7 @@ async function fotoCek(file){
   $("#durum").textContent="Foto bitti: bu karede +"+(gorulen.size-once)+" yeni, toplam "+gorulen.size+".";
 }
 $("#foto").onclick=()=>{ if(!ac) sesHazirla(); wasmHazirla(); $("#fotoInput").click(); };
-$("#fotoInput").onchange=async e=>{ const f=e.target.files&&e.target.files[0]; if(f){ await wasmHazirla(); await fotoCek(f); } e.target.value=""; };
+$("#fotoInput").onchange=async e=>{ const fs=[...(e.target.files||[])]; if(fs.length){ await wasmHazirla(); const bas=gorulen.size; for(let i=0;i<fs.length;i++){ $("#durum").textContent="Foto "+(i+1)+"/"+fs.length+" çözülüyor…"; await fotoCek(fs[i]); } $("#durum").textContent=fs.length+" foto bitti: +"+(gorulen.size-bas)+" yeni, toplam "+gorulen.size+" karekod."; } e.target.value=""; };
 </script>
 </body>
 </html>
