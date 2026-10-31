@@ -2211,6 +2211,9 @@ async function siparisSayfasi(){
     try { S.eksikGizli = egz ? JSON.parse(await hCoz(H.anahtar, egz.deger)) : []; } catch(e){ S.eksikGizli = []; }
     if(son){ try{ await sSonBirlestir(JSON.parse(await hCoz(H.anahtar, son.deger))); }catch(e){} }
     try { S.alimSon = al ? JSON.parse(al.deger) : {zaman:null,ilac:{}}; if(!S.alimSon.ilac) S.alimSon.ilac={}; } catch(e){ S.alimSon={zaman:null,ilac:{}}; }
+    S.aday.liste = (S.aday.liste||[]).filter(x=>x && x.rec);
+    S.kayit = (S.kayit||[]).filter(x=>x && typeof x==="object" && x.id);
+    if(S.eksikDb && S.eksikDb.liste) S.eksikDb.liste = S.eksikDb.liste.filter(x=>x && x.rec);
     await sAlimKontrol();
     sCiz();
     sYoklamaBaslat();
