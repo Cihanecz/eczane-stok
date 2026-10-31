@@ -2865,11 +2865,12 @@ async function puanSayfasi(){
   $("#icerik").innerHTML = `
   <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px">
-    ${sek("liste","👤 Müşteriler")} ${sek("dogum","🎂 Doğum günü"+(dgSay?` (${dgSay})`:"")+(bugun?" 🔴":""))} ${sek("rapor","📊 Raporlar")}
+    ${sek("liste","👤 Müşteriler")} ${sek("dogum","🎂 Doğum günü"+(dgSay?` (${dgSay})`:"")+(bugun?" 🔴":""))} ${sek("rapor","📊 Raporlar")} ${sek("ayar","⚙️ Ayarlar")}
   </div>
   <div id="puanGovde"></div>`;
   if(P.sekme==="dogum") puanDogumGovde();
   else if(P.sekme==="rapor") puanRaporGovde();
+  else if(P.sekme==="ayar") puanAyarGovde();
   else puanListeGovde();
 }
 
@@ -3092,6 +3093,78 @@ async function pYedekYukle(e){
   if(e.target) e.target.value="";
   alert("İçe aktarıldı: "+P.musteri.length+" müşteri.");
   P.yukluMu=true; P.sekme="liste"; puanSayfasi();
+}
+/* ---- Ayarlar ---- */
+const PUAN_DIL_AD={tr:"Türkçe",en:"İngilizce",ru:"Rusça",de:"Almanca",uk:"Ukraynaca",ar:"Arapça",fa:"Farsça",it:"İtalyanca",fr:"Fransızca",es:"İspanyolca"};
+const PUAN_TIP_AD={birthday:"🎂 Doğum günü kutlaması",birthdayGift:"🎁 Doğum günü + hediye puan",dormant:"😴 Uykuda müşteri",points:"💬 Puan bilgi mesajı"};
+function puanAyarGovde(){
+  if(!P.ayar) P.ayar=JSON.parse(JSON.stringify(PUAN_VARSAYILAN_AYAR));
+  if(!P.ayar.config) P.ayar.config=JSON.parse(JSON.stringify(PUAN_VARSAYILAN_AYAR.config));
+  const cf=P.ayar.config;
+  if(!P.ayarDil) P.ayarDil="tr";
+  const dil=P.ayarDil;
+  const w=(cf.waLang&&cf.waLang[dil])||{};
+  const stil="width:100%;padding:9px;border:1px solid #e9ecef;border-radius:9px";
+  const tierSatir=(t,i)=>`<tr>
+    <td style="padding:4px"><input id="t_ad_${i}" value="${kacis(t.name)}" style="${stil}"></td>
+    <td style="padding:4px"><input id="t_min_${i}" type="number" inputmode="numeric" value="${t.min}" ${i===0?'readonly title="En alt seviye hep 0"':''} style="${stil}${i===0?';background:#f6f7f9;color:var(--soluk)':''}"></td>
+    <td style="padding:4px"><input id="t_rate_${i}" type="number" inputmode="decimal" value="${t.rate}" style="${stil}"></td>
+  </tr>`;
+  const tipAlan=tip=>`<label style="display:block;margin-bottom:10px"><span style="font-size:13px;color:var(--soluk)">${PUAN_TIP_AD[tip]}</span>
+    <textarea id="wa_${tip}" rows="3" style="${stil};margin-top:4px;resize:vertical">${kacis(w[tip]!=null?w[tip]:PUAN_SABLON_TR[tip])}</textarea></label>`;
+  $("#puanGovde").innerHTML=`
+  <div style="display:grid;gap:14px;max-width:720px">
+    <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px">
+      <b>🏅 Seviyeler ve puan oranları</b>
+      <p style="margin:4px 0 10px;font-size:13px;color:var(--soluk)">Eşik = seviyeye girmek için gereken (son 12 ay) toplam alış. Oran = o seviyede her alışın yüzde kaçı puan olur.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="color:var(--soluk);text-align:left"><th style="padding:4px;font-weight:600">Seviye adı</th><th style="padding:4px;font-weight:600">Eşik (₺)</th><th style="padding:4px;font-weight:600">Oran (%)</th></tr></thead>
+        <tbody>${cf.tiers.map(tierSatir).join("")}</tbody>
+      </table>
+    </div>
+    <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px;display:grid;gap:12px">
+      <b>⚙️ Genel</b>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <label style="font-size:13px;color:var(--soluk)">🎁 Doğum günü hediye puanı<input id="a_hediye" type="number" inputmode="numeric" value="${cf.birthdayGift||100}" style="${stil};margin-top:4px"></label>
+        <label style="font-size:13px;color:var(--soluk)">😴 Uykuda eşiği (gün)<input id="a_uyku" type="number" inputmode="numeric" value="${cf.dormantDays||180}" style="${stil};margin-top:4px"></label>
+      </div>
+      <label style="font-size:13px;color:var(--soluk)">📅 Seviye dönemi
+        <select id="a_donem" style="${stil};margin-top:4px">
+          <option value="365" ${Number(cf.tierWindowGun||0)===365?"selected":""}>Son 12 ay</option>
+          <option value="180" ${Number(cf.tierWindowGun||0)===180?"selected":""}>Son 6 ay</option>
+          <option value="730" ${Number(cf.tierWindowGun||0)===730?"selected":""}>Son 24 ay</option>
+          <option value="0" ${Number(cf.tierWindowGun||0)===0?"selected":""}>Tüm zamanlar (düşmez)</option>
+        </select></label>
+    </div>
+    <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px;display:grid;gap:10px">
+      <b>💬 WhatsApp mesajları</b>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <label style="font-size:13px;color:var(--soluk)">Gönderim<select id="a_wamode" style="${stil};margin-top:4px"><option value="web" ${cf.waMode!=="wa"?"selected":""}>WhatsApp Web (bilgisayar)</option><option value="wa" ${cf.waMode==="wa"?"selected":""}>wa.me (telefon uygulaması)</option></select></label>
+        <label style="font-size:13px;color:var(--soluk)">Düzenlenen dil<select id="a_dil" style="${stil};margin-top:4px">${Object.keys(PUAN_DIL_AD).map(d=>`<option value="${d}" ${dil===d?"selected":""}>${PUAN_DIL_AD[d]}</option>`).join("")}</select></label>
+      </div>
+      <div style="font-size:12px;color:var(--soluk)">Kısaltmalar: <code>{ad}</code> <code>{soyad}</code> <code>{hitap}</code> (Hanım/Bey) <code>{puan}</code> <code>{hediye}</code> <code>{seviye}</code> <code>{eczane}</code></div>
+      ${Object.keys(PUAN_TIP_AD).map(tipAlan).join("")}
+    </div>
+    <div style="display:flex;gap:10px"><button class="ana-dugme" id="a_kaydet" style="flex:0 0 auto;padding:12px 20px">Ayarları kaydet</button>
+      <span id="a_durum" style="align-self:center;color:#16a34a;font-size:13px"></span></div>
+  </div>`;
+  $("#a_dil").onchange=e=>{ pAyarWaTopla(); P.ayarDil=e.target.value; puanAyarGovde(); };
+  $("#a_kaydet").onclick=async()=>{
+    pAyarWaTopla();
+    cf.tiers.forEach((t,i)=>{ t.name=$("#t_ad_"+i).value.trim()||t.name; t.min=i===0?0:Math.max(0,Number($("#t_min_"+i).value)||0); t.rate=Number($("#t_rate_"+i).value)||0; });
+    cf.birthdayGift=Number($("#a_hediye").value)||0;
+    cf.dormantDays=Number($("#a_uyku").value)||180;
+    cf.tierWindowGun=Number($("#a_donem").value);
+    cf.waMode=$("#a_wamode").value;
+    const b=$("#a_kaydet"); b.disabled=true;
+    try{ await pAyarKaydet(); $("#a_durum").textContent="Kaydedildi ✓"; }catch(e){ $("#a_durum").style.color="#ef4444"; $("#a_durum").textContent="Kaydedilemedi"; }
+    b.disabled=false; setTimeout(()=>{ const s=$("#a_durum"); if(s) s.textContent=""; },2500);
+  };
+}
+function pAyarWaTopla(){
+  const cf=P.ayar.config; const dil=P.ayarDil||"tr";
+  cf.waLang=cf.waLang||{}; cf.waLang[dil]=cf.waLang[dil]||{};
+  Object.keys(PUAN_TIP_AD).forEach(tip=>{ const el=document.getElementById("wa_"+tip); if(el) cf.waLang[dil][tip]=el.value; });
 }
 document.getElementById("puanDugme").addEventListener("click", ()=>{ location.hash="puan"; });
 
