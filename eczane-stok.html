@@ -445,6 +445,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       <button class="ust-dugme hasta" id="nvDugme" type="button" aria-label="Ne verelim"><span>💊</span><span class="ek-yazi">Ne Verelim</span></button>
       <button class="ust-dugme hasta" id="ibDugme" type="button" aria-label="Bu ilaç neydi"><span>🔎</span><span class="ek-yazi">Bu İlaç Neydi?</span></button>
       <button class="ust-dugme hasta" id="siparisDugme" type="button" aria-label="Sipariş takibi"><span>📦</span><span class="ek-yazi">Sipariş</span><b class="hrozet gizli" id="siparisRozet"></b></button>
+      <button class="ust-dugme hasta" id="saymDugme" type="button" aria-label="Stok sayımı"><span>🔢</span><span class="ek-yazi">Stok Sayımı</span></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button" aria-label="Çıkış" title="Çıkış"><span>🚪</span><span class="ek-yazi">Çıkış</span></button>
     </div>
@@ -769,16 +770,17 @@ function yonlendir(){
   document.body.dataset.ekran = (h.split("/")[0] || "ana");
   window.scrollTo(0,0);
   const _base = h.split("/")[0] || "";
-  if(["","neverelim","ilacbul","hastalar","siparis","depolar"].includes(_base)) SON_BOLUM = _base;
+  if(["","neverelim","ilacbul","hastalar","siparis","depolar","sayim"].includes(_base)) SON_BOLUM = _base;
   if(h.startsWith("urun/")) return urunKarti(h.slice(5));
   if(h.startsWith("liste/")) return liste(h.slice(6));
   if(h.startsWith("ara/")) return aramaSonucu(h.slice(4));
   if(h.startsWith("depoara/")) return depoAraSayfasi(h.slice(8));
-  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif"); $("#ibDugme").classList.remove("aktif"); $("#siparisDugme").classList.remove("aktif");
+  $("#hastaDugme").classList.remove("aktif"); $("#depoDugme").classList.remove("aktif"); $("#nvDugme").classList.remove("aktif"); $("#ibDugme").classList.remove("aktif"); $("#siparisDugme").classList.remove("aktif"); $("#saymDugme").classList.remove("aktif");
   if(h==="neverelim" || h.startsWith("neverelim/")) return neVerelim(h.slice(10));
   if(h==="ilacbul" || h.startsWith("ilacbul/")) return ilacBul(h.slice(8));
   if(h==="hastalar") return hastaSayfasi();
   if(h==="siparis") return siparisSayfasi();
+  if(h==="sayim") return saymaSayfasi();
   if(h==="depolar") return depoSayfasi();
   return anaEkran();
 }
@@ -2726,6 +2728,113 @@ function sAyarEkrani(){
 }
 
 $("#siparisDugme").addEventListener("click", ()=>{ location.hash = "siparis"; });
+/* ===================== STOK SAYIMI (karekod toplu tarama) ===================== */
+const SY = { set:new Map(), ad:new Map(), zx:null, poll:null, bekle:null, akis:null, canli:false, cv:null, cx:null, ac:null };
+function syZxingYukle(){
+  if(SY.zx) return SY.zx;
+  SY.zx = new Promise((cz,rt)=>{
+    const s=document.createElement("script");
+    s.src="https://cdn.jsdelivr.net/npm/zxing-wasm@2.2.4/dist/iife/reader/index.js";
+    s.onload=()=>{ try{ ZXingWASM.prepareZXingModule({overrides:{locateFile:(p,pre)=>p.endsWith(".wasm")?"https://cdn.jsdelivr.net/npm/zxing-wasm@2.2.4/dist/reader/zxing_reader.wasm":pre+p},fireImmediately:true}); }catch(e){} cz(window.ZXingWASM); };
+    s.onerror=()=>rt(new Error("motor yüklenemedi"));
+    document.head.appendChild(s);
+  });
+  return SY.zx;
+}
+function syHam(r){ try{ if(r.bytes&&r.bytes.length) return Array.from(r.bytes).map(c=>String.fromCharCode(c)).join(""); }catch(e){} return r.text||""; }
+function syGtin(h){ return (h&&h.startsWith("01")&&h.length>=16)? h.substr(2,14):""; }
+function syDut(){ try{ const ac=SY.ac||(SY.ac=new (window.AudioContext||window.webkitAudioContext)()); if(ac.state==="suspended")ac.resume(); const o=ac.createOscillator(),g=ac.createGain(); o.frequency.value=1150;o.connect(g);g.connect(ac.destination);g.gain.setValueAtTime(.2,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.07);o.start();o.stop(ac.currentTime+.08);}catch(e){} }
+async function syAdCek(){
+  const gt=[...new Set([...SY.set.keys()].map(syGtin).filter(Boolean))].filter(g=>!SY.ad.has(g));
+  if(!gt.length) return;
+  const bar=gt.map(g=>g.replace(/^0(\d{13})$/,"$1")); const map={}; bar.forEach((b,i)=>map[b]=gt[i]);
+  try{ for(let i=0;i<bar.length;i+=300){ const {data}=await db.from("urun_ozet").select("barkod,ad").in("barkod",bar.slice(i,i+300)); for(const u of (data||[])) if(map[u.barkod]) SY.ad.set(map[u.barkod],u.ad); } }catch(e){}
+  gt.forEach(g=>{ if(!SY.ad.has(g)) SY.ad.set(g,""); });
+}
+function syOzetCiz(){ const m=new Map(); for(const h of SY.set.keys()){ const g=syGtin(h); const ad=SY.ad.get(g); const k=ad||("GTIN "+g); m.set(k,(m.get(k)||0)+1); } const arr=[...m.entries()].sort((a,b)=>b[1]-a[1]); const el=document.getElementById("syOzet"); if(el) el.innerHTML=arr.length?("<div class='hkucuk' style='margin-bottom:6px'>Ürün özeti</div>"+arr.map(([a,n])=>`<div style="display:flex;justify-content:space-between;padding:4px 2px;border-bottom:1px solid #eef0f2"><span>${kacis(a)}</span><b>${n}</b></div>`).join("")):""; }
+function syCizUI(){ const s=document.getElementById("sySayi"); if(s)s.textContent=SY.set.size; const t=document.getElementById("syCikti"); if(t)t.value=[...SY.set.keys()].join("\n"); syOzetCiz(); }
+function syEkle(ham, goster, ses){
+  if(!ham) return false;
+  if(SY.set.has(ham)){ const tk=document.getElementById("syTekrar"); if(tk) tk.textContent=(+tk.textContent||0)+1; return false; }
+  SY.set.set(ham, goster||ham); syCizUI(); if(ses) syDut();
+  clearTimeout(SY.bekle); SY.bekle=setTimeout(()=>{ syBulutYaz(); syAdCek().then(syOzetCiz); },400);
+  return true;
+}
+async function syBulutYaz(){ try{ const o=await ayarOku("sayim_oturum"); let v={liste:[]}; try{ if(o)v=JSON.parse(o.deger); }catch(e){} const b=new Set(v.liste||[]); for(const h of SY.set.keys())b.add(h); for(const h of (v.liste||[])) if(!SY.set.has(h)) SY.set.set(h,h); await ayarYaz("sayim_oturum",JSON.stringify({zaman:new Date().toISOString(),liste:[...b]})); }catch(e){} }
+async function syBulutOku(){ if(!document.getElementById("syCikti")){ clearInterval(SY.poll); return; } try{ const o=await ayarOku("sayim_oturum"); if(!o)return; let v; try{v=JSON.parse(o.deger);}catch(e){return;} let yeni=false; for(const h of (v.liste||[])) if(!SY.set.has(h)){ SY.set.set(h,h); yeni=true; } if(yeni){ syCizUI(); syAdCek().then(syOzetCiz); } }catch(e){} }
+function syKontrast(ctx,w,h){ try{ const d=ctx.getImageData(0,0,w,h),a=d.data; for(let i=0;i<a.length;i+=4){ let g=0.299*a[i]+0.587*a[i+1]+0.114*a[i+2]; g=(g-128)*1.7+128; a[i]=a[i+1]=a[i+2]=g<0?0:g>255?255:g; } ctx.putImageData(d,0,0);}catch(e){} }
+async function syFotoCek(file){
+  const ZX=await syZxingYukle(); const du=document.getElementById("syDurum"); if(du)du.textContent="Foto çözülüyor…";
+  let bmp; try{ bmp=await createImageBitmap(file); }catch(e){ if(du)du.textContent="Foto açılamadı."; return; }
+  const once=SY.set.size, W=bmp.width,H=bmp.height;
+  const oc=document.getElementById("syOnizleme"), ox=oc.getContext("2d"); const sc=Math.min(1,1100/W); oc.width=Math.round(W*sc); oc.height=Math.round(H*sc); ox.drawImage(bmp,0,0,oc.width,oc.height);
+  if(!SY.cv){ SY.cv=document.createElement("canvas"); SY.cx=SY.cv.getContext("2d",{willReadFrequently:true}); }
+  const cv=SY.cv,cx=SY.cx, bul=new Map();
+  const oku=async(sx,sy,sw,sh,pre)=>{ cv.width=sw;cv.height=sh;cx.drawImage(bmp,sx,sy,sw,sh,0,0,sw,sh); if(pre)syKontrast(cx,sw,sh); let res=[]; try{res=await ZX.readBarcodes(cx.getImageData(0,0,sw,sh),{formats:["DataMatrix"],tryHarder:true,maxNumberOfSymbols:80});}catch(e){} for(const r of res){ const ham=syHam(r); if(!ham)continue; syEkle(ham,r.text,false); if(!bul.has(ham)&&r.position){ try{const p=r.position; bul.set(ham,[p.topLeft,p.topRight,p.bottomRight,p.bottomLeft].map(q=>({x:(sx+q.x)*sc,y:(sy+q.y)*sc})));}catch(e){} } } };
+  await oku(0,0,W,H,false);
+  const c=3,rr=3,ov=0.2,tw=W/c,th=H/rr;
+  for(let r=0;r<rr;r++)for(let k=0;k<c;k++){ const x0=Math.max(0,k*tw-ov*tw),y0=Math.max(0,r*th-ov*th),x1=Math.min(W,(k+1)*tw+ov*tw),y1=Math.min(H,(r+1)*th+ov*th); await oku(x0,y0,x1-x0,y1-y0,false); await oku(x0,y0,x1-x0,y1-y0,true); }
+  ox.lineWidth=Math.max(2,oc.width/320); ox.strokeStyle="#16a34a"; ox.fillStyle="rgba(22,163,74,.18)";
+  for(const q of bul.values()){ ox.beginPath(); ox.moveTo(q[0].x,q[0].y); for(let i=1;i<4;i++)ox.lineTo(q[i].x,q[i].y); ox.closePath(); ox.fill(); ox.stroke(); }
+  oc.style.display="block"; if(bul.size) syDut();
+  if(du)du.textContent="Bu fotoda "+bul.size+" karekod işaretlendi (+"+(SY.set.size-once)+" yeni). ⚠️ Yeşili olmayan kutu = kaçtı, tekrar çek.";
+}
+function syStop(){ SY.canli=false; if(SY.akis){ SY.akis.getTracks().forEach(t=>t.stop()); SY.akis=null; } const vs=document.getElementById("syVideoSar"); if(vs)vs.style.display="none"; const b=document.getElementById("syCanli"),d=document.getElementById("syDur"); if(b)b.style.display=""; if(d)d.style.display="none"; }
+async function syCanliBasla(){
+  const ZX=await syZxingYukle();
+  try{ SY.akis=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}},audio:false}); }catch(e){ const du=document.getElementById("syDurum"); if(du)du.textContent="Kamera açılamadı: "+e.message; return; }
+  const v=document.getElementById("syVideo"); if(!v){ syStop(); return; } v.srcObject=SY.akis; await v.play(); document.getElementById("syVideoSar").style.display="block"; document.getElementById("syOnizleme").style.display="none";
+  document.getElementById("syCanli").style.display="none"; document.getElementById("syDur").style.display="";
+  if(!SY.cv){ SY.cv=document.createElement("canvas"); SY.cx=SY.cv.getContext("2d",{willReadFrequently:true}); }
+  SY.canli=true; const cv=SY.cv,cx=SY.cx;
+  const dongu=async()=>{
+    if(!SY.canli || !document.getElementById("syVideo")){ syStop(); return; }
+    if(v.videoWidth){ cv.width=v.videoWidth; cv.height=v.videoHeight; cx.drawImage(v,0,0); try{ const res=await ZX.readBarcodes(cx.getImageData(0,0,cv.width,cv.height),{formats:["DataMatrix"],tryHarder:false,maxNumberOfSymbols:6}); for(const r of res){ syEkle(syHam(r),r.text,true); } }catch(e){} }
+    setTimeout(dongu,0);
+  };
+  const du=document.getElementById("syDurum"); if(du)du.textContent="Canlı tarama açık — kodlara yakın, yavaş gezdir."; dongu();
+}
+async function saymaSayfasi(){
+  document.getElementById("saymDugme").classList.add("aktif");
+  $("#icerik").innerHTML = `
+  <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
+  <div class="liste-ust"><div><h1>🔢 Stok Sayımı</h1><p>Karekodları kamerayla oku ya da fotoğraf çek — hepsi burada birikir, tekrarı atlar. Telefonda okut, PC'de de görünür. Bitince <b>Rx'e kopyala</b> ile toplu karekod kutusuna yapıştır.</p></div></div>
+  <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:14px;margin-bottom:12px">
+    <div id="syVideoSar" style="position:relative;background:#000;border-radius:12px;overflow:hidden;max-height:46vh;display:none"><video id="syVideo" playsinline muted style="width:100%;display:block"></video></div>
+    <canvas id="syOnizleme" style="width:100%;border-radius:12px;display:none;border:1px solid #e9ecef"></canvas>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="ana-dugme" id="syCanli" type="button" style="flex:1 1 140px">▶ Canlı tara</button>
+      <button class="ana-dugme" id="syDur" type="button" style="flex:1 1 140px;display:none;background:#ef4444">⏸ Durdur</button>
+      <button class="ana-dugme" id="syFoto" type="button" style="flex:1 1 140px">📷 Foto çek / seç</button>
+    </div>
+    <input id="syFotoInput" type="file" accept="image/*" multiple style="display:none">
+    <div id="syDurum" class="hkucuk" style="margin-top:8px;min-height:18px"></div>
+  </div>
+  <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:14px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div><b id="sySayi" style="font-size:20px">0</b> karekod · <span id="syTekrar">0</span> tekrar</div>
+      <div style="display:flex;gap:8px">
+        <button class="ana-dugme" id="syKopya" type="button" style="padding:8px 12px">📋 Rx'e kopyala</button>
+        <button id="syTemiz" type="button" style="padding:8px 12px;border:1px solid #e9ecef;border-radius:10px;background:#f6f7f9">🗑 Bitir</button>
+      </div>
+    </div>
+    <div id="syOzet" style="margin-top:12px"></div>
+  </div>
+  <textarea id="syCikti" readonly style="width:100%;height:90px;border:1px solid #e9ecef;border-radius:12px;padding:10px;font-family:ui-monospace,monospace;font-size:12px" placeholder="Okunan karekodlar burada birikir…"></textarea>
+  `;
+  syCizUI();
+  const du0=document.getElementById("syDurum"); if(du0)du0.textContent="Okuma motoru hazırlanıyor…";
+  syZxingYukle().then(()=>{ const d=document.getElementById("syDurum"); if(d)d.textContent="Hazır. Canlı tara ya da foto çek."; }).catch(e=>{ const d=document.getElementById("syDurum"); if(d)d.textContent="Motor yüklenemedi: "+e.message; });
+  await syBulutOku(); syAdCek().then(syOzetCiz);
+  clearInterval(SY.poll); SY.poll=setInterval(syBulutOku,4000);
+  document.getElementById("syCanli").onclick=syCanliBasla; document.getElementById("syDur").onclick=syStop;
+  document.getElementById("syFoto").onclick=()=>{ syZxingYukle(); document.getElementById("syFotoInput").click(); };
+  document.getElementById("syFotoInput").onchange=async e=>{ const fs=[...(e.target.files||[])]; for(let i=0;i<fs.length;i++){ const d=document.getElementById("syDurum"); if(d)d.textContent="Foto "+(i+1)+"/"+fs.length+"…"; await syFotoCek(fs[i]); } e.target.value=""; };
+  document.getElementById("syKopya").onclick=async()=>{ const d=document.getElementById("syDurum"); try{ await navigator.clipboard.writeText([...SY.set.keys()].join("\n")); if(d)d.textContent="Kopyalandı ("+SY.set.size+" karekod). Rx toplu karekod kutusuna yapıştır."; }catch(e){ const t=document.getElementById("syCikti"); t.removeAttribute("readonly"); t.select(); document.execCommand("copy"); t.setAttribute("readonly",""); } };
+  document.getElementById("syTemiz").onclick=async()=>{ if(!confirm("Sayım listesini temizle? (telefon ve PC'de sıfırlanır)")) return; SY.set.clear(); SY.ad.clear(); const tk=document.getElementById("syTekrar"); if(tk)tk.textContent=0; document.getElementById("syOnizleme").style.display="none"; syStop(); syCizUI(); try{ await ayarYaz("sayim_oturum",JSON.stringify({zaman:new Date().toISOString(),liste:[]})); }catch(e){} const d=document.getElementById("syDurum"); if(d)d.textContent="Temizlendi."; };
+}
+document.getElementById("saymDugme").addEventListener("click", ()=>{ location.hash = "sayim"; });
+
 $("#hastaDugme").addEventListener("click", ()=>{ location.hash = "hastalar"; });
 $("#depoDugme").addEventListener("click", ()=>{ location.hash = "depolar"; });
 $("#nvDugme").addEventListener("click", ()=>{ location.hash = "neverelim"; });
