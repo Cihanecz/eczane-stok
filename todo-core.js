@@ -227,6 +227,10 @@ async function tazele(sesli){
     const yeni=GOREVLER.filter(g=>banaAit(g) && g.durum==="bekliyor" && !oncekiIds.has(g.id) && new Date(g.olusturmaZamani).getTime()>sonGoruldu);
     if(yeni.length){ trink(); bildirimGoster("Yeni görev", yeni[0].baslik + (yeni.length>1?` (+${yeni.length-1})`:"")); }
   }
+  const el=document.activeElement, tag=el&&el.tagName;
+  const yaziyor = (tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT");
+  const formda = (CFG.rol==="yonetici" && yTab==="ver");
+  if(yaziyor || formda) return;   // kullanıcı girdi yaparken ekran yenilenmesin (yazdıkları silinmesin)
   ciz();
 }
 
