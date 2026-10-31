@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="To Do Yönetici">
+<meta name="theme-color" content="#0F8A5F">
+<link rel="apple-touch-icon" href="ikon-192.png">
+<title>To Do — Yönetici</title>
+<script>try{if((JSON.parse(localStorage.getItem("todo_tema_yonetici_cihan")||"{}")).koyu)document.documentElement.dataset.koyu="1";}catch(e){}</script>
+<link rel="stylesheet" href="todo.css">
+</head>
+<body>
+<div id="app"><div class="bos">Yükleniyor…</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+window.TODO_CFG={
+  rol:"yonetici", kisiId:"cihan",
+  scURL:"https://crgfvsfncazexynzhwmo.supabase.co",
+  scKEY:"sb_publishable_WqWzwvumk9pMhBoV6LeMMA_tEgvzbPw",
+  eczaneAd:"Cihan Eczanesi",
+  ilkKadro:[{id:"nisa",ad:"Nisa"},{id:"banu",ad:"Banu"},{id:"elif",ad:"Elif"},{id:"cihan",ad:"Cihan"}]
+};
+</script>
+<script src="todo-core.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="To Do">
+<meta name="theme-color" content="#E0518A">
+<link rel="apple-touch-icon" href="ikon-192.png">
+<title>To Do List</title>
+<link rel="stylesheet" href="todo.css">
+</head>
+<body>
+<div id="app"><div class="bos">Yükleniyor…</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+(function(){
+  var k=new URLSearchParams(location.search).get("k")||"";
+  try{ if((JSON.parse(localStorage.getItem("todo_tema_calisan_"+k)||"{}")).koyu) document.documentElement.dataset.koyu="1"; }catch(e){}
+  window.TODO_CFG={
+    rol:"calisan", kisiId:k,
+    scURL:"https://crgfvsfncazexynzhwmo.supabase.co",
+    scKEY:"sb_publishable_WqWzwvumk9pMhBoV6LeMMA_tEgvzbPw",
+    eczaneAd:"Cihan Eczanesi"
+  };
+})();
+</script>
+<script src="todo-core.js"></script>
+</body>
+</html>
