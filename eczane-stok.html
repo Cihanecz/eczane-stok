@@ -55,11 +55,11 @@ a{color:inherit}
 /* ---------- üst çubuk ---------- */
 .ust{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   border-bottom:1px solid var(--cizgi);padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top))}
-.ust-ic{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:12px}
-.marka{display:flex;align-items:center;gap:9px;font-weight:700;font-size:18px;white-space:nowrap;
+.ust-ic{max-width:1320px;margin:0 auto;display:flex;align-items:center;gap:8px}
+.marka{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;white-space:nowrap;
   background:none;border:0;color:var(--murekkep);cursor:pointer;padding:4px 0}
 .marka svg{flex:none}
-.ara-kutu{flex:1 1 380px;position:relative;max-width:680px;min-width:300px;margin-left:auto}
+.ara-kutu{flex:1 1 240px;position:relative;max-width:360px;min-width:190px;margin-left:auto}
 .ara-kutu input{width:100%;border:1px solid var(--cizgi);border-radius:12px;padding:10px 14px 10px 40px;font-size:16px;
   background:var(--yuzey);color:var(--murekkep)}
 .ara-kutu input::placeholder{color:var(--soluk)}
@@ -99,7 +99,7 @@ a{color:inherit}
 .okutma{border:1px solid var(--yesil-koyu);background:var(--yesil-acik);border-radius:14px;padding:10px 14px;margin:6px 0 12px;font-size:14px}
 .okutma.yakin{border-color:var(--kirmizi);background:var(--kirmizi-acik)}
 .okutma.orta{border-color:var(--amber);background:var(--amber-acik)}
-.ust-dugme{background:var(--yuzey);border:1px solid var(--cizgi);color:var(--murekkep);border-radius:12px;padding:9px 13px;
+.ust-dugme{background:var(--yuzey);border:1px solid var(--cizgi);color:var(--murekkep);border-radius:11px;padding:7px 10px;font-size:14px;
   cursor:pointer;white-space:nowrap}
 .ust-dugme:hover{background:var(--hover)}
 
@@ -118,7 +118,7 @@ a{color:inherit}
 .hata{color:var(--kirmizi);font-size:14px;min-height:20px;margin:4px 0 10px}
 
 /* ---------- tutar kilidi ---------- */
-.ust-dugme.kilit{display:inline-flex;align-items:center;gap:6px}
+.ust-dugme.kilit{display:inline-flex;align-items:center;gap:5px}
 .ust-dugme.kilit.acik{border-color:var(--yesil);color:var(--yesil)}
 .kilitli{color:var(--soluk);letter-spacing:2px;cursor:pointer;white-space:nowrap}
 .kilitli:hover{color:var(--murekkep)}
@@ -326,7 +326,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
   @keyframes cub{from{transform:scaleY(0)}}
 }
 /* ---------- hasta takibi ---------- */
-.ust-dugme.hasta{display:inline-flex;align-items:center;gap:6px;position:relative}
+.ust-dugme.hasta{display:inline-flex;align-items:center;gap:5px;position:relative}
 .ust-dugme.hasta.aktif{border-color:var(--yesil);color:var(--yesil)}
 /* Ne Verelim: endikasyona göre stoktaki ilaçlar, ⭐ öncelikliler + yakın miat üstte */
 .nv-kutu{display:flex;align-items:center;gap:10px;background:var(--yuzey);border:2px solid var(--yesil);border-radius:14px;padding:4px 14px;margin:4px 0 16px;box-shadow:var(--golge)}
