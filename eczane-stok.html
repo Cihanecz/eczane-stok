@@ -3028,7 +3028,7 @@ function pMusteriForm(cid){
   const stil="width:100%;padding:10px;border:1px solid #e9ecef;border-radius:10px;margin-top:4px";
   $("#icerik").innerHTML = `
   <button class="geri" type="button" onclick="${cid?`pDetay('${cid}')`:'puanSayfasi()'}">‹ Geri</button>
-  <div class="liste-ust"><div><h1>${cid?"Müşteriyi düzenle":"Yeni müşteri"}</h1><p>Rx'ten otomatik getirme sıradaki aşamada; şimdilik elle.</p></div></div>
+  <div class="liste-ust"><div><h1>${cid?"Müşteriyi düzenle":"Yeni müşteri"}</h1><p>Müşteri bilgilerini gir. Zorunlu: Ad ve Telefon.</p></div></div>
   <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px;display:grid;gap:10px;max-width:560px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <label style="font-size:13px;color:var(--soluk)">Ad *<input id="fAd" value="${kacis(c.ad||"")}" style="${stil}"></label>
