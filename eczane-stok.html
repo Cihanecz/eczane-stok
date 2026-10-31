@@ -18,6 +18,12 @@
   --kirmizi:#D3433B; --kirmizi-acik:#FDECEB; --mavi:#2B78C8; --mor:#7A52C4; --odak:#2B78C8; --giris:#EAF2EE;
   --golge:0 1px 2px rgba(20,40,32,.06),0 2px 8px rgba(20,40,32,.05);
 }
+html[data-tema="karanlik"]{color-scheme:dark;
+  --bg:#0F1512; --yuzey:#171F1B; --yuzey2:#131A17; --murekkep:#E6EDE9; --soluk:#93A39B; --cizgi:#283430; --hover:#1F2A25;
+  --yesil:#2FB37E; --yesil-koyu:#2A4A3C; --yesil-acik:#15271F; --amber:#E0A049; --amber-acik:#2A2214;
+  --kirmizi:#E5675F; --kirmizi-acik:#2E1917; --mavi:#5BA3E8; --mor:#A98BE0; --odak:#5BA3E8; --giris:#15271F;
+  --golge:0 1px 2px rgba(0,0,0,.45),0 4px 14px rgba(0,0,0,.35);}
+html[data-tema="karanlik"] .ust{background:rgba(17,23,20,.92)}
 *{box-sizing:border-box}
 html,body{margin:0}
 html{color-scheme:light}
@@ -410,6 +416,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 .hsablon textarea{width:100%;min-height:90px;padding:10px;border:1px solid var(--cizgi);border-radius:10px;background:var(--giris);color:inherit;font:inherit}
 @media (max-width:520px){.hkart{grid-template-columns:1fr}.hdugmeler{justify-content:flex-start}}
 </style>
+<script>try{if(localStorage.getItem("eczane_tema")==="karanlik")document.documentElement.dataset.tema="karanlik";}catch(e){}</script>
 </head>
 <body>
 
@@ -450,6 +457,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button" aria-label="Çıkış" title="Çıkış"><span>🚪</span><span class="ek-yazi">Çıkış</span></button>
       <button class="ust-dugme" id="yenileDugme" type="button" aria-label="Yenile" title="Her şeyi yenile"><span>🔄</span><span class="ek-yazi">Yenile</span></button>
+      <button class="ust-dugme" id="temaDugme" type="button" aria-label="Tema" title="Karanlık / aydınlık"><span id="temaSimge">🌙</span><span class="ek-yazi">Tema</span></button>
     </div>
   </header>
   <main class="sayfa" id="icerik" tabindex="-1"></main>
@@ -2760,6 +2768,8 @@ function pPara(n){ return Number(n||0).toLocaleString("tr-TR",{minimumFractionDi
 function pPuanStr(n){ return Number(n||0).toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function pHitap(c){ return c.cinsiyet==="k"?"Hanım":(c.cinsiyet==="e"?"Bey":""); }
 function pTierObj(key){ return P.ayar.config.tiers.find(t=>t.key===key) || P.ayar.config.tiers[0]; }
+function pTierRenk(k){ return {normal:"#8a94a6",bronz:"#b08d57",gumus:"#9aa6b2",altin:"#d4af37"}[k]||"#8a94a6"; }
+function pTierRozet(k,ad){ const c=pTierRenk(k); return `<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:${c}22;color:${c};border:1px solid ${c}66;font-size:11px;font-weight:700;letter-spacing:.2px">${kacis(ad)}</span>`; }
 function pIslemList(cid){ return P.islem[cid] || []; }
 function pBakiye(cid){ return Math.round(pIslemList(cid).reduce((s,x)=>s+Number(x.points||0),0)*100)/100; }
 function pHarcama(cid){ const g=Number(P.ayar.config.tierWindowGun||0); const sinir = g>0 ? Date.now()-g*864e5 : 0; return pIslemList(cid).filter(x=>x.type==="earn" && new Date(x.date).getTime()>=sinir).reduce((s,x)=>s+Number(x.spent||0),0); }
@@ -2861,7 +2871,7 @@ async function puanSayfasi(){
   $("#puanDugme").classList.add("aktif");
   if(!P.yukluMu){ yukleniyor(); await puanVeriYukle(); }
   const dgSay=pDogumYaklasan().length, bugun=pDogumYaklasan().filter(x=>x.gun===0).length;
-  const sek=(k,et)=>`<button type="button" onclick="P.sekme='${k}';puanSayfasi()" style="padding:8px 12px;border:1px solid ${P.sekme===k?'var(--vurgu,#2d6cdf)':'#e9ecef'};border-radius:10px;background:${P.sekme===k?'var(--vurgu,#2d6cdf)':'#f6f7f9'};color:${P.sekme===k?'#fff':'var(--murekkep)'};font-weight:${P.sekme===k?'600':'400'}">${et}</button>`;
+  const sek=(k,et)=>`<button type="button" onclick="P.sekme='${k}';puanSayfasi()" style="padding:8px 12px;border:1px solid ${P.sekme===k?'var(--mavi)':'var(--cizgi)'};border-radius:10px;background:${P.sekme===k?'var(--mavi)':'var(--yuzey2)'};color:${P.sekme===k?'#fff':'var(--murekkep)'};font-weight:${P.sekme===k?'600':'400'}">${et}</button>`;
   $("#icerik").innerHTML = `
   <button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px">
@@ -2880,18 +2890,18 @@ function puanListeGovde(){
   if(q){ liste=P.musteri.filter(c=> ((c.ad||"")+" "+(c.soyad||"")).toLocaleLowerCase("tr").includes(q) || String(c.telefon||"").includes(q.replace(/\D/g,"")) ); }
   liste=liste.slice().sort((a,b)=> (new Date(pSonAktivite(b))-new Date(pSonAktivite(a))) );
   const kart = c=>{ const t=pTier(c); return `<button class="satir" type="button" onclick="P.secili='${c.id}';pDetay('${c.id}')" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px">
-    <span><b>${kacis((c.ad||"")+" "+(c.soyad||""))}</b> <small style="color:var(--soluk)">${kacis(c.telefon||"")}</small><br><span style="font-size:12px;color:var(--soluk)">${kacis(t.name)}</span></span>
+    <span><b>${kacis((c.ad||"")+" "+(c.soyad||""))}</b> <small style="color:var(--soluk)">${kacis(c.telefon||"")}</small><br>${pTierRozet(t.key,t.name)}</span>
     <b style="white-space:nowrap">${pPuanStr(pBakiye(c.id))} <span style="font-size:11px;color:var(--soluk)">puan</span></b></button>`; };
   $("#puanGovde").innerHTML = `
   <div class="liste-ust"><div><h1 style="margin:0">🎁 Puan</h1><p style="margin:2px 0 0">${P.musteri.length} müşteri. Müşteri seç, puan ver/kullan. Telefon ya da isimle ara.</p></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="ana-dugme" id="pYeni" type="button" style="padding:8px 12px">+ Yeni müşteri</button>
-      <button id="pYedekAl" type="button" style="padding:8px 12px;border:1px solid #e9ecef;border-radius:10px;background:#f6f7f9">⬇ Yedek al</button>
-      <button id="pYedekYukle" type="button" style="padding:8px 12px;border:1px solid #e9ecef;border-radius:10px;background:#f6f7f9">⬆ Yedek yükle</button>
+      <button id="pYedekAl" type="button" style="padding:8px 12px;border:1px solid var(--cizgi);border-radius:10px;background:var(--yuzey2)">⬇ Yedek al</button>
+      <button id="pYedekYukle" type="button" style="padding:8px 12px;border:1px solid var(--cizgi);border-radius:10px;background:var(--yuzey2)">⬆ Yedek yükle</button>
       <input id="pYedekInput" type="file" accept="application/json,.json" style="display:none">
     </div>
   </div>
-  <div style="margin:8px 0 12px"><input id="pAra" type="search" value="${kacis(P.ara||"")}" placeholder="Telefon veya isim ile ara…" style="width:100%;padding:11px 14px;border:1px solid #e9ecef;border-radius:12px;font-size:16px"></div>
+  <div style="margin:8px 0 12px"><input id="pAra" type="search" value="${kacis(P.ara||"")}" placeholder="Telefon veya isim ile ara…" style="width:100%;padding:11px 14px;border:1px solid var(--cizgi);border-radius:12px;font-size:16px"></div>
   <div style="display:grid;gap:8px">${liste.length? liste.slice(0,600).map(kart).join("") : `<div class="bos" style="padding:24px;text-align:center;color:var(--soluk)">${P.musteri.length? "Eşleşen müşteri yok." : "Henüz müşteri yok. '⬆ Yedek yükle' ile mevcut listeni aktar ya da '+ Yeni müşteri' ekle."}</div>`}</div>`;
   const inp=$("#pAra"); if(inp){ inp.addEventListener("input", ()=>{ clearTimeout(P._t); P._t=setTimeout(()=>{ P.ara=inp.value; const ss=inp.selectionStart; puanListeGovde(); const n=$("#pAra"); if(n){ n.focus(); try{n.setSelectionRange(ss,ss);}catch(e){} } },250); }); }
   $("#pYeni").onclick=()=>pMusteriForm(null);
@@ -2902,45 +2912,46 @@ function puanListeGovde(){
 
 function pDetay(cid){
   const c=P.musteri.find(x=>x.id===cid); if(!c) return puanSayfasi();
-  const t=pTier(c), bak=pBakiye(cid), oto=pOtoTier(cid);
+  const t=pTier(c), bak=pBakiye(cid), oto=pOtoTier(cid), tc=pTierRenk(t.key);
   const txs=pIslemList(cid).slice().reverse().slice(0,30);
   const etiket={earn:"➕ Kazandı",redeem:"➖ Kullandı",gift:"🎁 Hediye"};
-  const satirIslem = x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 2px;border-bottom:1px solid #eef0f2;font-size:13px">
+  const satirIslem = x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 2px;border-bottom:1px solid var(--cizgi);font-size:13px">
     <span>${etiket[x.type]||x.type} · <small style="color:var(--soluk)">${new Date(x.date).toLocaleString("tr-TR")}</small>${x.type==="earn"?` · ${pPara(x.spent)} ×%${x.rate}`:""}</span>
-    <span><b style="color:${x.points>=0?'#16a34a':'#ef4444'}">${x.points>=0?"+":""}${pPuanStr(x.points)}</b> <button onclick="pIslemSil('${cid}','${x.id}')" title="Geri al" style="border:0;background:none;color:#ef4444;cursor:pointer">✕</button></span></div>`;
+    <span><b style="color:${x.points>=0?'var(--yesil)':'var(--kirmizi)'}">${x.points>=0?"+":""}${pPuanStr(x.points)}</b> <button onclick="pIslemSil('${cid}','${x.id}')" title="Geri al" style="border:0;background:none;color:var(--kirmizi);cursor:pointer">✕</button></span></div>`;
   $("#icerik").innerHTML = `
   <button class="geri" type="button" onclick="puanSayfasi()">‹ Puan</button>
   <div class="liste-ust"><div><h1>${kacis((c.ad||"")+" "+(c.soyad||""))}</h1>
     <p>${kacis(t.name)}${c.manualTier?" (elle)":""} · ${kacis(c.telefon||"—")}${c.email?" · "+kacis(c.email):""}${(c.dogumGunu&&c.dogumGunu.gun)?" · 🎂 "+c.dogumGunu.gun+"."+c.dogumGunu.ay:""}</p></div>
     <div style="display:flex;gap:8px"><button class="ana-dugme" onclick="pMusteriForm('${cid}')" style="padding:8px 12px">✎ Düzenle</button>
-      <button onclick="pWaGonder('${cid}', pMsgMetin('${cid}','points'))" style="padding:8px 12px;border:1px solid #25d366;border-radius:10px;background:#eafff2;color:#128c3e">🟢 WhatsApp</button></div>
+      <button onclick="pWaGonder('${cid}', pMsgMetin('${cid}','points'))" style="padding:8px 12px;border:1px solid #25d366;border-radius:10px;background:var(--yesil-acik);color:var(--yesil)">🟢 WhatsApp</button></div>
   </div>
-  <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px;margin-bottom:12px;text-align:center">
-    <div style="font-size:34px;font-weight:800">${pPuanStr(bak)} <span style="font-size:14px;color:var(--soluk)">puan</span></div>
+  <div style="background:linear-gradient(135deg, ${tc}26, var(--yuzey) 62%);border:1px solid ${tc}55;border-radius:18px;padding:18px 16px;margin-bottom:12px;text-align:center;box-shadow:var(--golge)">
+    <div style="margin-bottom:6px">${pTierRozet(t.key,t.name)}${c.manualTier?' <span style="font-size:11px;color:var(--soluk)">(elle)</span>':''}</div>
+    <div style="font-size:36px;font-weight:800;line-height:1.1">${pPuanStr(bak)} <span style="font-size:14px;color:var(--soluk)">puan</span></div>
     <div style="color:var(--soluk);font-size:13px">1 puan = 1 ₺ · toplam ${pPara(bak)} değerinde · son 12 ay alış ${pPara(pHarcama(cid))} → ${kacis(oto.name)}</div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-    <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:14px">
+    <div style="background:var(--yuzey);border:1px solid var(--cizgi);border-radius:16px;padding:14px">
       <b>➕ Puan kazandır</b>
       <label style="display:block;margin:8px 0 2px;font-size:13px;color:var(--soluk)">Alışveriş tutarı (₺)</label>
-      <input id="pTutar" type="number" inputmode="decimal" placeholder="Örn. 1200" style="width:100%;padding:10px;border:1px solid #e9ecef;border-radius:10px">
+      <input id="pTutar" type="number" inputmode="decimal" placeholder="Örn. 1200" style="width:100%;padding:10px;border:1px solid var(--cizgi);border-radius:10px">
       <label style="display:block;margin:8px 0 2px;font-size:13px;color:var(--soluk)">Puan oranı (%) — seviye: ${t.rate}, değiştirebilirsin</label>
-      <input id="pOran" type="number" inputmode="decimal" value="${t.rate}" style="width:100%;padding:10px;border:1px solid #e9ecef;border-radius:10px">
+      <input id="pOran" type="number" inputmode="decimal" value="${t.rate}" style="width:100%;padding:10px;border:1px solid var(--cizgi);border-radius:10px">
       <button class="ana-dugme" id="pKazanBtn" style="width:100%;margin-top:10px">+ Puan ekle</button>
     </div>
-    <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:14px">
+    <div style="background:var(--yuzey);border:1px solid var(--cizgi);border-radius:16px;padding:14px">
       <b>➖ Puan kullan</b>
       <label style="display:block;margin:8px 0 2px;font-size:13px;color:var(--soluk)">Kullanılacak puan</label>
-      <input id="pKulPuan" type="number" inputmode="decimal" placeholder="Örn. 500" style="width:100%;padding:10px;border:1px solid #e9ecef;border-radius:10px">
-      <button id="pTumKul" style="width:100%;margin-top:8px;padding:8px;border:1px solid #e9ecef;border-radius:10px;background:#f6f7f9">Tümünü kullan (${pPuanStr(bak)})</button>
-      <button class="ana-dugme" id="pKullanBtn" style="width:100%;margin-top:8px;background:#b4863b">Puanı kullan</button>
+      <input id="pKulPuan" type="number" inputmode="decimal" placeholder="Örn. 500" style="width:100%;padding:10px;border:1px solid var(--cizgi);border-radius:10px">
+      <button id="pTumKul" style="width:100%;margin-top:8px;padding:8px;border:1px solid var(--cizgi);border-radius:10px;background:var(--yuzey2)">Tümünü kullan (${pPuanStr(bak)})</button>
+      <button class="ana-dugme" id="pKullanBtn" style="width:100%;margin-top:8px;background:var(--amber)">Puanı kullan</button>
     </div>
   </div>
-  <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:14px;margin-bottom:12px">
+  <div style="background:var(--yuzey);border:1px solid var(--cizgi);border-radius:16px;padding:14px;margin-bottom:12px">
     <b>Son işlemler</b>
     <div style="margin-top:8px">${txs.length? txs.map(satirIslem).join("") : `<div style="color:var(--soluk);font-size:13px;padding:8px 0">Henüz işlem yok.</div>`}</div>
   </div>
-  <button onclick="pMusteriSil('${cid}')" style="border:0;background:none;color:#ef4444;cursor:pointer;font-size:13px">🗑 Müşteriyi sil</button>`;
+  <button onclick="pMusteriSil('${cid}')" style="border:0;background:none;color:var(--kirmizi);cursor:pointer;font-size:13px">🗑 Müşteriyi sil</button>`;
   $("#pKazanBtn").onclick=async()=>{ const tt=Number($("#pTutar").value), oo=Number($("#pOran").value); if(!(tt>0)){ alert("Tutar gir."); return; } const b=$("#pKazanBtn"); b.disabled=true; b.textContent="…"; await pKazandir(cid,tt,oo); pDetay(cid); };
   $("#pTumKul").onclick=()=>{ $("#pKulPuan").value = pBakiye(cid); };
   $("#pKullanBtn").onclick=async()=>{ const pp=Number($("#pKulPuan").value); if(!(pp>0)){ alert("Puan gir."); return; } const b=$("#pKullanBtn"); b.disabled=true; await pKullan(cid,pp); pDetay(cid); };
@@ -2950,13 +2961,13 @@ function pDetay(cid){
 function puanDogumGovde(){
   const liste=pDogumYaklasan();
   const kart=x=>{ const c=x.c, bugunMu=x.gun===0;
-    return `<div style="background:#fff;border:1px solid ${bugunMu?'#f0b429':'#e9ecef'};border-radius:14px;padding:14px;${bugunMu?'box-shadow:0 0 0 2px #fdeccb inset;':''}">
+    return `<div style="background:var(--yuzey);border:1px solid ${bugunMu?'var(--amber)':'var(--cizgi)'};border-radius:16px;padding:14px;${bugunMu?'box-shadow:0 0 0 2px var(--amber-acik) inset;':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
         <div><b>${kacis((c.ad||"")+" "+(c.soyad||""))}</b> <small style="color:var(--soluk)">${kacis(c.telefon||"telefon yok")}</small><br>
-          <span style="font-size:13px;color:${bugunMu?'#b4740a':'var(--soluk)'}">${bugunMu?"🔴 Bugün doğum günü!":(x.gun===1?"Yarın":x.gun+" gün sonra")} · 🎂 ${c.dogumGunu.gun}.${c.dogumGunu.ay} · ${kacis(pTier(c).name)}</span></div>
+          <span style="font-size:13px;color:${bugunMu?'var(--amber)':'var(--soluk)'}">${bugunMu?"🔴 Bugün doğum günü!":(x.gun===1?"Yarın":x.gun+" gün sonra")} · 🎂 ${c.dogumGunu.gun}.${c.dogumGunu.ay} · ${kacis(pTier(c).name)}</span></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="pWaGonder('${c.id}', pMsgMetin('${c.id}','birthday'))" style="padding:8px 12px;border:1px solid #25d366;border-radius:10px;background:#eafff2;color:#128c3e">🎉 Kutla</button>
-          <button onclick="pDogumGiftTik('${c.id}')" style="padding:8px 12px;border:1px solid #f0b429;border-radius:10px;background:#fff7e6;color:#9a6700">🎁 ${pPuanStr(P.ayar.config.birthdayGift)} puan ver + kutla</button>
+          <button onclick="pWaGonder('${c.id}', pMsgMetin('${c.id}','birthday'))" style="padding:8px 12px;border:1px solid #25d366;border-radius:10px;background:var(--yesil-acik);color:var(--yesil)">🎉 Kutla</button>
+          <button onclick="pDogumGiftTik('${c.id}')" style="padding:8px 12px;border:1px solid var(--amber);border-radius:10px;background:var(--amber-acik);color:var(--amber)">🎁 ${pPuanStr(P.ayar.config.birthdayGift)} puan ver + kutla</button>
         </div>
       </div></div>`; };
   $("#puanGovde").innerHTML = `
@@ -2974,7 +2985,7 @@ async function pDogumGiftTik(cid){
 /* ---- Raporlar ---- */
 function puanRaporGovde(){
   const r=P.rapor||"ozet";
-  const sec=(k,et)=>`<button type="button" onclick="P.rapor='${k}';puanRaporGovde()" style="padding:7px 11px;border:1px solid ${r===k?'#2d6cdf':'#e9ecef'};border-radius:9px;background:${r===k?'#2d6cdf':'#f6f7f9'};color:${r===k?'#fff':'var(--murekkep)'};font-size:13px">${et}</button>`;
+  const sec=(k,et)=>`<button type="button" onclick="P.rapor='${k}';puanRaporGovde()" style="padding:7px 11px;border:1px solid ${r===k?'var(--mavi)':'var(--cizgi)'};border-radius:9px;background:${r===k?'var(--mavi)':'var(--yuzey2)'};color:${r===k?'#fff':'var(--murekkep)'};font-size:13px">${et}</button>`;
   let govde="", csvBtn="";
   if(r==="ozet"){
     const n=P.musteri.length;
@@ -2982,7 +2993,7 @@ function puanRaporGovde(){
     let verilen=0,kullanilan=0,hediye=0;
     for(const cid in P.islem) for(const x of P.islem[cid]){ if(x.type==="earn")verilen+=Number(x.points||0); else if(x.type==="redeem")kullanilan+=Number(x.points||0); else if(x.type==="gift")hediye+=Number(x.points||0); }
     const dag={}; P.ayar.config.tiers.forEach(t=>dag[t.key]=0); P.musteri.forEach(c=>{ const k=pTier(c).key; dag[k]=(dag[k]||0)+1; });
-    const kutu=(b,v)=>`<div style="background:#fff;border:1px solid #e9ecef;border-radius:12px;padding:14px"><div style="font-size:12px;color:var(--soluk)">${b}</div><div style="font-size:22px;font-weight:700">${v}</div></div>`;
+    const kutu=(b,v)=>`<div style="background:var(--yuzey);border:1px solid var(--cizgi);border-radius:12px;padding:14px"><div style="font-size:12px;color:var(--soluk)">${b}</div><div style="font-size:22px;font-weight:700">${v}</div></div>`;
     govde=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
       ${kutu("Toplam müşteri",n)}
       ${kutu("Dağıtılan puan (açık)",pPuanStr(toplamPuan))}
@@ -3009,7 +3020,7 @@ function puanRaporGovde(){
       satirlar=veri.map(x=>[(x.c.ad||"")+" "+(x.c.soyad||""),x.c.telefon||""]);
       govde=veri.length? veri.map(x=>pRaporSatir(x.c, "hitap yok")).join("") : pRaporBos(bos);
     }
-    csvBtn=satirlar.length? `<button onclick='pCsvIndir(${JSON.stringify(basliklar)}, ${JSON.stringify(satirlar)}, ${JSON.stringify(dosya)})' style="padding:7px 11px;border:1px solid #e9ecef;border-radius:9px;background:#f6f7f9;font-size:13px">⬇ CSV indir</button>`:"";
+    csvBtn=satirlar.length? `<button onclick='pCsvIndir(${JSON.stringify(basliklar)}, ${JSON.stringify(satirlar)}, ${JSON.stringify(dosya)})' style="padding:7px 11px;border:1px solid var(--cizgi);border-radius:9px;background:var(--yuzey2);font-size:13px">⬇ CSV indir</button>`:"";
     govde=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 10px"><b>${kacis(baslik)} <small style="color:var(--soluk)">(${veri.length})</small></b>${csvBtn}</div><div style="display:grid;gap:8px">${govde}</div>`;
   }
   $("#puanGovde").innerHTML = `
@@ -3027,11 +3038,11 @@ function pMusteriForm(cid){
   const c = cid ? P.musteri.find(x=>x.id===cid) : { id:null, ad:"", soyad:"", telefon:"", email:"", adres:"", cinsiyet:"", dil:"tr", tc:"", dogumGunu:{gun:"",ay:""}, manualTier:"" };
   const dg=c.dogumGunu||{gun:"",ay:""};
   const tierSec = `<option value="">Otomatik — harcamaya göre</option>`+P.ayar.config.tiers.map(t=>`<option value="${t.key}" ${c.manualTier===t.key?"selected":""}>${kacis(t.name)}</option>`).join("");
-  const stil="width:100%;padding:10px;border:1px solid #e9ecef;border-radius:10px;margin-top:4px";
+  const stil="width:100%;padding:10px;border:1px solid var(--cizgi);border-radius:10px;margin-top:4px";
   $("#icerik").innerHTML = `
   <button class="geri" type="button" onclick="${cid?`pDetay('${cid}')`:'puanSayfasi()'}">‹ Geri</button>
   <div class="liste-ust"><div><h1>${cid?"Müşteriyi düzenle":"Yeni müşteri"}</h1><p>Müşteri bilgilerini gir. Zorunlu: Ad ve Telefon.</p></div></div>
-  <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px;display:grid;gap:10px;max-width:560px">
+  <div style="background:var(--yuzey);border:1px solid var(--cizgi);border-radius:16px;padding:16px;display:grid;gap:10px;max-width:560px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <label style="font-size:13px;color:var(--soluk)">Ad *<input id="fAd" value="${kacis(c.ad||"")}" style="${stil}"></label>
       <label style="font-size:13px;color:var(--soluk)">Soyad<input id="fSoyad" value="${kacis(c.soyad||"")}" style="${stil}"></label>
@@ -3048,12 +3059,12 @@ function pMusteriForm(cid){
       <label style="font-size:13px;color:var(--soluk)">&nbsp;<select id="fDgAy" style="${stil}"><option value="">Ay</option>${["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"].map((a,i)=>`<option value="${i+1}" ${dg.ay==i+1?"selected":""}>${a}</option>`).join("")}</select></label>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <label style="font-size:13px;color:var(--soluk)">Mesaj dili<select id="fDil" style="${stil}">${["tr","en","ru","de","uk","ar","fa","it","fr","es"].map(d=>`<option value="${d}" ${(c.dil||"tr")===d?"selected":""}>${d.toUpperCase()}</option>`).join("")}</select></label>
+      <label style="font-size:13px;color:var(--soluk)">Mesaj dili<select id="fDil" style="${stil}">${["tr","en","ru","de","uk","ar","fa","it","fr","es"].map(d=>`<option value="${d}" ${(c.dil||"tr")===d?"selected":""}>${PUAN_DIL_AD[d]||d.toUpperCase()}</option>`).join("")}</select></label>
       <label style="font-size:13px;color:var(--soluk)">Seviye<select id="fTier" style="${stil}">${tierSec}</select></label>
     </div>
     <div style="display:flex;gap:10px;margin-top:6px">
       <button class="ana-dugme" id="fKaydet" style="flex:1">${cid?"Kaydet":"Ekle"}</button>
-      <button onclick="${cid?`pDetay('${cid}')`:'puanSayfasi()'}" style="padding:12px 16px;border:1px solid #e9ecef;border-radius:10px;background:#f6f7f9">Vazgeç</button>
+      <button onclick="${cid?`pDetay('${cid}')`:'puanSayfasi()'}" style="padding:12px 16px;border:1px solid var(--cizgi);border-radius:10px;background:var(--yuzey2)">Vazgeç</button>
     </div>
   </div>`;
   $("#fKaydet").onclick=async()=>{
@@ -3095,7 +3106,7 @@ async function pYedekYukle(e){
   P.yukluMu=true; P.sekme="liste"; puanSayfasi();
 }
 /* ---- Ayarlar ---- */
-const PUAN_DIL_AD={tr:"Türkçe",en:"İngilizce",ru:"Rusça",de:"Almanca",uk:"Ukraynaca",ar:"Arapça",fa:"Farsça",it:"İtalyanca",fr:"Fransızca",es:"İspanyolca"};
+const PUAN_DIL_AD={tr:"🇹🇷 Türkçe",en:"🇬🇧 İngilizce",ru:"🇷🇺 Rusça",de:"🇩🇪 Almanca",uk:"🇺🇦 Ukraynaca",ar:"🇸🇦 Arapça",fa:"🇮🇷 Farsça",it:"🇮🇹 İtalyanca",fr:"🇫🇷 Fransızca",es:"🇪🇸 İspanyolca"};
 const PUAN_TIP_AD={birthday:"🎂 Doğum günü kutlaması",birthdayGift:"🎁 Doğum günü + hediye puan",dormant:"😴 Uykuda müşteri",points:"💬 Puan bilgi mesajı"};
 function puanAyarGovde(){
   if(!P.ayar) P.ayar=JSON.parse(JSON.stringify(PUAN_VARSAYILAN_AYAR));
@@ -3104,17 +3115,17 @@ function puanAyarGovde(){
   if(!P.ayarDil) P.ayarDil="tr";
   const dil=P.ayarDil;
   const w=(cf.waLang&&cf.waLang[dil])||{};
-  const stil="width:100%;padding:9px;border:1px solid #e9ecef;border-radius:9px";
+  const stil="width:100%;padding:9px;border:1px solid var(--cizgi);border-radius:9px";
   const tierSatir=(t,i)=>`<tr>
     <td style="padding:4px"><input id="t_ad_${i}" value="${kacis(t.name)}" style="${stil}"></td>
-    <td style="padding:4px"><input id="t_min_${i}" type="number" inputmode="numeric" value="${t.min}" ${i===0?'readonly title="En alt seviye hep 0"':''} style="${stil}${i===0?';background:#f6f7f9;color:var(--soluk)':''}"></td>
+    <td style="padding:4px"><input id="t_min_${i}" type="number" inputmode="numeric" value="${t.min}" ${i===0?'readonly title="En alt seviye hep 0"':''} style="${stil}${i===0?';background:var(--yuzey2);color:var(--soluk)':''}"></td>
     <td style="padding:4px"><input id="t_rate_${i}" type="number" inputmode="decimal" value="${t.rate}" style="${stil}"></td>
   </tr>`;
   const tipAlan=tip=>`<label style="display:block;margin-bottom:10px"><span style="font-size:13px;color:var(--soluk)">${PUAN_TIP_AD[tip]}</span>
     <textarea id="wa_${tip}" rows="3" style="${stil};margin-top:4px;resize:vertical">${kacis(w[tip]!=null?w[tip]:PUAN_SABLON_TR[tip])}</textarea></label>`;
   $("#puanGovde").innerHTML=`
   <div style="display:grid;gap:14px;max-width:720px">
-    <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px">
+    <div style="background:var(--yuzey);border:1px solid var(--cizgi);border-radius:16px;padding:16px">
       <b>🏅 Seviyeler ve puan oranları</b>
       <p style="margin:4px 0 10px;font-size:13px;color:var(--soluk)">Eşik = seviyeye girmek için gereken (son 12 ay) toplam alış. Oran = o seviyede her alışın yüzde kaçı puan olur.</p>
       <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -3122,7 +3133,7 @@ function puanAyarGovde(){
         <tbody>${cf.tiers.map(tierSatir).join("")}</tbody>
       </table>
     </div>
-    <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px;display:grid;gap:12px">
+    <div style="background:var(--yuzey);border:1px solid var(--cizgi);border-radius:16px;padding:16px;display:grid;gap:12px">
       <b>⚙️ Genel</b>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <label style="font-size:13px;color:var(--soluk)">🎁 Doğum günü hediye puanı<input id="a_hediye" type="number" inputmode="numeric" value="${cf.birthdayGift||100}" style="${stil};margin-top:4px"></label>
@@ -3136,7 +3147,7 @@ function puanAyarGovde(){
           <option value="0" ${Number(cf.tierWindowGun||0)===0?"selected":""}>Tüm zamanlar (düşmez)</option>
         </select></label>
     </div>
-    <div style="background:#fff;border:1px solid #e9ecef;border-radius:14px;padding:16px;display:grid;gap:10px">
+    <div style="background:var(--yuzey);border:1px solid var(--cizgi);border-radius:16px;padding:16px;display:grid;gap:10px">
       <b>💬 WhatsApp mesajları</b>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <label style="font-size:13px;color:var(--soluk)">Gönderim<select id="a_wamode" style="${stil};margin-top:4px"><option value="web" ${cf.waMode!=="wa"?"selected":""}>WhatsApp Web (bilgisayar)</option><option value="wa" ${cf.waMode==="wa"?"selected":""}>wa.me (telefon uygulaması)</option></select></label>
@@ -3146,7 +3157,7 @@ function puanAyarGovde(){
       ${Object.keys(PUAN_TIP_AD).map(tipAlan).join("")}
     </div>
     <div style="display:flex;gap:10px"><button class="ana-dugme" id="a_kaydet" style="flex:0 0 auto;padding:12px 20px">Ayarları kaydet</button>
-      <span id="a_durum" style="align-self:center;color:#16a34a;font-size:13px"></span></div>
+      <span id="a_durum" style="align-self:center;color:var(--yesil);font-size:13px"></span></div>
   </div>`;
   $("#a_dil").onchange=e=>{ pAyarWaTopla(); P.ayarDil=e.target.value; puanAyarGovde(); };
   $("#a_kaydet").onclick=async()=>{
@@ -3157,7 +3168,7 @@ function puanAyarGovde(){
     cf.tierWindowGun=Number($("#a_donem").value);
     cf.waMode=$("#a_wamode").value;
     const b=$("#a_kaydet"); b.disabled=true;
-    try{ await pAyarKaydet(); $("#a_durum").textContent="Kaydedildi ✓"; }catch(e){ $("#a_durum").style.color="#ef4444"; $("#a_durum").textContent="Kaydedilemedi"; }
+    try{ await pAyarKaydet(); $("#a_durum").textContent="Kaydedildi ✓"; }catch(e){ $("#a_durum").style.color="var(--kirmizi)"; $("#a_durum").textContent="Kaydedilemedi"; }
     b.disabled=false; setTimeout(()=>{ const s=$("#a_durum"); if(s) s.textContent=""; },2500);
   };
 }
@@ -3276,6 +3287,9 @@ async function saymaSayfasi(){
 }
 document.getElementById("saymDugme").addEventListener("click", ()=>{ location.hash = "sayim"; });
 document.getElementById("yenileDugme").addEventListener("click", ()=>{ try{ location.reload(); }catch(e){ location.href=location.pathname+location.search; } });
+(function(){ function uygula(t){ var k=(t==="karanlik"); if(k)document.documentElement.dataset.tema="karanlik"; else document.documentElement.removeAttribute("data-tema"); var sm=document.getElementById("temaSimge"); if(sm)sm.textContent=k?"☀️":"🌙"; }
+  try{ uygula(localStorage.getItem("eczane_tema")); }catch(e){}
+  var b=document.getElementById("temaDugme"); if(b) b.addEventListener("click", function(){ var yeni=(document.documentElement.dataset.tema==="karanlik")?"aydinlik":"karanlik"; try{localStorage.setItem("eczane_tema",yeni);}catch(e){} uygula(yeni); }); })();
 
 $("#hastaDugme").addEventListener("click", ()=>{ location.hash = "hastalar"; });
 $("#depoDugme").addEventListener("click", ()=>{ location.hash = "depolar"; });
