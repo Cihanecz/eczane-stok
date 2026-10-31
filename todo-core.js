@@ -54,7 +54,7 @@ function bildirimGoster(baslik, govde){
 }
 
 /* ---------- veri ---------- */
-let CFGV={pin:null,calisanlar:[],sablonlar:[]};
+let CFGV={pin:null,sifreler:{},calisanlar:[],sablonlar:[]};
 let GOREVLER=[];
 let sonGoruldu = (()=>{ try{ return Number(localStorage.getItem("todo_songor_"+(CFG.kisiId||"x")))||0; }catch(e){ return 0; } })();
 
@@ -63,7 +63,7 @@ async function veriOku(){
     sc.from("ayar").select("deger").eq("anahtar","todo_cfg").maybeSingle(),
     sc.from("ayar").select("anahtar,deger").like("anahtar","todo_t_%")
   ]);
-  if(c && c.data && c.data.deger){ try{ CFGV=Object.assign({pin:null,calisanlar:[],sablonlar:[]}, JSON.parse(c.data.deger)); }catch(e){} }
+  if(c && c.data && c.data.deger){ try{ CFGV=Object.assign({pin:null,sifreler:{},calisanlar:[],sablonlar:[]}, JSON.parse(c.data.deger)); }catch(e){} }
   GOREVLER = ((t&&t.data)||[]).map(r=>{ try{ return JSON.parse(r.deger); }catch(e){ return null; } }).filter(Boolean);
 }
 async function cfgYaz(){ await sc.from("ayar").upsert({anahtar:"todo_cfg",deger:JSON.stringify(CFGV),guncelleme:new Date().toISOString()}); }
@@ -106,11 +106,6 @@ async function gorevSil(id){ GOREVLER=GOREVLER.filter(x=>x.id!==id); await gorev
 
 /* ===================== ÇALIŞAN GÖRÜNÜMÜ ===================== */
 function calisanEkran(){
-  if(!CFG.kisiId){
-    const ks=(CFGV.calisanlar||[]).filter(k=>k.id!=="cihan").map(k=>`<button class="ana-dugme" style="width:100%;margin-bottom:8px" onclick="location.search='?k=${encodeURIComponent(k.id)}'">${kacis(k.ad)}</button>`).join("");
-    $("#app").innerHTML=`<header class="tbar"><div class="tbar-ic"><div class="tbar-ad">👋 Hoş geldin</div></div><div class="tbar-alt">${kacis(CFG.eczaneAd||"")} · To Do List</div></header><main class="twrap"><h2>Sen kimsin?</h2>${ks||'<div class="bos">Çalışan tanımlı değil.</div>'}</main>`;
-    return;
-  }
   const benim=GOREVLER.filter(g=>banaAit(g));
   const aktif=benim.filter(g=>g.durum==="bekliyor").sort((a,b)=>(a.tarih+(a.saat||"")).localeCompare(b.tarih+(b.saat||"")));
   const yapilan=benim.filter(g=>g.durum==="yapildi").sort((a,b)=>new Date(b.yapilmaZamani)-new Date(a.yapilmaZamani));
@@ -133,20 +128,13 @@ function calisanEkran(){
     ${aktif.length?`<section><h2>Yapılacaklar <span class="say">${aktif.length}</span></h2>${aktif.map(kart).join("")}</section>`:`<div class="bos">🎉 Bekleyen görevin yok!</div>`}
     <section class="kendi"><button class="ekle-btn" onclick="TODO.kendineEkle()">+ Kendime hatırlatma ekle</button></section>
     ${yapilan.length?`<section><h2 class="sol">Yaptıklarım</h2>${yapilan.map(yKart).join("")}</section>`:""}
-    <div class="dip"><button class="mini" onclick="TODO.bildirimIzin()">🔔 Bildirimleri aç</button></div>
+    <div class="dip"><button class="mini" onclick="TODO.bildirimIzin()">🔔 Bildirimleri aç</button> <button class="mini" onclick="TODO.sifreDegistir()">🔒 Şifremi değiştir</button></div>
   </main>`;
 }
 
 /* ===================== YÖNETİCİ GÖRÜNÜMÜ ===================== */
 let yTab="ver";
 function yoneticiEkran(){
-  // PIN kapısı
-  if(CFGV.pin && !sessionStorage.getItem("todo_pin_ok")){
-    $("#app").innerHTML=`<div class="pin-kutu"><h2>🔒 Yönetici</h2><p>${kacis(CFG.eczaneAd||"")}</p>
-      <input id="pinInput" type="password" inputmode="numeric" maxlength="8" placeholder="PIN" class="pin-in">
-      <button class="ana-dugme" onclick="TODO.pinGir()">Gir</button><div id="pinHata" class="pin-hata"></div></div>`;
-    return;
-  }
   const say=k=>`<button class="y-tab ${yTab===k?'sec':''}" onclick="TODO.yTab('${k}')">`;
   const onayBekleyen=GOREVLER.filter(g=>g.durum==="yapildi");
   const bekleyen=GOREVLER.filter(g=>g.durum==="bekliyor");
@@ -208,7 +196,7 @@ function yOnayGovde(list){
 function yCalisanGovde(){
   const ks=(CFGV.calisanlar||[]).map(k=>`<div class="g-kart"><div class="g-orta"><div class="g-bas">${kacis(k.ad)}</div><div class="g-alt">link: todo-calisan.html?k=${kacis(k.id)}</div></div><button class="mini kirmizi" onclick="TODO.calisanSil('${k.id}')">sil</button></div>`).join("");
   return `<section class="form-kutu"><label>Yeni çalışan adı<input id="cAd" placeholder="Örn. Ayşe"></label><button class="ana-dugme" onclick="TODO.calisanEkle()">+ Ekle</button></section>${ks||'<div class="bos">Çalışan yok.</div>'}
-  <div class="dip"><button class="mini" onclick="TODO.pinAyar()">🔒 Yönetici PIN'i ayarla/değiştir</button></div>`;
+  <div class="dip"><button class="mini" onclick="TODO.sifreDegistir()">🔒 Şifremi değiştir</button></div>`;
 }
 function yArsivGovde(){
   const list=GOREVLER.filter(g=>g.durum==="arsiv").sort((a,b)=>new Date(b.arsivZamani||0)-new Date(a.arsivZamani||0)).slice(0,100);
@@ -216,8 +204,36 @@ function yArsivGovde(){
   return list.map(g=>`<div class="g-kart yapildi"><div class="g-orta"><div class="g-bas" style="opacity:.75">${kacis(g.baslik)}</div><div class="g-alt">${kacis(kisiAd(g.yapan)||"")} · ${g.arsivZamani?kacis(new Date(g.arsivZamani).toLocaleDateString("tr-TR")):""}</div></div><button class="mini" onclick="TODO.sil('${g.id}')">kalıcı sil</button></div>`).join("");
 }
 
+/* ---------- şifre kapısı ---------- */
+async function sha(s){ const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(s))); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
+function kimlik(){ return CFG.kisiId || "cihan"; }
+function kapiAcikMi(){ try{ return sessionStorage.getItem("todo_kapi_"+kimlik())==="1"; }catch(e){ return false; } }
+function kapiAc(){ try{ sessionStorage.setItem("todo_kapi_"+kimlik(),"1"); }catch(e){} }
+function sifreVar(){ return !!(CFGV.sifreler && CFGV.sifreler[kimlik()]); }
+function kapiCiz(){
+  const olustur=!sifreVar();
+  const ad = CFG.rol==="yonetici" ? "Yönetici" : kisiAd(kimlik());
+  $("#app").innerHTML=`<div class="pin-kutu"><h2>🔒 ${kacis(ad)}</h2><p>${kacis(CFG.eczaneAd||"")}</p>
+    ${olustur?`<p style="font-size:13px;color:var(--soluk)">İlk giriş: kendine bir şifre oluştur.</p>
+      <input id="s1" type="password" class="pin-in" placeholder="Yeni şifre">
+      <input id="s2" type="password" class="pin-in" placeholder="Şifre (tekrar)">
+      <button class="ana-dugme" onclick="TODO.kapiOlustur()">Oluştur ve gir</button>`
+    :`<input id="s1" type="password" class="pin-in" placeholder="Şifre" onkeydown="if(event.key==='Enter')TODO.kapiGir()">
+      <button class="ana-dugme" onclick="TODO.kapiGir()">Gir</button>`}
+    <div id="sHata" class="pin-hata"></div></div>`;
+}
+function calisanChooser(){
+  const ks=(CFGV.calisanlar||[]).filter(k=>k.id!=="cihan").map(k=>`<button class="ana-dugme" style="width:100%;margin-bottom:8px" onclick="location.search='?k=${encodeURIComponent(k.id)}'">${kacis(k.ad)}</button>`).join("");
+  $("#app").innerHTML=`<header class="tbar"><div class="tbar-ic"><div class="tbar-ad">👋 Hoş geldin</div></div><div class="tbar-alt">${kacis(CFG.eczaneAd||"")} · To Do List</div></header><main class="twrap"><h2>Sen kimsin?</h2>${ks||'<div class="bos">Çalışan tanımlı değil.</div>'}</main>`;
+}
+
 /* ---------- render seçici ---------- */
-function ciz(){ temaUygula(); if(CFG.rol==="yonetici") yoneticiEkran(); else calisanEkran(); }
+function ciz(){
+  temaUygula();
+  if(CFG.rol!=="yonetici" && !CFG.kisiId){ return calisanChooser(); }
+  if(!kapiAcikMi()){ return kapiCiz(); }
+  if(CFG.rol==="yonetici") yoneticiEkran(); else calisanEkran();
+}
 
 /* ---------- canlı yenileme + bildirim ---------- */
 async function tazele(sesli){
@@ -262,8 +278,9 @@ window.TODO={
     setTimeout(()=>{ yTab="takip"; ciz(); },700);
   },
   yTab(k){ yTab=k; ciz(); },
-  pinGir(){ const v=$("#pinInput").value; if(v===CFGV.pin){ sessionStorage.setItem("todo_pin_ok","1"); ciz(); } else { $("#pinHata").textContent="Hatalı PIN"; } },
-  async pinAyar(){ const v=prompt("Yeni yönetici PIN'i (boş = kaldır):",""); if(v===null) return; CFGV.pin=v.trim()||null; await cfgYaz(); alert(CFGV.pin?"PIN ayarlandı.":"PIN kaldırıldı."); },
+  async kapiOlustur(){ const a=$("#s1").value, b=$("#s2").value; const h=$("#sHata"); if(!a||a.length<3){ h.textContent="En az 3 karakter."; return; } if(a!==b){ h.textContent="Şifreler aynı değil."; return; } CFGV.sifreler=CFGV.sifreler||{}; CFGV.sifreler[kimlik()]=await sha(a); try{ await cfgYaz(); }catch(e){ h.textContent="Kaydedilemedi, tekrar dene."; return; } kapiAc(); ciz(); },
+  async kapiGir(){ const a=$("#s1").value; const h=await sha(a); if(CFGV.sifreler && CFGV.sifreler[kimlik()]===h){ kapiAc(); ciz(); } else { $("#sHata").textContent="Hatalı şifre."; } },
+  async sifreDegistir(){ const eski=prompt("Mevcut şifre:"); if(eski===null) return; if(!CFGV.sifreler||CFGV.sifreler[kimlik()]!==await sha(eski)){ alert("Mevcut şifre hatalı."); return; } const yeni=prompt("Yeni şifre (en az 3 karakter):"); if(yeni===null) return; if(yeni.trim().length<3){ alert("En az 3 karakter."); return; } CFGV.sifreler[kimlik()]=await sha(yeni.trim()); try{ await cfgYaz(); alert("Şifre değiştirildi."); }catch(e){ alert("Kaydedilemedi."); } },
   async calisanEkle(){ const ad=$("#cAd").value.trim(); if(!ad) return; const id=ad.toLocaleLowerCase("tr").replace(/[^a-z0-9ğüşıöç]/g,"").slice(0,12)+Math.random().toString(36).slice(2,5); CFGV.calisanlar.push({id,ad}); await cfgYaz(); ciz(); },
   async calisanSil(id){ if(!confirm("Çalışan silinsin mi? (görevleri kalır)")) return; CFGV.calisanlar=CFGV.calisanlar.filter(k=>k.id!==id); await cfgYaz(); ciz(); },
   async bildirimIzin(){ try{ const p=await Notification.requestPermission(); alert(p==="granted"?"Bildirimler açıldı. (Uygulama kapalıyken bildirim 2. aşamada aktifleşecek.)":"Bildirim izni verilmedi."); }catch(e){ alert("Bu cihaz bildirime izin vermiyor."); } }
