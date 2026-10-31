@@ -155,6 +155,27 @@ function calisanEkran(){
   </main>`;
 }
 
+function calisanFormEkran(){
+  const bg=new Date().toISOString().slice(0,10);
+  $("#app").innerHTML=`
+  <header class="tbar"><div class="tbar-ic"><div class="tbar-ad">+ Hatırlatma</div></div><div class="tbar-alt">${kacis(kisiAd(kimlik()))} · kendine görev</div></header>
+  <main class="twrap">
+    <button class="mini" onclick="ciz()" style="margin-bottom:12px">‹ Geri</button>
+    <section class="form-kutu">
+      <label>Başlık<input id="kBas" placeholder="Örn. Soğuk zincir kontrolü"></label>
+      <label>Açıklama (ops.)<input id="kAck" placeholder="Detay"></label>
+      <label>Tekrar<select id="kTekrar" onchange="TODO.kTekrarDegis()"><option value="yok">Tekrar yok</option><option value="gunluk">Her gün</option><option value="haftalik">Her hafta</option><option value="aylik">Her ay</option></select></label>
+      <div class="ikili" id="kGunSatir" style="display:none"><label id="kGunLbl">Gün</label><div id="kGunKutu"></div></div>
+      <div class="ikili">
+        <label id="kTarihLbl">Tarih<input id="kTarih" type="date" value="${bg}"></label>
+        <label>Saat<input id="kSaat" type="time"></label>
+      </div>
+      <button class="ana-dugme" onclick="TODO.kendiKaydet()">Ekle</button>
+      <div id="kDurum" style="color:var(--ana);font-size:13px;min-height:16px"></div>
+    </section>
+  </main>`;
+}
+
 /* ===================== YÖNETİCİ GÖRÜNÜMÜ ===================== */
 let yTab="ver";
 function yoneticiEkran(){
@@ -286,9 +307,19 @@ window.TODO={
   async geri(id){ await gorevGeriAl(id); ciz(); },
   async arsivle(id){ await gorevArsivle(id); ciz(); },
   async sil(id){ if(confirm("Görev silinsin mi?")){ await gorevSil(id); ciz(); } },
-  kendineEkle(){
-    const b=prompt("Hatırlatma (başlık):"); if(!b) return;
-    gorevEkle({baslik:b.trim(),aciklama:"",kime:CFG.kisiId,tarih:new Date().toISOString().slice(0,10),saat:"",olusturan:CFG.kisiId}).then(ciz);
+  kendineEkle(){ calisanFormEkran(); },
+  kTekrarDegis(){
+    const v=$("#kTekrar").value, sat=$("#kGunSatir"), kutu=$("#kGunKutu"), lbl=$("#kGunLbl"), tl=$("#kTarihLbl");
+    if(v==="haftalik"){ sat.style.display=""; lbl.textContent="Haftanın günü"; kutu.innerHTML=`<select id="kGun">${["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"].map((g,i)=>`<option value="${i+1}">${g}</option>`).join("")}</select>`; tl.style.display="none"; }
+    else if(v==="aylik"){ sat.style.display=""; lbl.textContent="Ayın günü"; kutu.innerHTML=`<select id="kGun">${Array.from({length:28},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join("")}</select>`; tl.style.display="none"; }
+    else { sat.style.display="none"; tl.style.display=""; }
+  },
+  async kendiKaydet(){
+    const bas=$("#kBas").value.trim(); if(!bas){ $("#kDurum").textContent="Başlık gir."; return; }
+    const ack=$("#kAck").value.trim(), tekrar=$("#kTekrar").value, saat=$("#kSaat").value, me=CFG.kisiId, bg=new Date().toISOString().slice(0,10);
+    if(tekrar==="yok"){ await gorevEkle({baslik:bas,aciklama:ack,kime:me,tarih:$("#kTarih").value||bg,saat,olusturan:me}); }
+    else { const gun=$("#kGun")?Number($("#kGun").value):1; const s={id:uuid(),baslik:bas,aciklama:ack,kime:me,tekrar,gun,saat,aktif:true,olusturan:me,olusturmaZamani:new Date().toISOString()}; CFGV.sablonlar.push(s); await cfgYaz(); await bakimYap(); }
+    ciz();
   },
   tekrarDegis(){
     const v=$("#vTekrar").value, sat=$("#vGunSatir"), kutu=$("#vGunKutu"), lbl=$("#vGunLbl"), tl=$("#vTarihLbl");
