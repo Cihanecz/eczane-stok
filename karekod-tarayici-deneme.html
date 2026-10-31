@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Karekod Tarayıcı Deneme</title>
+<style>
+  :root{ --bg:#0f1115; --kart:#1a1d24; --yazi:#e8eaed; --soluk:#9aa0a6; --yesil:#22c55e; --mavi:#3b82f6; --kirmizi:#ef4444; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--yazi);font-family:-apple-system,system-ui,sans-serif;padding:12px;padding-bottom:50px}
+  h1{font-size:18px;margin:4px 0 2px}
+  .alt{color:var(--soluk);font-size:13px;margin:0 0 10px;line-height:1.5}
+  .sar{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:3/4;max-height:50vh;margin:0 auto}
+  video{width:100%;height:100%;object-fit:cover;display:block}
+  .hedef{position:absolute;inset:12%;border:2px dashed rgba(255,255,255,.3);border-radius:10px;pointer-events:none}
+  .dugmeler{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
+  button{flex:1 1 auto;min-width:110px;padding:13px;border:0;border-radius:10px;font-size:15px;font-weight:600;color:#fff;background:var(--mavi)}
+  button.yesil{background:var(--yesil)} button.kirmizi{background:var(--kirmizi)} button.gri{background:#374151}
+  .sayac{display:flex;gap:8px;margin:8px 0}
+  .kutu{flex:1;background:var(--kart);border-radius:10px;padding:10px;text-align:center}
+  .kutu b{font-size:24px;display:block} .kutu span{color:var(--soluk);font-size:11px}
+  .liste{background:var(--kart);border-radius:10px;padding:8px;margin-top:8px;max-height:28vh;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+  .satir{padding:3px 4px;border-bottom:1px solid #262a33;word-break:break-all}
+  .satir small{color:var(--yesil)}
+  textarea{width:100%;height:110px;background:#0b0d11;color:var(--yesil);border:1px solid #262a33;border-radius:10px;padding:8px;font-family:ui-monospace,monospace;font-size:12px;margin-top:8px}
+  .ayar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--kart);border-radius:10px;padding:10px;margin:8px 0;font-size:13px}
+  .ayar label{display:flex;gap:5px;align-items:center}
+  select,input[type=number]{background:#0b0d11;color:var(--yazi);border:1px solid #262a33;border-radius:7px;padding:5px}
+  .durum{font-size:13px;color:var(--soluk);min-height:18px;margin:4px 0}
+</style>
+</head>
+<body>
+<h1>📷 Karekod Tarayıcı — Deneme</h1>
+<p class="alt">Kamerayı kutulara <b>yakın</b> tut (~20 cm), <b>sabit ve akıcı</b> gezdir — hızlı sallama = bulanık = okumaz. İyi ışık şart. Yeni karekodu görünce <b>"düt"</b> der, aynısını bir daha yazmaz.</p>
+
+<div class="sar"><video id="v" playsinline muted></video><div class="hedef"></div></div>
+
+<div class="dugmeler">
+  <button id="basla" class="yesil">▶ Kamerayı başlat</button>
+  <button id="dur" class="kirmizi" style="display:none">⏸ Durdur</button>
+  <button id="sifirla" class="gri">🗑 Temizle</button>
+</div>
+
+<div class="ayar">
+  <label>Çözünürlük
+    <select id="res"><option value="1080">1080p</option><option value="1440">1440p (net, yavaş)</option><option value="720">720p (hızlı)</option></select>
+  </label>
+  <label><input type="checkbox" id="hard"> Zorla oku (yavaş)</label>
+  <label>Karede kaç kod <input id="maxs" type="number" value="4" min="1" max="12"></label>
+</div>
+
+<div class="sayac">
+  <div class="kutu"><b id="sayi">0</b><span>okunan karekod</span></div>
+  <div class="kutu"><b id="tekrar">0</b><span>tekrar (atlandı)</span></div>
+  <div class="kutu"><b id="fps">0</b><span>kare/sn</span></div>
+</div>
+<div class="durum" id="durum">Hazır. "Kamerayı başlat"a bas.</div>
+
+<div class="liste" id="liste"></div>
+
+<h1 style="font-size:15px;margin-top:14px">Rx'e yapıştırılacak (alt alta)</h1>
+<textarea id="cikti" readonly placeholder="Okunan karekodlar burada birikir…"></textarea>
+<button id="kopya" class="gri" style="margin-top:6px">📋 Hepsini kopyala</button>
+
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@2.2.4/dist/iife/reader/index.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+let akis=null, calisiyor=false, hazirlik=null, ac=null;
+const gorulen=new Map();
+let tekrar=0, kareSay=0, sonFps=performance.now();
+
+function wasmHazirla(){
+  if(hazirlik) return hazirlik;
+  hazirlik = ZXingWASM.prepareZXingModule({
+    overrides:{ locateFile:(p,pre)=> p.endsWith(".wasm")
+      ? "https://cdn.jsdelivr.net/npm/zxing-wasm@2.2.4/dist/reader/zxing_reader.wasm" : pre+p },
+    fireImmediately:true
+  });
+  return hazirlik;
+}
+function sesHazirla(){ try{ ac=new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==="suspended") ac.resume(); }catch(e){} }
+function dut(){ if(!ac) return; try{ const o=ac.createOscillator(),g=ac.createGain(); o.frequency.value=1150; o.connect(g); g.connect(ac.destination); g.gain.setValueAtTime(.2,ac.currentTime); g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+.07); o.start(); o.stop(ac.currentTime+.08);}catch(e){} }
+
+// Ham string = okutucunun bastığının aynısı (GS ayracı dahil). .bytes varsa onu kullan.
+function hamString(r){ try{ if(r.bytes && r.bytes.length) return Array.from(r.bytes).map(c=>String.fromCharCode(c)).join(""); }catch(e){} return r.text||""; }
+function ekle(ham, goster){
+  if(gorulen.has(ham)){ tekrar++; $("#tekrar").textContent=tekrar; return; }
+  gorulen.set(ham, goster||ham);
+  const d=document.createElement("div"); d.className="satir";
+  d.textContent = goster||ham;                 // ekranda okunur hali ((01)..(21)..)
+  $("#liste").prepend(d);
+  $("#sayi").textContent=gorulen.size;
+  $("#cikti").value=[...gorulen.keys()].join("\n");   // yapıştırma: ham (GS'li)
+  dut();
+}
+
+const cv=document.createElement("canvas"); const cx=cv.getContext("2d",{willReadFrequently:true});
+async function dongu(){
+  if(!calisiyor) return;
+  const v=$("#v");
+  if(v.readyState>=2 && v.videoWidth){
+    cv.width=v.videoWidth; cv.height=v.videoHeight;
+    cx.drawImage(v,0,0,cv.width,cv.height);
+    try{
+      const img=cx.getImageData(0,0,cv.width,cv.height);
+      const res=await ZXingWASM.readBarcodes(img,{formats:["DataMatrix"],tryHarder:$("#hard").checked,maxNumberOfSymbols:Number($("#maxs").value)||4});
+      for(const r of res){ const ham=hamString(r); if(ham) ekle(ham, r.text); }
+    }catch(e){ $("#durum").textContent="Okuma hatası: "+e.message; }
+    kareSay++;
+    const now=performance.now();
+    if(now-sonFps>1000){ $("#fps").textContent=Math.round(kareSay*1000/(now-sonFps)); kareSay=0; sonFps=now; }
+  }
+  setTimeout(dongu,0);
+}
+
+async function basla(){
+  $("#durum").textContent="Kamera açılıyor…";
+  const r=Number($("#res").value);
+  const yuk={1080:[1920,1080],1440:[2560,1440],720:[1280,720]}[r];
+  try{
+    akis=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:yuk[0]},height:{ideal:yuk[1]}},audio:false});
+  }catch(e){ $("#durum").textContent="Kamera açılamadı: "+e.message; return; }
+  const v=$("#v"); v.srcObject=akis; await v.play();
+  sesHazirla();
+  $("#durum").textContent="Okuma motoru yükleniyor…";
+  try{ await wasmHazirla(); }catch(e){ $("#durum").textContent="Motor yüklenemedi: "+e.message; return; }
+  const g=akis.getVideoTracks()[0].getSettings();
+  $("#durum").textContent="Tarıyor ("+g.width+"×"+g.height+") — kutulara yakın, yavaş gezdir.";
+  calisiyor=true; $("#basla").style.display="none"; $("#dur").style.display="";
+  dongu();
+}
+function dur(){ calisiyor=false; if(akis){akis.getTracks().forEach(t=>t.stop());akis=null;} $("#basla").style.display="";$("#dur").style.display="none"; $("#durum").textContent="Durduruldu. Toplam: "+gorulen.size+" karekod."; }
+
+$("#basla").onclick=basla; $("#dur").onclick=dur;
+$("#sifirla").onclick=()=>{ gorulen.clear(); tekrar=0; $("#liste").innerHTML=""; $("#cikti").value=""; $("#sayi").textContent=0; $("#tekrar").textContent=0; $("#durum").textContent="Temizlendi."; };
+$("#kopya").onclick=async()=>{ try{ await navigator.clipboard.writeText($("#cikti").value); $("#durum").textContent="Kopyalandı ("+gorulen.size+" karekod)."; }catch(e){ $("#cikti").removeAttribute("readonly"); $("#cikti").select(); document.execCommand("copy"); $("#cikti").setAttribute("readonly",""); } };
+</script>
+</body>
+</html>
