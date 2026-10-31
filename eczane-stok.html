@@ -795,7 +795,7 @@ function yonlendir(){
   if(h==="puan") return puanSayfasi();
   if(h==="todo") return todoSayfasi();
   if(h==="depolar") return depoSayfasi();
-  return anaEkran();
+  return anaEkran().then(()=>{ try{ tdAnaKutu(); }catch(e){} });
 }
 
 /* ---------- grafik yardımcıları ---------- */
@@ -3244,6 +3244,24 @@ window.TD=Object.assign(TD,{
   async geri(id){ const g=TD.gorevler.find(x=>x.id===id); if(!g)return; g.durum="bekliyor"; g.yapan=null; g.yapilmaZamani=null; await tdYaz(g); todoSayfasi(); }
 });
 document.getElementById("todoDugme").addEventListener("click", ()=>{ location.hash="todo"; });
+async function tdAnaKutu(){
+  try{
+    const [c,t]=await Promise.all([db.from("ayar").select("deger").eq("anahtar","todo_cfg").maybeSingle(), db.from("ayar").select("deger").like("anahtar","todo_t_%")]);
+    const cfg=(c&&c.data&&c.data.deger)?JSON.parse(c.data.deger):{calisanlar:[]};
+    const gorevler=((t&&t.data)||[]).map(r=>{try{return JSON.parse(r.deger);}catch(e){return null;}}).filter(Boolean);
+    const bg=new Date(); bg.setHours(0,0,0,0);
+    const bugun=gorevler.filter(g=>g.durum==="bekliyor" && g.tarih && (new Date(g.tarih.slice(0,10)+"T00:00:00").getTime()<=bg.getTime()));
+    const ic=document.getElementById("icerik"); if(!ic || !bugun.length) return;
+    const kisiAd=id=>{ if(id==="genel")return"Genel"; const k=(cfg.calisanlar||[]).find(x=>x.id===id); return k?k.ad:id; };
+    const kutu=document.createElement("div"); kutu.className="kart";
+    kutu.style.cssText="margin-bottom:14px;border:1px solid var(--mavi);cursor:pointer";
+    kutu.onclick=()=>{ location.hash="todo"; };
+    kutu.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><b>✅ Bugünün görevleri</b><span style="background:var(--mavi);color:#fff;padding:1px 9px;border-radius:999px;font-size:13px">${bugun.length}</span></div>`+
+      bugun.slice(0,5).map(g=>`<div style="font-size:14px;color:var(--soluk);margin-top:6px">• ${kacis(g.baslik)} <small>(${kacis(kisiAd(g.kime))}${g.saat?" "+kacis(g.saat):""})</small></div>`).join("")+
+      (bugun.length>5?`<div style="font-size:13px;color:var(--mavi);margin-top:6px">+${bugun.length-5} daha → To Do</div>`:"");
+    ic.insertBefore(kutu, ic.firstChild);
+  }catch(e){}
+}
 
 $("#siparisDugme").addEventListener("click", ()=>{ location.hash = "siparis"; });
 /* ===================== STOK SAYIMI (karekod toplu tarama) ===================== */
