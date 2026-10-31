@@ -1877,8 +1877,9 @@ async function hOtoYukle(){
 async function hOtoYaz(){ try{ if(H.anahtar) await ayarYaz("hasta_anahtar_oto", b64(H.anahtar)); }catch(e){} }
 // Geçerli bir anahtar bul (local → oto), doğrula; yoksa null (çağıran bir kez şifre sorar = bootstrap)
 async function hAnahtarHazirla(kontDeger){
-  let k = hAnahtarYukle() || await hOtoYukle();
+  let k = hAnahtarYukle();
   if(k){ try{ await hCoz(k, kontDeger); }catch(e){ k=null; hUnut(); } }
+  if(!k){ k = await hOtoYukle(); if(k){ try{ await hCoz(k, kontDeger); }catch(e){ k=null; hUnut(); } } }
   if(k) hOtoYaz();   // diğer cihazlar bir daha sormasın diye buluta yaz (bootstrap)
   return k;
 }
@@ -2197,8 +2198,8 @@ async function siparisSayfasi(){
   try { tuz = await ayarOku("hasta_tuz"); kont = await ayarOku("hasta_kontrol"); }
   catch(e){ return hataGoster(e); }
   if(!tuz || !kont){ $("#icerik").innerHTML = `<button class="geri" type="button" onclick="location.hash=''">‹ Ana ekran</button><div class="liste-ust"><div><h1>📦 Sipariş</h1><p>Önce <b>Hastalar</b> ekranından hasta şifresini belirle; sipariş verileri de o şifreyle korunur.</p></div></div>`; return; }
-  if(!await hAnahtarHazirla(kont.deger)) return sSifreSor(tuz.deger, kont.deger);
   try {
+    if(!await hAnahtarHazirla(kont.deger)) return sSifreSor(tuz.deger, kont.deger);
     const [a, s, son, cfg, edb, egz, tl, al] = await Promise.all([ayarOku("sgk_aday"), ayarOku("siparisler"), ayarOku("sgk_son"), ayarOku("siparis_ayar"), ayarOku("sgk_eksik_db"), ayarOku("sgk_eksik_gizli"), ayarOku("siparis_tel"), ayarOku("alim_son")]);
     S.aday = a ? JSON.parse(await hCoz(H.anahtar, a.deger)) : { sonZaman:null, liste:[] };
     if(!S.aday.liste) S.aday.liste = [];
@@ -2211,9 +2212,9 @@ async function siparisSayfasi(){
     if(son){ try{ await sSonBirlestir(JSON.parse(await hCoz(H.anahtar, son.deger))); }catch(e){} }
     try { S.alimSon = al ? JSON.parse(al.deger) : {zaman:null,ilac:{}}; if(!S.alimSon.ilac) S.alimSon.ilac={}; } catch(e){ S.alimSon={zaman:null,ilac:{}}; }
     await sAlimKontrol();
+    sCiz();
+    sYoklamaBaslat();
   } catch(e){ return hataGoster(e); }
-  sCiz();
-  sYoklamaBaslat();
 }
 /* Köprü (siparis-tara.ps1) sgk_son'a tek aday yazar; web burada kendi kalıcı
    listesine (sgk_aday) ekler. sonZaman = en son işlenen tarama; aynı tarama
