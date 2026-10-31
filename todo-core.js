@@ -216,8 +216,13 @@ function yOnayGovde(list){
       <div class="g-alt"><b>${kacis(kisiAd(g.yapan)||"?")}</b> yaptı · ${kacis(new Date(g.yapilmaZamani).toLocaleString("tr-TR"))}</div></div>
     <div class="onay-btn"><button class="mini yesil" onclick="TODO.arsivle('${g.id}')">✓ Arşivle</button><button class="mini kirmizi" onclick="TODO.geri('${g.id}')">↩ Geri çevir</button></div></div>`).join("");
 }
+function calisanLink(id){ const taban=location.href.split("?")[0].replace(/[^/]*$/,""); return taban+"todo-calisan.html?k="+encodeURIComponent(id); }
 function yCalisanGovde(){
-  const ks=(CFGV.calisanlar||[]).map(k=>`<div class="g-kart"><div class="g-orta"><div class="g-bas">${kacis(k.ad)}</div><div class="g-alt">link: todo-calisan.html?k=${kacis(k.id)}</div></div><button class="mini kirmizi" onclick="TODO.calisanSil('${k.id}')">sil</button></div>`).join("");
+  const ks=(CFGV.calisanlar||[]).map(k=>{ const l=calisanLink(k.id); return `<div class="g-kart" style="flex-direction:column;align-items:stretch;gap:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div class="g-bas">${kacis(k.ad)}</div><button class="mini kirmizi" onclick="TODO.calisanSil('${k.id}')">sil</button></div>
+    <a href="${kacis(l)}" target="_blank" style="font-size:12px;color:var(--ana);word-break:break-all;background:var(--bg);border:1px solid var(--cizgi);border-radius:8px;padding:9px;text-decoration:none">${kacis(l)}</a>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="mini yesil" onclick="TODO.linkWa('${k.id}')">🟢 WhatsApp ile gönder</button><button class="mini" onclick="TODO.linkKopyala('${k.id}')">📋 Kopyala</button></div>
+  </div>`; }).join("");
   return `<section class="form-kutu"><label>Yeni çalışan adı<input id="cAd" placeholder="Örn. Ayşe"></label><button class="ana-dugme" onclick="TODO.calisanEkle()">+ Ekle</button></section>${ks||'<div class="bos">Çalışan yok.</div>'}
   <div class="dip"><button class="mini" onclick="TODO.sifreDegistir()">🔒 Şifremi değiştir</button></div>`;
 }
@@ -305,6 +310,8 @@ window.TODO={
   async kapiOlustur(){ const a=$("#s1").value, b=$("#s2").value; const h=$("#sHata"); if(!a||a.length<3){ h.textContent="En az 3 karakter."; return; } if(a!==b){ h.textContent="Şifreler aynı değil."; return; } CFGV.sifreler=CFGV.sifreler||{}; CFGV.sifreler[kimlik()]=await sha(a); try{ await cfgYaz(); }catch(e){ h.textContent="Kaydedilemedi, tekrar dene."; return; } kapiAc(); ciz(); },
   async kapiGir(){ const a=$("#s1").value; const h=await sha(a); if(CFGV.sifreler && CFGV.sifreler[kimlik()]===h){ kapiAc(); ciz(); } else { $("#sHata").textContent="Hatalı şifre."; } },
   async sifreDegistir(){ const eski=prompt("Mevcut şifre:"); if(eski===null) return; if(!CFGV.sifreler||CFGV.sifreler[kimlik()]!==await sha(eski)){ alert("Mevcut şifre hatalı."); return; } const yeni=prompt("Yeni şifre (en az 3 karakter):"); if(yeni===null) return; if(yeni.trim().length<3){ alert("En az 3 karakter."); return; } CFGV.sifreler[kimlik()]=await sha(yeni.trim()); try{ await cfgYaz(); alert("Şifre değiştirildi."); }catch(e){ alert("Kaydedilemedi."); } },
+  linkKopyala(id){ const l=calisanLink(id); try{ navigator.clipboard.writeText(l); alert("Link kopyalandı:\n"+l); }catch(e){ prompt("Linki kopyala:", l); } },
+  linkWa(id){ const k=(CFGV.calisanlar||[]).find(x=>x.id===id); const l=calisanLink(id); const msg=encodeURIComponent((k?k.ad:"")+" için görev takip (To Do List) linkin:\n"+l+"\n\nAç → Paylaş → Ana Ekrana Ekle, sonra Bildirimleri aç."); window.open("https://wa.me/?text="+msg,"_blank"); },
   async calisanEkle(){ const ad=$("#cAd").value.trim(); if(!ad) return; const id=ad.toLocaleLowerCase("tr").replace(/[^a-z0-9ğüşıöç]/g,"").slice(0,12)+Math.random().toString(36).slice(2,5); CFGV.calisanlar.push({id,ad}); await cfgYaz(); ciz(); },
   async calisanSil(id){ if(!confirm("Çalışan silinsin mi? (görevleri kalır)")) return; CFGV.calisanlar=CFGV.calisanlar.filter(k=>k.id!==id); await cfgYaz(); ciz(); },
   async bildirimIzin(){ try{ await pushAbone(); alert("Bildirimler açıldı ✓ Artık sana görev gelince telefonuna bildirim düşer (uygulama kapalı olsa bile)."); }catch(e){ const m=String(e&&e.message||e); alert(m==="izin-yok"?"Bildirim izni verilmedi.":m==="push-yok"?"Bu tarayıcı push desteklemiyor. iPhone'da önce linki 'Ana Ekrana Ekle' yapıp o ikondan açman gerekiyor.":"Bildirim açılamadı. iPhone'da önce 'Ana Ekrana Ekle' yapıp uygulamadan aç, sonra tekrar dene."); } }
