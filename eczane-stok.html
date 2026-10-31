@@ -2891,7 +2891,7 @@ async function puanSayfasi(){
 function puanListeGovde(){
   const q=(P.ara||"").toLocaleLowerCase("tr");
   let liste=P.musteri;
-  if(q){ liste=P.musteri.filter(c=> ((c.ad||"")+" "+(c.soyad||"")).toLocaleLowerCase("tr").includes(q) || String(c.telefon||"").includes(q.replace(/\D/g,"")) ); }
+  if(q){ liste=P.musteri.filter(c=> ((c.ad||"")+" "+(c.soyad||"")).toLocaleLowerCase("tr").includes(q) || (q.replace(/\D/g,"").length>0 && String(c.telefon||"").includes(q.replace(/\D/g,""))) ); }
   liste=liste.slice().sort((a,b)=> (new Date(pSonAktivite(b))-new Date(pSonAktivite(a))) );
   const kart = c=>{ const t=pTier(c); return `<button class="satir" type="button" onclick="P.secili='${c.id}';pDetay('${c.id}')" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px">
     <span><b>${kacis((c.ad||"")+" "+(c.soyad||""))}</b> <small style="color:var(--soluk)">${kacis(c.telefon||"")}</small><br>${pTierRozet(t.key,t.name)}</span>
@@ -3299,7 +3299,7 @@ async function mumSayfasi(){
   const gec=MUM.sozler.filter(mumGecikti);
   const q=mumNorm(MUM.ara);
   let liste=MUM.liste;
-  if(q) liste=MUM.liste.filter(m=> mumNorm(m.firma+" "+m.ad+" "+m.soyad).includes(q) || String(m.telefon||"").includes(q.replace(/\D/g,"")));
+  if(q) liste=MUM.liste.filter(m=> mumNorm(m.firma+" "+m.ad+" "+m.soyad).includes(q) || (q.replace(/\D/g,"").length>0 && String(m.telefon||"").includes(q.replace(/\D/g,""))));
   liste=liste.slice().sort((a,b)=> (mumKirmizi(b)?1:0)-(mumKirmizi(a)?1:0) || mumNorm(a.firma).localeCompare(mumNorm(b.firma)));
   const kart=m=>{ const o=mumOran(m.id); const acik=mumSozleri(m.id).filter(s=>s.durum==="bekliyor").length; const kirmizi=mumKirmizi(m); return `<button class="satir" onclick="MUM.ac('${m.id}')" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px;${kirmizi?'border:1px solid var(--kirmizi)':''}">
     <span>${kirmizi?'🚩 ':''}<b>${kacis(m.firma||"—")}</b> · ${kacis((m.ad||"")+" "+(m.soyad||""))}<br>
@@ -3314,7 +3314,7 @@ async function mumSayfasi(){
   <div style="display:grid;gap:8px">${liste.length?liste.map(kart).join(""):`<div class="bos" style="padding:24px;text-align:center;color:var(--soluk)">${MUM.liste.length?"Eşleşen yok.":"Henüz mümessil yok. '+ Yeni mümessil' ile ekle."}</div>`}</div>`;
   const inp=$("#mumAra"); if(inp) inp.addEventListener("input",()=>{ clearTimeout(MUM._t); MUM._t=setTimeout(()=>{ MUM.ara=inp.value; _mumListeYenile(); },250); });
 }
-function _mumListeYenile(){ /* arama anında filtre için hafif */ const q=mumNorm(MUM.ara); let liste=MUM.liste; if(q) liste=MUM.liste.filter(m=> mumNorm(m.firma+" "+m.ad+" "+m.soyad).includes(q) || String(m.telefon||"").includes(q.replace(/\D/g,""))); liste=liste.slice().sort((a,b)=>(mumKirmizi(b)?1:0)-(mumKirmizi(a)?1:0)||mumNorm(a.firma).localeCompare(mumNorm(b.firma)));
+function _mumListeYenile(){ /* arama anında filtre için hafif */ const q=mumNorm(MUM.ara); let liste=MUM.liste; if(q) liste=MUM.liste.filter(m=> mumNorm(m.firma+" "+m.ad+" "+m.soyad).includes(q) || (q.replace(/\D/g,"").length>0 && String(m.telefon||"").includes(q.replace(/\D/g,"")))); liste=liste.slice().sort((a,b)=>(mumKirmizi(b)?1:0)-(mumKirmizi(a)?1:0)||mumNorm(a.firma).localeCompare(mumNorm(b.firma)));
   const kutu=document.querySelector("#icerik > div:last-child"); if(!kutu) return;
   const kart=m=>{ const o=mumOran(m.id); const acik=mumSozleri(m.id).filter(s=>s.durum==="bekliyor").length; const kirmizi=mumKirmizi(m); return `<button class="satir" onclick="MUM.ac('${m.id}')" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px;${kirmizi?'border:1px solid var(--kirmizi)':''}"><span>${kirmizi?'🚩 ':''}<b>${kacis(m.firma||"—")}</b> · ${kacis((m.ad||"")+" "+(m.soyad||""))}<br><small style="color:var(--soluk)">${kacis(m.telefon||"")}${o.toplam?` · söz tutma %${o.yuzde} (${o.tuttu}/${o.toplam})`:""}</small></span><span style="white-space:nowrap">${acik?`<b>${acik}</b> <small style="color:var(--soluk)">açık söz</small>`:""}</span></button>`; };
   kutu.innerHTML=liste.length?liste.map(kart).join(""):`<div class="bos" style="padding:24px;text-align:center;color:var(--soluk)">Eşleşen yok.</div>`;
