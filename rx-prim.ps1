@@ -29,7 +29,7 @@ from eys_view_satis_kalem_kullanici vk
 join eys_tbl_satis_fatura f on f.id=vk.satis_fatura_id
 join eys_tbl_satis_fatura_kalem kl on kl.satis_fatura_id=vk.satis_fatura_id and kl.urun_id=vk.urun_id
 join eys_tbl_mustahzar_temel m on m.urun_id=vk.urun_id
-where f.satis_tarih >= '$bas' and f.islem_tipi in (1,4) and coalesce(vk.kullanici_adi,'')<>''
+where f.satis_tarih >= '$bas' and f.satis_tarih < (current_date + 1) and f.islem_tipi in (1,4) and coalesce(vk.kullanici_adi,'')<>''
 group by f.satis_tarih::date, vk.kullanici_adi, (m.ilac_tipi=1)
 "@
 
