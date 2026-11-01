@@ -195,8 +195,15 @@ const AGMETA=[
   ["devam","Devam","Emek",'Gelinen gün / ayın iş günü'],
   ["elle","Senin puanın","Emek",'Senin elle verdiğin puan']
 ];
+// Ek metrik için hazır otomatik satış kaynakları
+const SEG_KAYNAK={
+  recete_kar:{ad:"Reçeteli kâr",f:m=>m.recK}, recete_ciro:{ad:"Reçeteli ciro",f:m=>m.recT}, recete_adet:{ad:"Reçeteli adet",f:m=>m.recA},
+  perakende_kar:{ad:"Perakende kâr",f:m=>m.perK}, perakende_ciro:{ad:"Perakende ciro",f:m=>m.perT}, perakende_adet:{ad:"Perakende adet",f:m=>m.perA},
+  ilac_kar:{ad:"İlaç kâr",f:m=>m.ilacK}, dis_kar:{ad:"İlaç-dışı kâr",f:m=>m.disK}
+};
+const yeniId=()=>"m"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 
-let ST={ay:null, personel:[], satis:[], aktivite:[], puantaj:[], elle:[], gorev:[], ag:{...VARAG}, isgunu:{}, tab:"sira", pinOk:false};
+let ST={ay:null, personel:[], satis:[], aktivite:[], puantaj:[], elle:[], gorev:[], ag:{...VARAG}, ekMetrik:[], ozel:{}, isgunu:{}, tab:"sira", pinOk:false};
 const ayKod=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
 (function(){const d=new Date();ST.ay=ayKod(d);})();
 const aySonu=(ay)=>{const [y,m]=ay.split("-").map(Number);return new Date(y,m,0).getDate();};
@@ -283,19 +290,23 @@ async function pinBas(t,kur,kayit,asama){
 /* ================= VERİ ================= */
 async function veriYukle(){
   const b=ayBas(ST.ay),s=ayBit(ST.ay);
-  const [pe,sa,ak,pu,el,ay,gv]=await Promise.all([
+  const [pe,sa,ak,pu,el,ay,gv,oz]=await Promise.all([
     db.from("prim_personel").select("*").order("sira"),
     db.from("prim_satis_gunluk").select("*").gte("tarih",b).lte("tarih",s),
     db.from("prim_aktivite").select("personel,tur,adet,tarih").gte("tarih",b).lte("tarih",s),
     db.from("prim_puantaj").select("*").eq("ay",ST.ay),
     db.from("prim_elle_puan").select("*").eq("ay",ST.ay),
     db.from("prim_ayar").select("anahtar,deger"),
-    db.from("ayar").select("anahtar,deger").like("anahtar","todo_t_%")
+    db.from("ayar").select("anahtar,deger").like("anahtar","todo_t_%"),
+    db.from("prim_ozel_deger").select("metrik_id,personel,deger").eq("ay",ST.ay)
   ]);
   ST.personel=(pe.data||[]).filter(p=>p.aktif);
   ST.satis=sa.data||[]; ST.aktivite=ak.data||[]; ST.puantaj=pu.data||[]; ST.elle=el.data||[];
+  ST.ekMetrik=[];
   (ay.data||[]).forEach(r=>{ if(r.anahtar==="agirliklar"){try{ST.ag=Object.assign({...VARAG},JSON.parse(r.deger));}catch(e){} }
-    if(r.anahtar.startsWith("isgunu_")){ST.isgunu[r.anahtar.slice(7)]=Number(r.deger)||0;} });
+    else if(r.anahtar==="ek_metrikler"){try{ST.ekMetrik=JSON.parse(r.deger)||[];}catch(e){}}
+    else if(r.anahtar.startsWith("isgunu_")){ST.isgunu[r.anahtar.slice(7)]=Number(r.deger)||0;} });
+  ST.ozel={}; (oz.data||[]).forEach(r=>{ST.ozel[r.metrik_id+"|"+r.personel]=+r.deger||0;});
   // görevler
   ST.gorev=[];
   (gv.data||[]).forEach(r=>{try{const g=JSON.parse(r.deger);if(g&&(g.durum==="yapildi"||g.durum==="arsiv")&&g.yapilmaZamani&&g.yapilmaZamani.slice(0,7)===ST.ay)ST.gorev.push(g);}catch(e){}});
@@ -322,7 +333,7 @@ function hesapla(){
     m.recA+=+r.recete_adet||0;m.recT+=+r.recete_tutar||0;m.recK+=+r.recete_kar||0;
     m.perA+=+r.perakende_adet||0;m.perT+=+r.perakende_tutar||0;m.perK+=+r.perakende_kar||0;
   });
-  ST.aktivite.forEach(r=>{const m=M[r.personel];if(m&&m[r.tur]!=null)m[r.tur]+=(+r.adet||1);});
+  ST.aktivite.forEach(r=>{const m=M[r.personel];if(!m)return; if(m[r.tur]!=null)m[r.tur]+=(+r.adet||1); else {m.ekAktif=m.ekAktif||{}; m.ekAktif[r.tur]=(m.ekAktif[r.tur]||0)+(+r.adet||1);}});
   ST.puantaj.forEach(r=>{const m=M[r.personel];if(!m)return;if(r.durum==="gelmedi")m.gelmedi++;else if(r.durum==="yarim")m.yarim++;});
   ST.elle.forEach(r=>{const m=M[r.personel];if(m)m.elle=+r.puan||0;});
   ST.gorev.forEach(g=>{const ad=kisiEslesGorev(g.yapan);if(!ad||!M[ad])return;const m=M[ad];
@@ -339,14 +350,28 @@ function hesapla(){
       gorev:m.gorevRaw, devam:N>0?m.wd/N:0, elle:m.elle
     };
   });
-  // normalize (en iyi=100) + ağırlıkla topla
+  // ek metrik ham değerleri
+  Object.values(M).forEach(m=>{
+    const g=m.wd>0?m.wd:1;
+    ST.ekMetrik.forEach(em=>{
+      let v=0;
+      if(em.tip==='satis'){ const s=SEG_KAYNAK[em.kaynak]; v=s?(s.f(m)/g):0; }
+      else if(em.tip==='elle' && em.dolduran==='calisan'){ v=(m.ekAktif&&m.ekAktif[em.id])||0; }
+      else { v=ST.ozel[em.id+"|"+m.ad]||0; }
+      m.raw['ek_'+em.id]=v;
+    });
+  });
+  // birleşik ağırlık haritası (varsayılan 9 + ek metrikler) -> normalize (en iyi=100) + topla
+  const agMap={}; Object.keys(VARAG).forEach(k=>agMap[k]=+ST.ag[k]||0);
+  ST.ekMetrik.forEach(em=>agMap['ek_'+em.id]=+em.agirlik||0);
+  const anahtarlar=Object.keys(agMap);
   const yar=Object.values(M).filter(m=>m.yaris);
   const maxlar={};
-  Object.keys(VARAG).forEach(k=>{maxlar[k]=Math.max(0,...yar.map(m=>m.raw[k]));});
+  anahtarlar.forEach(k=>{maxlar[k]=Math.max(0,...yar.map(m=>m.raw[k]||0));});
   Object.values(M).forEach(m=>{
     m.skor={}; let top=0;
-    Object.keys(VARAG).forEach(k=>{
-      const sc=maxlar[k]>0?(m.raw[k]/maxlar[k])*100:0; m.skor[k]=sc; top+=sc*(ST.ag[k]||0)/100;
+    anahtarlar.forEach(k=>{
+      const sc=maxlar[k]>0?((m.raw[k]||0)/maxlar[k])*100:0; m.skor[k]=sc; top+=sc*(agMap[k]||0)/100;
     });
     m.toplamPuan=top;
   });
@@ -484,9 +509,25 @@ function cizElle(R){
       <input class="nt" data-p="${kacis(p.ad)}" value="${rec&&rec.nott?kacis(rec.nott):""}" placeholder="not (opsiyonel)"></div>`;
   });
   h+=`</div>`;
+  const yonMet=ST.ekMetrik.filter(em=>em.tip==='elle'&&em.dolduran==='yonetici');
+  yonMet.forEach(em=>{
+    h+=`<div class="kart"><div class="kbas">✍️ ${kacis(em.ad)} (%${+em.agirlik||0})</div>`;
+    ST.personel.forEach(p=>{
+      const v=ST.ozel[em.id+"|"+p.ad];
+      h+=`<div class="epsatir"><div class="av">${kacis(bh(p.ad))}</div><div class="nm">${kacis(p.ad)}</div>
+        <input class="ozpu" type="number" step="0.5" data-m="${em.id}" data-p="${kacis(p.ad)}" value="${v!=null?v:""}" placeholder="0" style="width:80px;padding:8px;border:1.5px solid var(--cizgi);border-radius:10px;text-align:center;font-size:16px;font-weight:700;background:transparent;color:var(--yazi)"></div>`;
+    });
+    h+=`</div>`;
+  });
   $("#icerik").innerHTML=h;
   $("#icerik").querySelectorAll(".pu").forEach(inp=>inp.onchange=()=>elleKaydet(inp.dataset.p));
   $("#icerik").querySelectorAll(".nt").forEach(inp=>inp.onchange=()=>elleKaydet(inp.dataset.p));
+  $("#icerik").querySelectorAll(".ozpu").forEach(inp=>inp.onchange=()=>ozelKaydet(inp.dataset.m,inp.dataset.p,inp.value));
+}
+async function ozelKaydet(mid,ad,val){
+  const deger=+val||0;
+  try{ await db.from("prim_ozel_deger").upsert({metrik_id:mid,ay:ST.ay,personel:ad,deger,guncelleme:new Date().toISOString()},{onConflict:"metrik_id,ay,personel"});
+    ST.ozel[mid+"|"+ad]=deger; }catch(e){}
 }
 async function elleKaydet(ad){
   const pu=$(`.pu[data-p="${CSS.escape(ad)}"]`), nt=$(`.nt[data-p="${CSS.escape(ad)}"]`);
@@ -495,8 +536,9 @@ async function elleKaydet(ad){
     const ex=ST.elle.find(r=>r.personel===ad);if(ex){ex.puan=puan;ex.nott=nott;}else ST.elle.push({ay:ST.ay,personel:ad,puan,nott});}catch(e){}
 }
 
+function agToplam(){ let t=Object.keys(VARAG).reduce((a,k)=>a+(+ST.ag[k]||0),0); ST.ekMetrik.forEach(em=>t+=(+em.agirlik||0)); return t; }
+function agTopGuncelle(){ const t=agToplam(); const el=$("#agtop"); if(el){el.textContent="Toplam: %"+t+(t===100?" ✓":" (100 olmalı)");el.className="agrtop "+(t===100?"ok":"no");} }
 function cizAgirlik(R){
-  const top=Object.keys(VARAG).reduce((a,k)=>a+(+ST.ag[k]||0),0);
   let h=`<div class="kart"><div class="kbas">⚙️ Ağırlıklar (toplam 100 olmalı)</div>`;
   let sonGrup="";
   AGMETA.forEach(([k,ad,grup,acik])=>{
@@ -504,19 +546,45 @@ function cizAgirlik(R){
     h+=`<div class="agr"><div class="ub"><span>${ad} <span class="msg" style="font-weight:400">· ${acik}</span></span><b id="v-${k}">%${ST.ag[k]||0}</b></div>
       <input type="range" min="0" max="50" value="${ST.ag[k]||0}" data-k="${k}"></div>`;
   });
-  h+=`<div class="agrtop ${top===100?'ok':'no'}" id="agtop">Toplam: %${top}${top===100?" ✓":" (100 olmalı)"}</div>
+  if(ST.ekMetrik.length){
+    h+=`<div class="grup">Ek metrikler</div>`;
+    ST.ekMetrik.forEach(em=>{
+      const etk=em.tip==='satis'?'otomatik (RX)':(em.dolduran==='calisan'?'çalışanlar işaretler':'sen doldurursun');
+      h+=`<div class="agr"><div class="ub"><span>${kacis(em.ad)} <span class="msg" style="font-weight:400">· ${etk}</span></span><span><b id="v-ek_${em.id}">%${+em.agirlik||0}</b> <button type="button" class="ag-geri" data-sil="${em.id}" style="margin-left:6px">sil</button></span></div>
+        <input type="range" min="0" max="50" value="${+em.agirlik||0}" data-ek="${em.id}"></div>`;
+    });
+  }
+  const t=agToplam();
+  h+=`<div class="agrtop ${t===100?'ok':'no'}" id="agtop">Toplam: %${t}${t===100?" ✓":" (100 olmalı)"}</div>
     <div style="display:flex;gap:10px;margin-top:10px"><button class="btn" id="agsifir">Varsayılana dön</button><button class="btn ana" id="agkaydet" style="flex:1">Kaydet</button></div></div>`;
+  h+=`<div class="kart"><div class="kbas">➕ Yeni metrik</div>
+    <input id="em-ad" placeholder="Metrik adı (ör. Vitrin düzeni)" style="width:100%;padding:10px;border:1.5px solid var(--cizgi);border-radius:10px;background:transparent;color:var(--yazi);margin-bottom:8px">
+    <select id="em-tip" style="width:100%;padding:10px;border:1.5px solid var(--cizgi);border-radius:10px;background:var(--kart);color:var(--yazi);margin-bottom:8px">
+      <option value="elle_yonetici">Elle — sen puan verirsin</option>
+      <option value="elle_calisan">Elle — çalışanlar işaretler (buton)</option>
+      <option value="satis">Hazır satış metriği (otomatik)</option>
+    </select>
+    <select id="em-kaynak" class="gizli" style="width:100%;padding:10px;border:1.5px solid var(--cizgi);border-radius:10px;background:var(--kart);color:var(--yazi);margin-bottom:8px">${Object.keys(SEG_KAYNAK).map(k=>`<option value="${k}">${SEG_KAYNAK[k].ad}</option>`).join("")}</select>
+    <div style="display:flex;gap:8px"><input id="em-agirlik" type="number" min="0" max="50" placeholder="%" style="width:90px;padding:10px;border:1.5px solid var(--cizgi);border-radius:10px;background:transparent;color:var(--yazi)"><button type="button" class="btn ana" id="em-ekle" style="flex:1">Ekle</button></div>
+    <div class="mini" style="margin-top:8px">Not: eklediğinde toplamı 100'de tut (başka metrikten düş). Çalışan-işaretler tipi, kilit ekranına buton olarak çıkar.</div></div>`;
   $("#icerik").innerHTML=h;
-  $("#icerik").querySelectorAll("input[type=range]").forEach(r=>r.oninput=()=>{
-    ST.ag[r.dataset.k]=+r.value;$("#v-"+r.dataset.k).textContent="%"+r.value;
-    const t=Object.keys(VARAG).reduce((a,k)=>a+(+ST.ag[k]||0),0);
-    const el=$("#agtop");el.textContent="Toplam: %"+t+(t===100?" ✓":" (100 olmalı)");el.className="agrtop "+(t===100?"ok":"no");
-  });
-  $("#agsifir").onclick=()=>{ST.ag={...VARAG};cerceve();ST.tab="agirlik";cizAgirlik(R);};
+  $("#icerik").querySelectorAll("input[type=range][data-k]").forEach(r=>r.oninput=()=>{ ST.ag[r.dataset.k]=+r.value;$("#v-"+r.dataset.k).textContent="%"+r.value; agTopGuncelle(); });
+  $("#icerik").querySelectorAll("input[type=range][data-ek]").forEach(r=>r.oninput=()=>{ const em=ST.ekMetrik.find(x=>x.id===r.dataset.ek); if(em)em.agirlik=+r.value; $("#v-ek_"+r.dataset.ek).textContent="%"+r.value; agTopGuncelle(); });
+  $("#icerik").querySelectorAll("[data-sil]").forEach(b=>b.onclick=()=>{ST.ekMetrik=ST.ekMetrik.filter(x=>x.id!==b.dataset.sil);cizAgirlik(R);});
+  $("#em-tip").onchange=()=>{ $("#em-kaynak").classList.toggle("gizli",$("#em-tip").value!=="satis"); };
+  $("#em-ekle").onclick=()=>{
+    const tipv=$("#em-tip").value; let ad=($("#em-ad").value||"").trim(); const ag=+$("#em-agirlik").value||0;
+    const em={id:yeniId(),agirlik:ag};
+    if(tipv==="satis"){ const kaynak=$("#em-kaynak").value; em.tip="satis"; em.kaynak=kaynak; if(!ad)ad=SEG_KAYNAK[kaynak].ad; }
+    else if(tipv==="elle_calisan"){ if(!ad){alert("Metrik adı gir");return;} em.tip="elle"; em.dolduran="calisan"; }
+    else { if(!ad){alert("Metrik adı gir");return;} em.tip="elle"; em.dolduran="yonetici"; }
+    em.ad=ad; ST.ekMetrik.push(em); cizAgirlik(R);
+  };
+  $("#agsifir").onclick=()=>{ST.ag={...VARAG};ST.ekMetrik=[];cerceve();ST.tab="agirlik";cizAgirlik(R);};
   $("#agkaydet").onclick=async()=>{
-    const t=Object.keys(VARAG).reduce((a,k)=>a+(+ST.ag[k]||0),0);
-    if(t!==100){alert("Toplam 100 olmalı, şu an %"+t);return;}
+    const t=agToplam(); if(t!==100){alert("Toplam 100 olmalı, şu an %"+t);return;}
     await db.from("prim_ayar").upsert({anahtar:"agirliklar",deger:JSON.stringify(ST.ag),guncelleme:new Date().toISOString()},{onConflict:"anahtar"});
+    await db.from("prim_ayar").upsert({anahtar:"ek_metrikler",deger:JSON.stringify(ST.ekMetrik),guncelleme:new Date().toISOString()},{onConflict:"anahtar"});
     ST.tab="sira";cerceve();ciz();
   };
 }
@@ -544,7 +612,7 @@ function cizKisi(R){
 /* ========== KİLİTLİ İLK EKRAN: aktivite girişi (şifresiz) + Tutarlar şifresiyle aç ========== */
 async function ozet(tuz,pin){ const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(tuz+"|eczane-stok|"+pin)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
 const AKT={servis:{ad:"Servis",ik:"🛵"},kulak:{ad:"Kulak",ik:"👂"},temizlik:{ad:"Temizlik",ik:"🧹"}};
-let agKisi=[], agSecili=null, agKayit=[];
+let agKisi=[], agSecili=null, agKayit=[], agEk=[], agTurMap=Object.assign({},AKT);
 const agBugun=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 function kilitliEkran(){
   kok.innerHTML=`
@@ -575,21 +643,26 @@ function kilitliEkran(){
 }
 async function agYukle(){
   try{
-    const [rp,ra]=await Promise.all([
+    const [rp,ra,rm]=await Promise.all([
       db.from("prim_personel").select("ad,sira,aktif").eq("aktif",true).order("sira"),
-      db.from("prim_aktivite").select("id,personel,tur,olusturma").eq("tarih",agBugun()).order("olusturma",{ascending:false}).limit(100)
+      db.from("prim_aktivite").select("id,personel,tur,olusturma").eq("tarih",agBugun()).order("olusturma",{ascending:false}).limit(100),
+      db.from("prim_ayar").select("deger").eq("anahtar","ek_metrikler").maybeSingle()
     ]);
     agKisi=rp.data||[]; agKayit=ra.data||[];
+    let ek=[]; try{ ek=rm.data?JSON.parse(rm.data.deger)||[]:[]; }catch(e){}
+    agEk=ek.filter(em=>em.tip==='elle'&&em.dolduran==='calisan');
   }catch(e){ agKisi=agKisi||[]; }
+  agTurMap=Object.assign({},AKT); agEk.forEach(em=>{agTurMap[em.id]={ad:em.ad,ik:'🏷️'};});
   agCiz(); agFeedCiz();
 }
 function agFeedCiz(){
-  const say={servis:0,kulak:0,temizlik:0};
-  agKayit.forEach(k=>{ if(say[k.tur]!=null) say[k.tur]++; });
-  const sc=$("#agSayac"); if(sc) sc.innerHTML=Object.keys(AKT).map(t=>`<div class="s"><b>${say[t]}</b><span>${AKT[t].ik} ${AKT[t].ad}</span></div>`).join("");
+  const turler=Object.keys(agTurMap);
+  const say={}; turler.forEach(t=>say[t]=0);
+  agKayit.forEach(k=>{ say[k.tur]=(say[k.tur]||0)+1; });
+  const sc=$("#agSayac"); if(sc) sc.innerHTML=turler.map(t=>{const T=agTurMap[t];return `<div class="s"><b>${say[t]||0}</b><span>${T.ik} ${kacis(T.ad)}</span></div>`;}).join("");
   const l=$("#agListe"); if(!l) return;
   if(!agKayit.length){ l.innerHTML='<div class="agbos">Bugün henüz giriş yok.</div>'; return; }
-  l.innerHTML=agKayit.map(k=>{ const T=AKT[k.tur]||{ad:k.tur,ik:"•"}; return `<div class="agsat"><span class="ik">${T.ik}</span><span class="kim">${kacis(k.personel)}</span><span class="ne">${T.ad}</span><span class="vk">${new Date(k.olusturma).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}</span><button type="button" class="sil" data-id="${k.id}" title="Çıkar">×</button></div>`; }).join("");
+  l.innerHTML=agKayit.map(k=>{ const T=agTurMap[k.tur]||{ad:k.tur,ik:"•"}; return `<div class="agsat"><span class="ik">${T.ik}</span><span class="kim">${kacis(k.personel)}</span><span class="ne">${kacis(T.ad)}</span><span class="vk">${new Date(k.olusturma).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}</span><button type="button" class="sil" data-id="${k.id}" title="Çıkar">×</button></div>`; }).join("");
   l.querySelectorAll(".sil").forEach(b=>b.onclick=()=>agSil(b.getAttribute("data-id")));
 }
 async function agSil(id){
@@ -607,15 +680,16 @@ function agCiz(){
 function agSec(ad){
   agSecili=ad; $("#agKisiler").classList.add("gizli");
   const a=$("#agAktif"); a.classList.remove("gizli");
+  const turler=["servis","kulak","temizlik"].concat(agEk.map(e=>e.id));
   a.innerHTML=`<div class="ag-ust" style="grid-column:1/-1"><span>${kacis(ad)}</span><button type="button" class="ag-geri" id="agGeri">‹ geri</button></div>`+
-    Object.keys(AKT).map(t=>`<button type="button" class="ag-akt" data-t="${t}"><span class="ik">${AKT[t].ik}</span>${AKT[t].ad}</button>`).join("");
+    turler.map(t=>{const T=agTurMap[t]||{ad:t,ik:'🏷️'};return `<button type="button" class="ag-akt" data-t="${t}"><span class="ik">${T.ik}</span>${kacis(T.ad)}</button>`;}).join("");
   $("#agGeri").onclick=()=>{ agSecili=null; $("#agMesaj").textContent=""; agCiz(); };
   a.querySelectorAll(".ag-akt").forEach(b=>b.onclick=()=>agGir(b.getAttribute("data-t")));
 }
 async function agGir(tur){
-  if(!agSecili) return; const ad=agSecili, m=$("#agMesaj"); m.style.color="var(--ok)"; m.textContent="kaydediliyor…";
+  if(!agSecili) return; const ad=agSecili, m=$("#agMesaj"), T=agTurMap[tur]||{ad:tur}; m.style.color="var(--ok)"; m.textContent="kaydediliyor…";
   try{ const r=await db.from("prim_aktivite").insert({personel:ad,tur:tur,adet:1,tarih:agBugun()});
-    if(r.error) throw r.error; agSecili=null; await agYukle(); m.textContent="✓ "+AKT[tur].ad+" eklendi — "+ad;
+    if(r.error) throw r.error; agSecili=null; await agYukle(); m.textContent="✓ "+T.ad+" eklendi — "+ad;
   }catch(e){ m.style.color="var(--uyari)"; m.textContent="⚠ kaydedilemedi, tekrar dene"; }
 }
 async function tutarAc(){
