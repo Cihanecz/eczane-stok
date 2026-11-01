@@ -455,6 +455,7 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
       <button class="ust-dugme hasta" id="saymDugme" type="button" aria-label="Stok sayımı"><span>🔢</span><span class="ek-yazi">Stok Sayımı</span></button>
       <button class="ust-dugme hasta" id="puanDugme" type="button" aria-label="Puan"><span>🎁</span><span class="ek-yazi">Puan</span></button>
       <button class="ust-dugme hasta" id="todoDugme" type="button" aria-label="To Do List"><span>✅</span><span class="ek-yazi">To Do</span></button>
+      <button class="ust-dugme hasta" id="primDugme" type="button" aria-label="Prim / En İyi Aktivite"><span>🏆</span><span class="ek-yazi">Prim</span></button>
       <button class="ust-dugme hasta" id="mumDugme" type="button" aria-label="Mümessil"><span>🤝</span><span class="ek-yazi">Mümessil</span></button>
       <button class="ust-dugme kilit" id="kilit" type="button" aria-label="Tutarları aç"><span id="kilitSimge">🔒</span><span class="ek-yazi">Tutarlar</span></button>
       <button class="ust-dugme" id="cikis" type="button" aria-label="Çıkış" title="Çıkış"><span>🚪</span><span class="ek-yazi">Çıkış</span></button>
@@ -3250,6 +3251,7 @@ window.TD=Object.assign(TD,{
   async geri(id){ const g=TD.gorevler.find(x=>x.id===id); if(!g)return; g.durum="bekliyor"; g.yapan=null; g.yapilmaZamani=null; await tdYaz(g); todoSayfasi(); }
 });
 document.getElementById("todoDugme").addEventListener("click", ()=>{ location.hash="todo"; });
+document.getElementById("primDugme").addEventListener("click", ()=>{ location.href="cihan-eczanesi-prim.html"; });
 async function tdAnaKutu(){
   try{
     const [c,t]=await Promise.all([db.from("ayar").select("deger").eq("anahtar","todo_cfg").maybeSingle(), db.from("ayar").select("deger").like("anahtar","todo_t_%")]);

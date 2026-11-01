@@ -139,7 +139,8 @@
 "use strict";
 const SB_URL="https://crgfvsfncazexynzhwmo.supabase.co";
 const SB_KEY="sb_publishable_WqWzwvumk9pMhBoV6LeMMA_tEgvzbPw";
-const db=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,storageKey:"prim_oturum",autoRefreshToken:true}});
+// Stok programiyla ayni oturumu paylasir (varsayilan storageKey) -> tekrar giris sormaz, sadece PIN.
+const db=supabase.createClient(SB_URL,SB_KEY);
 
 const $=s=>document.querySelector(s);
 const kok=$("#kok");
@@ -190,7 +191,7 @@ async function girisYap(){
   const e=$("#g-mail").value.trim(),p=$("#g-sif").value;
   if(!e||!p){$("#g-hata").textContent="e-posta/şifre gir";return;}
   $("#g-btn").textContent="Giriliyor…";$("#g-btn").disabled=true;
-  try{const{error}=await db.auth.signInWithPassword({email:e,password:p});if(error)throw error;pinKapisi();}
+  try{const{error}=await db.auth.signInWithPassword({email:e,password:p});if(error)throw error;basla();}
   catch(err){girisEkrani("Giriş hatası: "+(err.message||err));}
 }
 
@@ -327,7 +328,7 @@ function hesapla(){
 function basla(){ kok.innerHTML=""; cerceve(); veriYukle().then(ciz).catch(e=>{kok.innerHTML='<div class="yuk">Veri yüklenemedi: '+kacis(e.message||e)+'</div>';}); }
 function cerceve(){
   kok.innerHTML=`
-  <button class="btn cikis" id="cikis">Çıkış</button>
+  <button class="btn cikis" id="cikis">← Stok</button>
   <div class="ustbar">
     <div class="amb">🏆</div>
     <div><h1>En İyi Aktivite</h1><div class="alt">Cihan Eczanesi · prim</div></div>
@@ -335,7 +336,7 @@ function cerceve(){
   </div>
   <div class="sekmeler" id="sekmeler"></div>
   <div id="icerik"></div>`;
-  $("#cikis").onclick=async()=>{await db.auth.signOut();location.reload();};
+  $("#cikis").onclick=()=>{location.href="eczane-stok.html";};
   $("#ayg").onclick=()=>ayDegis(-1); $("#ayi").onclick=()=>ayDegis(1);
   const S=[["sira","🏆 Sıralama"],["detay","📊 Detay"],["puantaj","🗓️ Puantaj"],["elle","✍️ Puanım"],["agirlik","⚙️ Ağırlık"],["kisi","👥 Kişiler"]];
   $("#sekmeler").innerHTML=S.map(([k,a])=>`<button class="sekme ${ST.tab===k?'sec':''}" data-t="${k}">${a}</button>`).join("");
@@ -505,7 +506,7 @@ function cizKisi(R){
 }
 
 /* ================= AÇILIŞ ================= */
-(async()=>{ if(await oturumVar()) pinKapisi(); else girisEkrani(); })();
+(async()=>{ if(await oturumVar()) basla(); else girisEkrani(); })();
 })();
 </script>
 </body>
