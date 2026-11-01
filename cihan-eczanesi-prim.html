@@ -128,6 +128,24 @@
   .yuk{text-align:center;color:var(--soluk);padding:40px}
   .kfy{position:fixed;left:0;right:0;bottom:0;background:var(--kart);border-top:1.5px solid var(--cizgi);padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px;justify-content:center;z-index:30}
   .kfy .btn.ana{flex:1;max-width:300px}
+  /* kilitli ilk ekran + aktivite girisi */
+  .ag-not{font-size:13px;color:var(--soluk);margin:0 0 12px;text-align:center}
+  .ag-kisiler{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+  .ag-kisi{background:var(--kart);border:1.5px solid var(--cizgi);border-radius:13px;padding:13px;font-weight:700;color:var(--yazi);display:flex;align-items:center;gap:8px;justify-content:center;cursor:pointer}
+  .ag-kisi:active{transform:scale(.96)}
+  .ag-kisi .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--ana),var(--ana2));color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}
+  .ag-aktif{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  .ag-akt{border:1.5px solid var(--cizgi);border-radius:13px;padding:15px 6px;background:var(--kart);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;font-weight:700;font-size:13px;color:var(--yazi)}
+  .ag-akt:active{transform:scale(.95)}
+  .ag-akt .ik{font-size:26px}
+  .ag-ust{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:800;color:var(--yazi)}
+  .ag-geri{border:1px solid var(--cizgi);background:var(--kart);border-radius:9px;padding:6px 11px;font-size:12.5px;color:var(--soluk);cursor:pointer}
+  .ag-mesaj{min-height:20px;text-align:center;font-size:13.5px;color:var(--ok);font-weight:700;margin-top:12px}
+  .ag-ayrac{display:flex;align-items:center;gap:10px;color:var(--soluk);font-size:11.5px;margin:20px 0 12px;text-transform:uppercase;letter-spacing:.5px}
+  .ag-ayrac::before,.ag-ayrac::after{content:"";flex:1;height:1px;background:var(--cizgi)}
+  .tpin-sat{display:flex;gap:8px}
+  .tpin-sat input{flex:1;padding:12px 13px;border:1.5px solid var(--cizgi);border-radius:12px;font-size:16px;background:transparent;color:var(--yazi)}
+  .tpin-sat button{background:linear-gradient(135deg,var(--ana),var(--ana2));color:#fff;border:0;border-radius:12px;padding:0 18px;font-weight:800;font-size:15px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -505,8 +523,73 @@ function cizKisi(R){
   $("#ekleKisi").onclick=async()=>{const ad=$("#yeniAd").value.trim();if(!ad)return;await db.from("prim_personel").insert({ad,sira:(ST.personel.length+1)});await veriYukle();ciz();};
 }
 
+/* ========== KİLİTLİ İLK EKRAN: aktivite girişi (şifresiz) + Tutarlar şifresiyle aç ========== */
+async function ozet(tuz,pin){ const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(tuz+"|eczane-stok|"+pin)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
+const AKT={servis:{ad:"Servis",ik:"🛵"},kulak:{ad:"Kulak",ik:"👂"},temizlik:{ad:"Temizlik",ik:"🧹"}};
+let agKisi=[], agSecili=null;
+const agBugun=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+function kilitliEkran(){
+  kok.innerHTML=`
+  <button class="btn cikis" id="cikis2">← Stok</button>
+  <div class="ustbar"><div class="amb">🏆</div>
+    <div><h1>En İyi Aktivite</h1><div class="alt">Cihan Eczanesi</div></div></div>
+  <div class="kart">
+    <div class="kbas">✍️ Aktivite girişi</div>
+    <div class="ag-not">Servis / kulak / temizlik yaptıysan işaretle:</div>
+    <div id="agKisiler" class="ag-kisiler">yükleniyor…</div>
+    <div id="agAktif" class="ag-aktif gizli"></div>
+    <div id="agMesaj" class="ag-mesaj"></div>
+  </div>
+  <div class="kart">
+    <div class="ag-ayrac"><span>yönetici · tutarları aç</span></div>
+    <div class="tpin-sat"><input id="tpin" type="password" inputmode="numeric" autocomplete="off" placeholder="Tutarlar şifresi"><button type="button" id="tac">Aç</button></div>
+    <div id="tphata" style="color:var(--uyari);font-size:13px;min-height:18px;margin-top:6px"></div>
+  </div>`;
+  $("#cikis2").onclick=()=>{location.href="eczane-stok.html";};
+  $("#tac").onclick=tutarAc;
+  $("#tpin").onkeydown=e=>{ if(e.key==="Enter") tutarAc(); };
+  agYukle();
+}
+async function agYukle(){
+  try{ const r=await db.from("prim_personel").select("ad,sira,aktif").eq("aktif",true).order("sira"); agKisi=r.data||[]; }
+  catch(e){ agKisi=[]; }
+  agCiz();
+}
+function agCiz(){
+  const k=$("#agKisiler"); if(!k) return;
+  $("#agAktif").classList.add("gizli"); k.classList.remove("gizli");
+  if(!agKisi.length){ k.innerHTML='<div class="ag-not">—</div>'; return; }
+  k.innerHTML=agKisi.map(p=>`<button type="button" class="ag-kisi" data-ad="${kacis(p.ad)}"><span class="av">${kacis(bh(p.ad))}</span>${kacis(p.ad)}</button>`).join("");
+  k.querySelectorAll(".ag-kisi").forEach(b=>b.onclick=()=>agSec(b.getAttribute("data-ad")));
+}
+function agSec(ad){
+  agSecili=ad; $("#agKisiler").classList.add("gizli");
+  const a=$("#agAktif"); a.classList.remove("gizli");
+  a.innerHTML=`<div class="ag-ust" style="grid-column:1/-1"><span>${kacis(ad)}</span><button type="button" class="ag-geri" id="agGeri">‹ geri</button></div>`+
+    Object.keys(AKT).map(t=>`<button type="button" class="ag-akt" data-t="${t}"><span class="ik">${AKT[t].ik}</span>${AKT[t].ad}</button>`).join("");
+  $("#agGeri").onclick=()=>{ agSecili=null; $("#agMesaj").textContent=""; agCiz(); };
+  a.querySelectorAll(".ag-akt").forEach(b=>b.onclick=()=>agGir(b.getAttribute("data-t")));
+}
+async function agGir(tur){
+  if(!agSecili) return; const ad=agSecili, m=$("#agMesaj"); m.style.color="var(--ok)"; m.textContent="kaydediliyor…";
+  try{ const r=await db.from("prim_aktivite").insert({personel:ad,tur:tur,adet:1,tarih:agBugun()});
+    if(r.error) throw r.error; agSecili=null; agCiz(); m.textContent="✓ "+AKT[tur].ad+" eklendi — "+ad;
+  }catch(e){ m.style.color="var(--uyari)"; m.textContent="⚠ kaydedilemedi, tekrar dene"; }
+}
+async function tutarAc(){
+  const pin=($("#tpin").value||"").trim(), h=$("#tphata"); h.textContent="";
+  if(!pin){ h.textContent="Şifre gir"; return; }
+  let kayit=null;
+  try{ const r=await db.from("ayar").select("deger").eq("anahtar","tutar_pin").maybeSingle(); kayit=r.data?r.data.deger:null; }
+  catch(e){ h.textContent="Bağlantı hatası"; return; }
+  if(!kayit){ basla(); return; }                 // Tutarlar şifresi henüz tanımlı değilse direkt aç
+  const [tuz,hash]=kayit.split(":");
+  if(await ozet(tuz,pin)===hash){ basla(); }
+  else { h.textContent="Şifre yanlış"; $("#tpin").value=""; $("#tpin").focus(); }
+}
+
 /* ================= AÇILIŞ ================= */
-(async()=>{ if(await oturumVar()) basla(); else girisEkrani(); })();
+kilitliEkran();
 })();
 </script>
 </body>
