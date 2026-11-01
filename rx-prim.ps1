@@ -22,6 +22,7 @@ $bas=(Get-Date).AddDays(-1*$Gun).ToString("yyyy-MM-dd")
 $sql=@"
 select f.satis_tarih::date, vk.kullanici_adi,
   case when m.ilac_tipi=1 then 'ilac' else 'dis' end,
+  case when f.islem_tipi=4 then 'recete' else 'perakende' end,
   sum(kl.verilen_adet),
   round(sum(kl.kalem_tum_iskontolar_sonrasi_net_tutar),2),
   round(sum(kl.kalem_tum_iskontolar_sonrasi_net_tutar - coalesce(kl.donemsel_birim_maliyet, kl.urun_gecerli_depocu_fiyat, 0)*kl.verilen_adet),2)
@@ -30,7 +31,7 @@ join eys_tbl_satis_fatura f on f.id=vk.satis_fatura_id
 join eys_tbl_satis_fatura_kalem kl on kl.satis_fatura_id=vk.satis_fatura_id and kl.urun_id=vk.urun_id
 join eys_tbl_mustahzar_temel m on m.urun_id=vk.urun_id
 where f.satis_tarih >= '$bas' and f.satis_tarih < (current_date + 1) and f.islem_tipi in (1,4) and coalesce(vk.kullanici_adi,'')<>''
-group by f.satis_tarih::date, vk.kullanici_adi, (m.ilac_tipi=1)
+group by f.satis_tarih::date, vk.kullanici_adi, (m.ilac_tipi=1), (f.islem_tipi=4)
 "@
 
 $env:PGPASSWORD=$RXPASS
@@ -42,13 +43,14 @@ $inv=[Globalization.CultureInfo]::InvariantCulture
 $rows=@{}
 foreach($satir in ($metin -split "`n")){
   $satir=$satir.Trim(); if(-not $satir){ continue }
-  $p=$satir.Split('|'); if($p.Count -lt 6){ continue }
-  $tarih=$p[0].Trim(); $kisi=$p[1].Trim(); $grup=$p[2].Trim()
-  $adet=[double]::Parse($p[3],$inv); $tutar=[double]::Parse($p[4],$inv); $kar=[double]::Parse($p[5],$inv)
+  $p=$satir.Split('|'); if($p.Count -lt 7){ continue }
+  $tarih=$p[0].Trim(); $kisi=$p[1].Trim(); $grup=$p[2].Trim(); $kanal=$p[3].Trim()
+  $adet=[double]::Parse($p[4],$inv); $tutar=[double]::Parse($p[5],$inv); $kar=[double]::Parse($p[6],$inv)
   $k="$tarih|$kisi"
-  if(-not $rows.ContainsKey($k)){ $rows[$k]=[ordered]@{tarih=$tarih;personel=$kisi;ilac_adet=0.0;ilac_tutar=0.0;ilac_kar=0.0;dis_adet=0.0;dis_tutar=0.0;dis_kar=0.0} }
-  if($grup -eq 'ilac'){ $rows[$k].ilac_adet=$adet; $rows[$k].ilac_tutar=$tutar; $rows[$k].ilac_kar=$kar }
-  else { $rows[$k].dis_adet=$adet; $rows[$k].dis_tutar=$tutar; $rows[$k].dis_kar=$kar }
+  if(-not $rows.ContainsKey($k)){ $rows[$k]=[ordered]@{tarih=$tarih;personel=$kisi;ilac_adet=0.0;ilac_tutar=0.0;ilac_kar=0.0;dis_adet=0.0;dis_tutar=0.0;dis_kar=0.0;recete_adet=0.0;recete_tutar=0.0;recete_kar=0.0;perakende_adet=0.0;perakende_tutar=0.0;perakende_kar=0.0} }
+  $r=$rows[$k]
+  if($grup -eq 'ilac'){ $r.ilac_adet+=$adet; $r.ilac_tutar+=$tutar; $r.ilac_kar+=$kar } else { $r.dis_adet+=$adet; $r.dis_tutar+=$tutar; $r.dis_kar+=$kar }
+  if($kanal -eq 'recete'){ $r.recete_adet+=$adet; $r.recete_tutar+=$tutar; $r.recete_kar+=$kar } else { $r.perakende_adet+=$adet; $r.perakende_tutar+=$tutar; $r.perakende_kar+=$kar }
 }
 $liste=@($rows.Values)
 $gun2=(Get-Date).ToString("o")
