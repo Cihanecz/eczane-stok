@@ -761,10 +761,10 @@ $("#kilitFormu").addEventListener("submit", async e => {
 
 /* ---------- oturum ---------- */
 async function basla(){
-  // Her acilista ilk ekran (sifresiz calisan aktivite girisi). Oturum temizlenir ki
-  // kilitliyken Prim de dahil hicbir yere sifresiz girilemesin. Programa sifreyle girilir.
-  try{ await db.auth.signOut({ scope:"local" }); }catch(e){}
-  girisiAc();
+  // Oturum hatirlanir: her seferinde sifre sorulmaz. Oturum varsa program, yoksa ilk ekran
+  // (sifresiz calisan aktivite girisi). Calisan moduna donmek icin 🚪 Cikis yeterli.
+  const { data:{ session } } = await db.auth.getSession();
+  if(session){ programiAc(); } else { girisiAc(); }
 }
 function girisiAc(){ $("#program").classList.add("gizli"); $("#girisEkrani").classList.remove("gizli"); $("#eposta").focus(); }
 function programiAc(){ $("#girisEkrani").classList.add("gizli"); $("#program").classList.remove("gizli"); markaYaz(); acilisGoster(); kilitDugmesi(); yonlendir(); setTimeout(()=>{ if(typeof hRozetArkaPlan==="function") hRozetArkaPlan(); depoRozet(); }, 0); }
