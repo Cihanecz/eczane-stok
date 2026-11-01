@@ -141,6 +141,18 @@
   .ag-ust{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:800;color:var(--yazi)}
   .ag-geri{border:1px solid var(--cizgi);background:var(--kart);border-radius:9px;padding:6px 11px;font-size:12.5px;color:var(--soluk);cursor:pointer}
   .ag-mesaj{min-height:20px;text-align:center;font-size:13.5px;color:var(--ok);font-weight:700;margin-top:12px}
+  .agsayac{display:flex;gap:8px;margin-bottom:10px}
+  .agsayac .s{flex:1;text-align:center;border:1px solid var(--cizgi);border-radius:11px;padding:8px 4px;background:var(--kart)}
+  .agsayac .s b{display:block;font-size:19px;font-weight:800;color:var(--ana)}
+  .agsayac .s span{font-size:11px;color:var(--soluk)}
+  .agliste{display:flex;flex-direction:column;gap:7px}
+  .agsat{display:flex;align-items:center;gap:10px;background:var(--kart);border:1px solid var(--cizgi);border-radius:11px;padding:8px 11px;font-size:13.5px}
+  .agsat .ik{font-size:17px}
+  .agsat .kim{font-weight:700}
+  .agsat .ne{color:var(--soluk)}
+  .agsat .vk{margin-left:auto;color:var(--soluk);font-size:12px}
+  .agsat .sil{border:0;background:#D3433B18;color:var(--uyari);border-radius:8px;width:28px;height:28px;font-size:15px;font-weight:800;cursor:pointer;flex:0 0 auto}
+  .agbos{color:var(--soluk);font-size:13px;text-align:center;padding:10px}
   .ag-ayrac{display:flex;align-items:center;gap:10px;color:var(--soluk);font-size:11.5px;margin:20px 0 12px;text-transform:uppercase;letter-spacing:.5px}
   .ag-ayrac::before,.ag-ayrac::after{content:"";flex:1;height:1px;background:var(--cizgi)}
   .tpin-sat{display:flex;gap:8px}
@@ -526,7 +538,7 @@ function cizKisi(R){
 /* ========== KİLİTLİ İLK EKRAN: aktivite girişi (şifresiz) + Tutarlar şifresiyle aç ========== */
 async function ozet(tuz,pin){ const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(tuz+"|eczane-stok|"+pin)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }
 const AKT={servis:{ad:"Servis",ik:"🛵"},kulak:{ad:"Kulak",ik:"👂"},temizlik:{ad:"Temizlik",ik:"🧹"}};
-let agKisi=[], agSecili=null;
+let agKisi=[], agSecili=null, agKayit=[];
 const agBugun=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
 function kilitliEkran(){
   kok.innerHTML=`
@@ -541,6 +553,11 @@ function kilitliEkran(){
     <div id="agMesaj" class="ag-mesaj"></div>
   </div>
   <div class="kart">
+    <div class="kbas">📋 Bugün</div>
+    <div id="agSayac" class="agsayac"></div>
+    <div id="agListe" class="agliste"></div>
+  </div>
+  <div class="kart">
     <div class="ag-ayrac"><span>yönetici · tutarları aç</span></div>
     <div class="tpin-sat"><input id="tpin" type="password" inputmode="numeric" autocomplete="off" placeholder="Tutarlar şifresi"><button type="button" id="tac">Aç</button></div>
     <div id="tphata" style="color:var(--uyari);font-size:13px;min-height:18px;margin-top:6px"></div>
@@ -551,9 +568,28 @@ function kilitliEkran(){
   agYukle();
 }
 async function agYukle(){
-  try{ const r=await db.from("prim_personel").select("ad,sira,aktif").eq("aktif",true).order("sira"); agKisi=r.data||[]; }
-  catch(e){ agKisi=[]; }
-  agCiz();
+  try{
+    const [rp,ra]=await Promise.all([
+      db.from("prim_personel").select("ad,sira,aktif").eq("aktif",true).order("sira"),
+      db.from("prim_aktivite").select("id,personel,tur,olusturma").eq("tarih",agBugun()).order("olusturma",{ascending:false}).limit(100)
+    ]);
+    agKisi=rp.data||[]; agKayit=ra.data||[];
+  }catch(e){ agKisi=agKisi||[]; }
+  agCiz(); agFeedCiz();
+}
+function agFeedCiz(){
+  const say={servis:0,kulak:0,temizlik:0};
+  agKayit.forEach(k=>{ if(say[k.tur]!=null) say[k.tur]++; });
+  const sc=$("#agSayac"); if(sc) sc.innerHTML=Object.keys(AKT).map(t=>`<div class="s"><b>${say[t]}</b><span>${AKT[t].ik} ${AKT[t].ad}</span></div>`).join("");
+  const l=$("#agListe"); if(!l) return;
+  if(!agKayit.length){ l.innerHTML='<div class="agbos">Bugün henüz giriş yok.</div>'; return; }
+  l.innerHTML=agKayit.map(k=>{ const T=AKT[k.tur]||{ad:k.tur,ik:"•"}; return `<div class="agsat"><span class="ik">${T.ik}</span><span class="kim">${kacis(k.personel)}</span><span class="ne">${T.ad}</span><span class="vk">${new Date(k.olusturma).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}</span><button type="button" class="sil" data-id="${k.id}" title="Çıkar">×</button></div>`; }).join("");
+  l.querySelectorAll(".sil").forEach(b=>b.onclick=()=>agSil(b.getAttribute("data-id")));
+}
+async function agSil(id){
+  const m=$("#agMesaj"); m.style.color="var(--soluk)"; m.textContent="çıkarılıyor…";
+  try{ const r=await db.from("prim_aktivite").delete().eq("id",id); if(r.error) throw r.error; await agYukle(); m.style.color="var(--ok)"; m.textContent="↩ çıkarıldı"; }
+  catch(e){ m.style.color="var(--uyari)"; m.textContent="⚠ çıkarılamadı"; }
 }
 function agCiz(){
   const k=$("#agKisiler"); if(!k) return;
@@ -573,7 +609,7 @@ function agSec(ad){
 async function agGir(tur){
   if(!agSecili) return; const ad=agSecili, m=$("#agMesaj"); m.style.color="var(--ok)"; m.textContent="kaydediliyor…";
   try{ const r=await db.from("prim_aktivite").insert({personel:ad,tur:tur,adet:1,tarih:agBugun()});
-    if(r.error) throw r.error; agSecili=null; agCiz(); m.textContent="✓ "+AKT[tur].ad+" eklendi — "+ad;
+    if(r.error) throw r.error; agSecili=null; await agYukle(); m.textContent="✓ "+AKT[tur].ad+" eklendi — "+ad;
   }catch(e){ m.style.color="var(--uyari)"; m.textContent="⚠ kaydedilemedi, tekrar dene"; }
 }
 async function tutarAc(){
