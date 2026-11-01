@@ -417,6 +417,25 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
 @media (max-width:520px){.hkart{grid-template-columns:1fr}.hdugmeler{justify-content:flex-start}}
 </style>
 <script>try{if(localStorage.getItem("eczane_tema")==="karanlik")document.documentElement.dataset.tema="karanlik";}catch(e){}</script>
+<style>
+#aktiviteGiris{margin-top:22px;width:100%;max-width:340px}
+.ag-ayrac{display:flex;align-items:center;gap:10px;color:#8a97a8;font-size:12px;margin:4px 0 12px}
+.ag-ayrac::before,.ag-ayrac::after{content:"";flex:1;height:1px;background:#d8e0ea}
+.ag-not{font-size:12.5px;color:#6b7c93;margin-bottom:10px;text-align:center}
+.ag-kisiler{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.ag-kisi{background:#fff;border:1.5px solid #d8e0ea;border-radius:12px;padding:12px;font-weight:700;color:#13233a;display:flex;align-items:center;gap:8px;justify-content:center;cursor:pointer}
+.ag-kisi:active{transform:scale(.96)}
+.ag-kisi .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#0F8A5F,#0b6e4c);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}
+.ag-aktif{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ag-akt{border:1.5px solid #d8e0ea;border-radius:12px;padding:14px 6px;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;font-weight:700;font-size:13px;color:#13233a}
+.ag-akt:active{transform:scale(.95)}
+.ag-akt .ik{font-size:24px}
+.ag-ust{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:700;color:#13233a}
+.ag-geri{border:1px solid #d8e0ea;background:#fff;border-radius:9px;padding:6px 10px;font-size:12.5px;color:#6b7c93;cursor:pointer}
+.ag-mesaj{min-height:20px;text-align:center;font-size:13px;color:#0F8A5F;font-weight:700;margin-top:10px}
+html[data-tema="karanlik"] .ag-kisi,html[data-tema="karanlik"] .ag-akt{background:#1a2230;border-color:#2a3650;color:#e8eef7}
+html[data-tema="karanlik"] .ag-ust{color:#e8eef7}
+</style>
 </head>
 <body>
 
@@ -431,6 +450,13 @@ button.lj{cursor:pointer} button.lj:hover{background:var(--hover)}
     <div class="hata" id="girisHata" role="alert"></div>
     <button class="ana-dugme" id="girisDugme" type="submit">Giriş yap</button>
   </form>
+  <div id="aktiviteGiris">
+    <div class="ag-ayrac"><span>çalışan girişi · şifresiz</span></div>
+    <div class="ag-not">Servis / kulak / temizlik yaptıysan işaretle:</div>
+    <div id="agKisiler" class="ag-kisiler">yükleniyor…</div>
+    <div id="agAktif" class="ag-aktif gizli"></div>
+    <div id="agMesaj" class="ag-mesaj"></div>
+  </div>
 </section>
 
 <!-- PROGRAM -->
@@ -3762,6 +3788,54 @@ async function hRozetArkaPlan(){
 if("serviceWorker" in navigator){ window.addEventListener("load", ()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
 
 basla();
+</script>
+
+<!-- Giriş ekranı: şifresiz çalışan aktivite girişi (servis/kulak/temizlik) -->
+<script>
+(function(){
+  "use strict";
+  if(typeof supabase==="undefined") return;
+  var AG_URL="https://crgfvsfncazexynzhwmo.supabase.co";
+  var AG_KEY="sb_publishable_WqWzwvumk9pMhBoV6LeMMA_tEgvzbPw";
+  var agdb=supabase.createClient(AG_URL,AG_KEY,{auth:{persistSession:false}});
+  var TUR={servis:{ad:"Servis",ik:"🛵"},kulak:{ad:"Kulak",ik:"👂"},temizlik:{ad:"Temizlik",ik:"🧹"}};
+  var kacis=function(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});};
+  var bugun=function(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+  var bh=function(a){return (a||"?").trim().charAt(0).toLocaleUpperCase("tr");};
+  var kisiler=[], secili=null;
+  var el=function(id){return document.getElementById(id);};
+  async function yukle(){
+    try{ var r=await agdb.from("prim_personel").select("ad,sira,aktif").eq("aktif",true).order("sira"); kisiler=r.data||[]; }
+    catch(e){ kisiler=[]; }
+    ciz();
+  }
+  function ciz(){
+    var k=el("agKisiler"); if(!k) return;
+    el("agAktif").classList.add("gizli"); k.classList.remove("gizli");
+    if(!kisiler.length){ k.innerHTML='<div class="ag-not">—</div>'; return; }
+    k.innerHTML=kisiler.map(function(p){ return '<button type="button" class="ag-kisi" data-ad="'+kacis(p.ad)+'"><span class="av">'+kacis(bh(p.ad))+'</span>'+kacis(p.ad)+'</button>'; }).join("");
+    Array.prototype.forEach.call(k.querySelectorAll(".ag-kisi"),function(b){ b.onclick=function(){ sec(b.getAttribute("data-ad")); }; });
+  }
+  function sec(ad){
+    secili=ad;
+    el("agKisiler").classList.add("gizli");
+    var a=el("agAktif"); a.classList.remove("gizli");
+    a.innerHTML='<div class="ag-ust" style="grid-column:1/-1"><span>'+kacis(ad)+'</span><button type="button" class="ag-geri" id="agGeri">‹ geri</button></div>'+
+      Object.keys(TUR).map(function(t){ return '<button type="button" class="ag-akt" data-t="'+t+'"><span class="ik">'+TUR[t].ik+'</span>'+TUR[t].ad+'</button>'; }).join("");
+    el("agGeri").onclick=function(){ secili=null; el("agMesaj").textContent=""; ciz(); };
+    Array.prototype.forEach.call(a.querySelectorAll(".ag-akt"),function(b){ b.onclick=function(){ gir(b.getAttribute("data-t")); }; });
+  }
+  async function gir(tur){
+    if(!secili) return;
+    var ad=secili, m=el("agMesaj"); m.style.color="#0F8A5F"; m.textContent="kaydediliyor…";
+    try{
+      var r=await agdb.from("prim_aktivite").insert({personel:ad,tur:tur,adet:1,tarih:bugun()});
+      if(r.error) throw r.error;
+      secili=null; ciz(); m.textContent="✓ "+TUR[tur].ad+" eklendi — "+ad;
+    }catch(e){ m.style.color="#D3433B"; m.textContent="⚠ kaydedilemedi, tekrar dene"; }
+  }
+  if(el("agKisiler")) yukle();
+})();
 </script>
 </body>
 </html>
