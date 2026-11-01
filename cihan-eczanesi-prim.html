@@ -311,7 +311,7 @@ function hesapla(){
   const N=isGunu();
   const M={}; // ad -> metrikler
   ST.personel.forEach(p=>{M[p.ad]={ad:p.ad,yaris:p.yaris_dahil!==false,
-    ilacA:0,ilacT:0,ilacK:0,disA:0,disT:0,disK:0, servis:0,kulak:0,temizlik:0, gorevN:0,gorevHiz:0,gorevRaw:0,
+    ilacA:0,ilacT:0,ilacK:0,disA:0,disT:0,disK:0, recA:0,recT:0,recK:0,perA:0,perT:0,perK:0, servis:0,kulak:0,temizlik:0, gorevN:0,gorevHiz:0,gorevRaw:0,
     gelmedi:0,yarim:0, elle:0, wd:N};});
   // satış (rx_kullanici_adi veya ad ile eşle)
   ST.satis.forEach(r=>{
@@ -319,6 +319,8 @@ function hesapla(){
     if(!p||!M[p.ad])return; const m=M[p.ad];
     m.ilacA+=+r.ilac_adet||0;m.ilacT+=+r.ilac_tutar||0;m.ilacK+=+r.ilac_kar||0;
     m.disA+=+r.dis_adet||0;m.disT+=+r.dis_tutar||0;m.disK+=+r.dis_kar||0;
+    m.recA+=+r.recete_adet||0;m.recT+=+r.recete_tutar||0;m.recK+=+r.recete_kar||0;
+    m.perA+=+r.perakende_adet||0;m.perT+=+r.perakende_tutar||0;m.perK+=+r.perakende_kar||0;
   });
   ST.aktivite.forEach(r=>{const m=M[r.personel];if(m&&m[r.tur]!=null)m[r.tur]+=(+r.adet||1);});
   ST.puantaj.forEach(r=>{const m=M[r.personel];if(!m)return;if(r.durum==="gelmedi")m.gelmedi++;else if(r.durum==="yarim")m.yarim++;});
@@ -420,6 +422,10 @@ function cizDetay(R){
         <tr><td>İlaç</td><td>${TL(m.ilacA)}</td><td>${TL(m.ilacT)}</td><td>${TL(m.ilacK)}</td></tr>
         <tr><td>İlaç dışı</td><td>${TL(m.disA)}</td><td>${TL(m.disT)}</td><td>${TL(m.disK)}</td></tr>
         <tr class="top"><td>Toplam</td><td>${TL(m.toplamA)}</td><td>${TL(m.toplamT)}</td><td>${TL(m.toplamK)}</td></tr>
+      </tbody></table>
+      <table class="d" style="margin-top:8px"><thead><tr><th>Kanal</th><th>Adet</th><th>Tutar ₺</th><th>Kâr ₺</th></tr></thead><tbody>
+        <tr><td>Reçeteli</td><td>${TL(m.recA)}</td><td>${TL(m.recT)}</td><td>${TL(m.recK)}</td></tr>
+        <tr><td>Perakende</td><td>${TL(m.perA)}</td><td>${TL(m.perT)}</td><td>${TL(m.perK)}</td></tr>
       </tbody></table>
       <div class="rozetler">
         <span class="rz">Çalışma günü <b>${n2(m.wd)}</b>/${R.N}</span>
