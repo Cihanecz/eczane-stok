@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yönlendiriliyor…</title>
+<script>
+(function(){
+  try{
+    var p = location.pathname;
+    var m = p.match(/todo-([^\/]+)\.html$/i);
+    if(m && m[1] && m[1].toLowerCase()!=="calisan" && m[1].toLowerCase()!=="yonetici"){
+      var base = p.replace(/todo-[^\/]+\.html$/i,"");
+      location.replace(base + "todo-calisan.html?k=" + encodeURIComponent(m[1]) + location.search.replace(/^\?/,(location.search?"&":"")));
+      return;
+    }
+  }catch(e){}
+})();
+</script>
+</head>
+<body style="font-family:system-ui;text-align:center;padding:40px;color:#444">Yönlendiriliyor…</body>
+</html>
