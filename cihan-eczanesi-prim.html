@@ -134,11 +134,13 @@
   .ag-kisi{background:var(--kart);border:1.5px solid var(--cizgi);border-radius:13px;padding:13px;font-weight:700;color:var(--yazi);display:flex;align-items:center;gap:8px;justify-content:center;cursor:pointer}
   .ag-kisi:active{transform:scale(.96)}
   .ag-kisi .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--ana),var(--ana2));color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}
-  .ag-aktif{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  .ag-aktif{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}
   .ag-akt{border:1.5px solid var(--cizgi);border-radius:13px;padding:15px 6px;background:var(--kart);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;font-weight:700;font-size:13px;color:var(--yazi)}
   .ag-akt:active{transform:scale(.95)}
   .ag-akt .ik{font-size:26px}
   .ag-ust{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-weight:800;color:var(--yazi)}
+  .gizli{display:none!important}
+  .ag-kisi.sec{border-color:var(--ana);box-shadow:0 0 0 2px var(--ana) inset}
   .ag-geri{border:1px solid var(--cizgi);background:var(--kart);border-radius:9px;padding:6px 11px;font-size:12.5px;color:var(--soluk);cursor:pointer}
   .ag-mesaj{min-height:20px;text-align:center;font-size:13.5px;color:var(--ok);font-weight:700;margin-top:12px}
   .agsayac{display:flex;gap:8px;margin-bottom:10px}
@@ -674,25 +676,33 @@ async function agSil(id){
 }
 function agCiz(){
   const k=$("#agKisiler"); if(!k) return;
-  $("#agAktif").classList.add("gizli"); k.classList.remove("gizli");
+  const a=$("#agAktif"); if(a){ a.innerHTML=""; a.classList.add("gizli"); }
+  agSecili=null;
   if(!agKisi.length){ k.innerHTML='<div class="ag-not">—</div>'; return; }
   k.innerHTML=agKisi.map(p=>`<button type="button" class="ag-kisi" data-ad="${kacis(p.ad)}"><span class="av">${kacis(bh(p.ad))}</span>${kacis(p.ad)}</button>`).join("");
   k.querySelectorAll(".ag-kisi").forEach(b=>b.onclick=()=>agSec(b.getAttribute("data-ad")));
 }
+function agVurgu(){ document.querySelectorAll("#agKisiler .ag-kisi").forEach(b=>b.classList.toggle("sec", b.getAttribute("data-ad")===agSecili)); }
 function agSec(ad){
-  agSecili=ad; $("#agKisiler").classList.add("gizli");
-  const a=$("#agAktif"); a.classList.remove("gizli");
+  agSecili=ad; agVurgu();
+  const a=$("#agAktif"); if(!a) return; a.classList.remove("gizli");
   const turler=["servis","kulak","temizlik"].concat(agEk.map(e=>e.id));
-  a.innerHTML=`<div class="ag-ust" style="grid-column:1/-1"><span>${kacis(ad)}</span><button type="button" class="ag-geri" id="agGeri">‹ geri</button></div>`+
+  a.innerHTML=`<div class="ag-ust" style="grid-column:1/-1"><span>${kacis(ad)} — ne yaptın?</span><button type="button" class="ag-geri" id="agGeri">‹ kapat</button></div>`+
     turler.map(t=>{const T=agTurMap[t]||{ad:t,ik:'🏷️'};return `<button type="button" class="ag-akt" data-t="${t}"><span class="ik">${T.ik}</span>${kacis(T.ad)}</button>`;}).join("");
-  $("#agGeri").onclick=()=>{ agSecili=null; $("#agMesaj").textContent=""; agCiz(); };
+  $("#agGeri").onclick=agKapat;
   a.querySelectorAll(".ag-akt").forEach(b=>b.onclick=()=>agGir(b.getAttribute("data-t")));
 }
+function agKapat(){ agSecili=null; const a=$("#agAktif"); if(a){ a.innerHTML=""; a.classList.add("gizli"); } const m=$("#agMesaj"); if(m) m.textContent=""; agVurgu(); }
 async function agGir(tur){
-  if(!agSecili) return; const ad=agSecili, m=$("#agMesaj"), T=agTurMap[tur]||{ad:tur}; m.style.color="var(--ok)"; m.textContent="kaydediliyor…";
-  try{ const r=await db.from("prim_aktivite").insert({personel:ad,tur:tur,adet:1,tarih:agBugun()});
-    if(r.error) throw r.error; agSecili=null; await agYukle(); m.textContent="✓ "+T.ad+" eklendi — "+ad;
-  }catch(e){ m.style.color="var(--uyari)"; m.textContent="⚠ kaydedilemedi, tekrar dene"; }
+  if(!agSecili) return; const ad=agSecili, m=$("#agMesaj"), T=agTurMap[tur]||{ad:tur};
+  if(m){ m.style.color="var(--soluk)"; m.textContent="kaydediliyor…"; }
+  try{
+    const r=await db.from("prim_aktivite").insert({personel:ad,tur:tur,adet:1,tarih:agBugun()});
+    if(r.error) throw r.error;
+    try{ const ra=await db.from("prim_aktivite").select("id,personel,tur,olusturma").eq("tarih",agBugun()).order("olusturma",{ascending:false}).limit(100); if(ra.data) agKayit=ra.data; }catch(_){}
+    agFeedCiz();
+    if(m){ m.style.color="var(--ok)"; m.textContent="✓ "+T.ad+" eklendi — "+ad+" · ekleyebilirsin"; }
+  }catch(e){ if(m){ m.style.color="var(--uyari)"; m.textContent="⚠ kaydedilemedi, tekrar dene"; } }
 }
 async function tutarAc(){
   const pin=($("#tpin").value||"").trim(), h=$("#tphata"); h.textContent="";
