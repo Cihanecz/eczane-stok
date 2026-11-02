@@ -599,6 +599,7 @@ function cizKisi(R){
       <div class="nm">${kacis(p.ad)}</div>
       <select data-id="${p.id}" class="rxsel">${secenek}</select>
       <label class="msg" style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="yrs" data-id="${p.id}" ${p.yaris_dahil!==false?"checked":""}>yarışta</label>
+      <button type="button" class="ag-geri" data-sil="${p.id}" style="margin-left:2px">sil</button>
     </div>`;
   });
   h+=`<div style="display:flex;gap:8px;margin-top:12px"><input id="yeniAd" placeholder="yeni kişi adı" style="flex:1;padding:9px 11px;border:1.5px solid var(--cizgi);border-radius:10px;background:transparent;color:var(--yazi)"><button class="btn ana" id="ekleKisi">Ekle</button></div>`;
@@ -607,6 +608,7 @@ function cizKisi(R){
   $("#icerik").querySelectorAll(".rxsel").forEach(s=>s.onchange=async()=>{await db.from("prim_personel").update({rx_kullanici_adi:s.value||null}).eq("id",s.dataset.id);const p=ST.personel.find(x=>x.id===s.dataset.id);if(p)p.rx_kullanici_adi=s.value||null;});
   $("#icerik").querySelectorAll(".yrs").forEach(c=>c.onchange=async()=>{await db.from("prim_personel").update({yaris_dahil:c.checked}).eq("id",c.dataset.id);const p=ST.personel.find(x=>x.id===c.dataset.id);if(p)p.yaris_dahil=c.checked;});
   $("#ekleKisi").onclick=async()=>{const ad=$("#yeniAd").value.trim();if(!ad)return;await db.from("prim_personel").insert({ad,sira:(ST.personel.length+1)});await veriYukle();ciz();};
+  $("#icerik").querySelectorAll("[data-sil]").forEach(b=>b.onclick=async()=>{ if(!confirm("Bu kişi silinsin mi?"))return; await db.from("prim_personel").delete().eq("id",b.dataset.sil); await veriYukle(); ciz(); });
 }
 
 /* ========== KİLİTLİ İLK EKRAN: aktivite girişi (şifresiz) + Tutarlar şifresiyle aç ========== */
