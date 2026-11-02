@@ -6,6 +6,7 @@
   if (window.__ezAsKopru) return;
   window.__ezAsKopru = true;
   const bekle = ms => new Promise(r => setTimeout(r, ms));
+  const jit = (a, b) => bekle(a + Math.random() * (b - a));   // insan temposu: depo bot-korumasini tetiklemesin
   const temizle = b => String(b).replace(/^0(\d{13})$/, "$1");
 
   function dogrulamaVar(txt) {
@@ -62,10 +63,11 @@
       try {
         const u = await urunAra(b);
         if (u.durum === "dogrulama" || u.durum === "giris") return { durum: u.durum, sonuc };
-        if (u.durum === "hata") { hata++; sonHata = u.mesaj; if (hata >= 5) return { durum: "hata", mesaj: sonHata, sonuc }; await bekle(500); continue; }
+        if (u.durum === "hata") { hata++; sonHata = u.mesaj; if (hata >= 5) return { durum: "hata", mesaj: sonHata, sonuc }; await jit(1500, 3000); continue; }
         const e = (u.liste || [])[0];
         let veri = [];
         if (e) {
+          await jit(350, 800);
           const d = await urunDetay(e);
           if (d.durum === "dogrulama" || d.durum === "giris") return { durum: d.durum, sonuc };
           if (d.durum === "ok" && d.obj) veri = [{ s: e.stokDurumu, obj: d.obj }];
@@ -73,7 +75,7 @@
         sonuc[temizle(b)] = veri;   // AS'te olmasa bile her barkoda (boş da olsa) yaz → DepoKopru o barkodu drain edebilsin, sonsuz döngü olmasın
         hata = 0;
       } catch (e) { hata++; sonHata = String((e && e.message) || e); if (hata >= 5) return { durum: "hata", mesaj: sonHata, sonuc }; }
-      await bekle(500);
+      await jit(2500, 5000);
     }
     return { durum: "ok", sonuc };
   }
@@ -102,7 +104,7 @@
         s: (/^[1-9]/.test(String(e.stokDurumu)) ? 1 : 0),
         v: vade, mf
       });
-      await bekle(300);
+      await jit(900, 1800);
     }
     return { durum: "ok", u: out };
   }
