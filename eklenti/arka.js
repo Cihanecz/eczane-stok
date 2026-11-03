@@ -44,14 +44,26 @@ const DEPO = {
   sn:  { desen: "https://eticaret.sancakecza.com.tr/*", adres: "https://eticaret.sancakecza.com.tr/" },
   bek: { desen: "https://esube.bek.org.tr/*",           adres: "https://esube.bek.org.tr/irj/portal/" },
 };
+const olusturKilit = {};
 async function depoSekmesi(depo, adres) {
   const d = DEPO[depo] || DEPO.sn;
   let t = await chrome.tabs.query({ url: d.desen });
-  if (t.length) return t[0];
-  const yeni = await chrome.tabs.create({ url: adres || d.adres, active: false, pinned: true });
-  await yuklenmesiniBekle(yeni.id);
-  if (depo === "bek") await bekle(6000);           // BEK uygulaması çerçevede geç açılır
-  return await chrome.tabs.get(yeni.id);
+  if (t.length) {
+    if (t.length > 1) { try { await chrome.tabs.remove(t.slice(1).map(x => x.id)); } catch { } }  // fazla sekmeleri kapat (birikmeyi onle)
+    return t[0];
+  }
+  // Ayni anda yokla/sepet/ara ayni depoyu acmasin -> yaris sonucu coklu sekme olmasin
+  if (olusturKilit[depo]) {
+    for (let i = 0; i < 40; i++) { await bekle(250); const v = await chrome.tabs.query({ url: d.desen }); if (v.length) return v[0]; }
+  }
+  olusturKilit[depo] = true;
+  try {
+    const v = await chrome.tabs.query({ url: d.desen }); if (v.length) return v[0];
+    const yeni = await chrome.tabs.create({ url: adres || d.adres, active: false, pinned: true });
+    await yuklenmesiniBekle(yeni.id);
+    if (depo === "bek") await bekle(6000);           // BEK uygulaması çerçevede geç açılır
+    return await chrome.tabs.get(yeni.id);
+  } finally { olusturKilit[depo] = false; }
 }
 async function yuklenmesiniBekle(id, sn = 40) {
   for (let i = 0; i < sn * 2; i++) {
