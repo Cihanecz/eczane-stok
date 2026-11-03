@@ -111,7 +111,7 @@ while ($true) {
   $h = (Get-Date).Hour
   if (((Test-Path (Join-Path $KOK "depo.dat")) -or (Test-Path (Join-Path $KOK "depo-aktif.txt"))) -and $h -ge 8 -and $h -lt 21 -and ((Get-Date) - $depoSon).TotalMinutes -ge 60) {
     $depoSon = Get-Date
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama depo" -WindowStyle Hidden | Out-Null
+    $null = (New-Object -ComObject WScript.Shell).Run("powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama depo", 0, $false)   # gercekten gizli: pencere parlamasin
   }
   $bugun = (Get-Date).ToString("yyyy-MM-dd")
   $isaret = Join-Path $KOK "tamam-$bugun.txt"
@@ -123,7 +123,7 @@ while ($true) {
   if ($d.n -ge 6 -or ((Get-Date) - $d.son).TotalMinutes -lt 10) { continue }   # günde 6 deneme, 10 dk arayla
   if ($d.n -eq 0) { Log "Rx'e giriş görüldü, 45 sn sonra başlanacak"; Start-Sleep 45 }
   $d.n++; $d.son = Get-Date
-  $pr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama gunluk" -WindowStyle Hidden -PassThru -Wait
-  Log "Toplayıcı bitti, çıkış kodu $($pr.ExitCode) (deneme $($d.n))"
-  if ($pr.ExitCode -eq 0) { Set-Content -Path $isaret -Value (Get-Date) }
+  $kod = (New-Object -ComObject WScript.Shell).Run("powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama gunluk", 0, $true)   # gizli + bitince don (pencere parlamasin)
+  Log "Toplayıcı bitti, çıkış kodu $kod (deneme $($d.n))"
+  if ($kod -eq 0) { Set-Content -Path $isaret -Value (Get-Date) }
 }
