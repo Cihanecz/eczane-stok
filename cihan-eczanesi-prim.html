@@ -70,6 +70,12 @@
   .lider .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--ana),var(--altin))}
   .lider .pz{font-weight:900;font-size:19px;min-width:46px;text-align:right}
   .lider .pz small{font-size:11px;color:var(--soluk);font-weight:600}
+  .liderblok{border-bottom:1px solid var(--cizgi)}
+  .liderblok:last-child{border-bottom:0}
+  .liderblok .lider{border-bottom:0;padding-bottom:3px}
+  .kirilim{display:flex;flex-wrap:wrap;gap:4px 10px;padding:0 6px 11px 54px;font-size:11.5px;color:var(--soluk);line-height:1.55}
+  .kirilim .pk{white-space:nowrap}
+  .kirilim .pk b{color:var(--yazi);font-weight:700}
 
   /* detay tablo */
   .dkisi{margin-bottom:12px}
@@ -422,11 +428,18 @@ function cizSira(R){
   if(!R.sirali.length)h+=`<div class="msg">Yarışta kişi yok. "Kişiler" sekmesinden ekle.</div>`;
   R.sirali.forEach(m=>{
     const yuz=enb>0?(m.toplamPuan/enb)*100:0;
-    h+=`<div class="lider r${m.sira<=3?m.sira:0}">
-      <div class="rk">${m.sira===1?"🥇":m.sira===2?"🥈":m.sira===3?"🥉":m.sira}</div>
-      <div class="av">${kacis(bh(m.ad))}</div>
-      <div class="iso"><div class="nm">${kacis(m.ad)}</div><div class="bar"><i style="width:${yuz}%"></i></div></div>
-      <div class="pz">${n2(m.toplamPuan)}<small>/100</small></div>
+    // puan kırılımı: her metriğin toplam puana katkısı = (o metrikteki 100'lük skor) × (ağırlık%) / 100  → toplamı kişinin puanını verir
+    const parca=[];
+    AGMETA.forEach(([k,ad])=>{ const ag=+ST.ag[k]||0; if(ag>0) parca.push(`<span class="pk"><b>${ad}</b> ${n2((m.skor[k]||0)*ag/100)}</span>`); });
+    ST.ekMetrik.forEach(em=>{ const ag=+em.agirlik||0; if(ag>0) parca.push(`<span class="pk"><b>${kacis(em.ad)}</b> ${n2((m.skor['ek_'+em.id]||0)*ag/100)}</span>`); });
+    h+=`<div class="liderblok">
+      <div class="lider r${m.sira<=3?m.sira:0}">
+        <div class="rk">${m.sira===1?"🥇":m.sira===2?"🥈":m.sira===3?"🥉":m.sira}</div>
+        <div class="av">${kacis(bh(m.ad))}</div>
+        <div class="iso"><div class="nm">${kacis(m.ad)}</div><div class="bar"><i style="width:${yuz}%"></i></div></div>
+        <div class="pz">${n2(m.toplamPuan)}<small>/100</small></div>
+      </div>
+      <div class="kirilim">${parca.join("")}</div>
     </div>`;
   });
   h+=`</div>`;
