@@ -1356,11 +1356,23 @@ function AsamaDepo {
   # AS/Sancak/BEK: hepsi Chrome eklentisi üzerinden (tarayıcı oturumu) — toplayıcı doğrudan sunucuya istek atmaz, captcha çıkmaz
   foreach ($k in @($ay.Keys | Where-Object { $_ -notin @("as","sn","bek") })) { try { $sesler[$k] = DepoGiris $k; Log ("  {0}: giriş tamam" -f $DEPOLAR[$k].ad) } catch { Log ("  {0}: GİRİŞ HATASI — {1}" -f $DEPOLAR[$k].ad, $_.Exception.Message) } }
   $onceki = @{}; $oncekiSn = $null; $oncekiBk = $null; try { $o = BulutOku "ayar?anahtar=eq.depo_fiyat&select=deger" $j; if ($o) { $ov = $o[0].deger | ConvertFrom-Json; $oncekiSn = $ov.sn; $oncekiBk = $ov.bek; foreach ($x in $ov.u) { $onceki[$x.b] = $x } } } catch { }
-  # AS/Selçuk (Chrome eklentisi üzerinden)
-  $asGiris = $null; if ($ay["as"]) { try { $asGiris = DpAc $ay["as"] | ConvertFrom-Json } catch { } }
-  $as = DepoKopru "as" $barkodlar $asGiris
-  $asTamam = @($as.sonuc.Keys).Count
-  Log ("  {0}: {1} ürün, durum {2}" -f $DEPOLAR["as"].ad, $asTamam, $as.durum)
+  # AS/Selçuk (Chrome eklentisi üzerinden) — GÜNDE 2 KEZ: ilk sabah (>=08) + ilk öğleden sonra (>=14).
+  # Diğer saatlerde AS'e dokunulmaz (captcha tetiklemesin); önceki AS fiyatları korunur. Elle zorlamak: -Bas aszorla
+  $asSaat = (Get-Date).Hour
+  $asPeriyot = if ($asSaat -ge 14) { "PM" } elseif ($asSaat -ge 8) { "AM" } else { $null }
+  $asIsaret = if ($asPeriyot) { Join-Path $KOK ("as-cekim-{0}-{1}.txt" -f (Get-Date -Format 'yyyy-MM-dd'), $asPeriyot) } else { $null }
+  $asCeksin = ($Bas -eq "aszorla") -or ($asIsaret -and -not (Test-Path $asIsaret))
+  $asGiris = $null
+  if ($asCeksin) {
+    if ($ay["as"]) { try { $asGiris = DpAc $ay["as"] | ConvertFrom-Json } catch { } }
+    $as = DepoKopru "as" $barkodlar $asGiris
+    $asTamam = @($as.sonuc.Keys).Count
+    if ($asTamam -and $asIsaret) { try { Set-Content $asIsaret "ok" -Encoding UTF8 } catch { } }
+    Log ("  {0}: {1} ürün, durum {2} (günde 2 kez)" -f $DEPOLAR["as"].ad, $asTamam, $as.durum)
+  } else {
+    $as = @{ sonuc = @{} ; durum = "atlandi" }; $asTamam = 0
+    Log ("  {0}: bu tur atlandı (günde 2 kez: sabah+öğleden sonra), önceki fiyatlar korunuyor" -f $DEPOLAR["as"].ad)
+  }
   # Sancak (Chrome eklentisi üzerinden) — YUMUŞAK: Sancak güvenliği aşırı isteği engellediği için en çok satan 150 ürün
   $snGiris = $null; if ($ay["sn"]) { try { $snGiris = DpAc $ay["sn"] | ConvertFrom-Json } catch { } }
   $snBarkodlar = @($barkodlar | Select-Object -First 150)
