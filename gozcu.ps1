@@ -12,6 +12,17 @@ public static class GZ {
 }
 "@
 function Log($m) { Add-Content -Path (Join-Path $KOK "gozcu.txt") -Value ((Get-Date -Format "yyyy-MM-dd HH:mm:ss") + "  " + $m) -Encoding UTF8 }
+# Gercekten gizli baslatma: pencere HIC olusmaz (Start-Process -WindowStyle Hidden kisa sure parlar).
+# UseShellExecute=$false + CreateNoWindow=$true -> konsol penceresi acilmaz; islem nesnesi doner, HasExited takibi calisir.
+function GizliBaslat([string]$arg) {
+  try {
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "powershell.exe"; $psi.Arguments = $arg
+    $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
+    $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    return [System.Diagnostics.Process]::Start($psi)
+  } catch { return $null }
+}
 # Telefondan "sepete ekle" istekleri: bulutta bekleyen istek varsa toplayıcıyı "sepet" aşamasında çalıştır (15 sn'de bir bakılır)
 $SB_URL = "https://crgfvsfncazexynzhwmo.supabase.co"
 $SB_KEY = "sb_publishable_WqWzwvumk9pMhBoV6LeMMA_tEgvzbPw"
@@ -31,7 +42,7 @@ function SepetBak {
     $o = Invoke-RestMethod -Uri "$SB_URL/rest/v1/ayar?anahtar=eq.sepet_istek&select=deger" -Headers @{ apikey = $SB_KEY; Authorization = "Bearer $($script:jt)" } -TimeoutSec 20
     if ($o -and "$($o[0].deger)" -match '"durum":"bekliyor"') {
       Log "Sepet isteği var, işleniyor"
-      $script:sepetPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama sepet" -WindowStyle Hidden -PassThru
+      $script:sepetPr = GizliBaslat "-NoProfile -ExecutionPolicy Bypass -File `"$KOK\toplayici.ps1`" -Asama sepet"
     }
   } catch { $script:jt = $null }
 }
@@ -40,7 +51,7 @@ function SepetDonguBak {
   try {
     if ($script:sepetPr -and -not $script:sepetPr.HasExited) { return }
     if (-not (Test-Path (Join-Path $KOK "giris.dat"))) { return }
-    $script:sepetPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\toplayici.ps1`" -Asama sepetdongu" -WindowStyle Hidden -PassThru
+    $script:sepetPr = GizliBaslat "-NoProfile -ExecutionPolicy Bypass -File `"$KOK\toplayici.ps1`" -Asama sepetdongu"
   } catch { }
 }
 # OTOMATIK GUNCELLEME: 30 dk'da bir GitHub'daki son surume bakar; degismisse guncelle.ps1'i calistirir
@@ -57,7 +68,7 @@ function OtoGuncelle {
     $yerel = if (Test-Path $sf) { (Get-Content $sf -Raw).Trim() } else { "" }
     if ($yerel -eq $sha) { return }
     Log "Yeni surum bulundu ($($sha.Substring(0,7))), guncelleniyor"
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\guncelle.ps1`" -Repo $GH_REPO -Sha $sha" -WindowStyle Hidden | Out-Null
+    GizliBaslat "-NoProfile -ExecutionPolicy Bypass -File `"$KOK\guncelle.ps1`" -Repo $GH_REPO -Sha $sha" | Out-Null
   } catch { }
 }
 # EKSIK SGK FEED: rx-eksik.ps1 -DonguSn 3 SUREKLI calisir (3 sn'de bir sorgu, icerik degisince yazar = ANLIK).
@@ -70,7 +81,7 @@ function EksikDonguBak {
     if (-not (Get-Process -Name "RxMediaPharmaEYS" -ErrorAction SilentlyContinue)) { return }
     if (-not (Test-Path (Join-Path $KOK "rx-eksik.ps1"))) { return }
     if (-not (Test-Path (Join-Path $KOK "giris.dat"))) { return }
-    $script:eksikPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\rx-eksik.ps1`" -DonguSn 3" -WindowStyle Hidden -PassThru
+    $script:eksikPr = GizliBaslat "-NoProfile -ExecutionPolicy Bypass -File `"$KOK\rx-eksik.ps1`" -DonguSn 3"
   } catch { }
 }
 # HASTA KART FEED: tum Rx hastalari -> hasta_kart (elden siparis oneri). Saatte bir yeter.
@@ -83,7 +94,7 @@ function RxKartBak {
     if (-not (Test-Path (Join-Path $KOK "rx-kart.ps1"))) { return }
     if (-not (Test-Path (Join-Path $KOK "giris.dat"))) { return }
     $script:kartSon = Get-Date
-    $script:kartPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\rx-kart.ps1`"" -WindowStyle Hidden -PassThru
+    $script:kartPr = GizliBaslat "-NoProfile -ExecutionPolicy Bypass -File `"$KOK\rx-kart.ps1`""
   } catch { }
 }
 # ALIM FEED: son alislar -> alim_son (web "geldi" otomatik). ~45 sn'de bir yeter.
@@ -95,7 +106,7 @@ function RxAlimBak {
     if (-not (Test-Path (Join-Path $KOK "rx-alim.ps1"))) { return }
     if (-not (Test-Path (Join-Path $KOK "giris.dat"))) { return }
     $script:alimSon = Get-Date
-    $script:alimPr = Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$KOK\rx-alim.ps1`"" -WindowStyle Hidden -PassThru
+    $script:alimPr = GizliBaslat "-NoProfile -ExecutionPolicy Bypass -File `"$KOK\rx-alim.ps1`""
   } catch { }
 }
 Log "Gözcü başladı"

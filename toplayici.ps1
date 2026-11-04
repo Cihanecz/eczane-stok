@@ -611,7 +611,9 @@ function GunlukKilit([string]$jeton) {
   return $null
 }
 # Bannerı ayrı süreçte aç (Rx'e tıklamaları engellemeyen, odak çalmayan küçük pencere)
-function BannerAc { Remove-Item (Join-Path $KOK "bitti.flag") -Force -ErrorAction SilentlyContinue; $b = Join-Path $KOK "banner.ps1"; if (Test-Path $b) { Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$b`" -Ana $PID" -WindowStyle Hidden } }
+function BannerAc { Remove-Item (Join-Path $KOK "bitti.flag") -Force -ErrorAction SilentlyContinue; $b = Join-Path $KOK "banner.ps1"; if (Test-Path $b) {
+  # Penceresiz baslat: powershell konsolu HIC acilmaz (parlamaz); banner.ps1 kendi yesil formunu gosterir.
+  try { $psi = New-Object System.Diagnostics.ProcessStartInfo; $psi.FileName = "powershell.exe"; $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$b`" -Ana $PID"; $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true; $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden; [System.Diagnostics.Process]::Start($psi) | Out-Null } catch { } } }
 # ---------- HASTA TAKİBİ (İlacı Biten / Raporu Biten raporları) ----------
 # Hasta adı ve telefon eczanede ŞİFRELENİR, buluta şifreli gider; TC kimlik numarası hiç gönderilmez.
 $HASTA_ANAHTAR = Join-Path $KOK "hasta.key"
