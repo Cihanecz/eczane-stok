@@ -76,6 +76,22 @@
   .kirilim{display:flex;flex-wrap:wrap;gap:4px 10px;padding:0 6px 11px 54px;font-size:11.5px;color:var(--soluk);line-height:1.55}
   .kirilim .pk{white-space:nowrap}
   .kirilim .pk b{color:var(--yazi);font-weight:700}
+  .epkisi{border-bottom:1px solid var(--cizgi);padding:12px 2px}
+  .epkisi:last-child{border-bottom:0}
+  .epust{display:flex;align-items:center;gap:10px}
+  .epust .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--ana),var(--ana2));color:#fff;display:grid;place-items:center;font-weight:800;font-size:14px;flex:0 0 auto}
+  .epust .nm{font-weight:800;flex:1}
+  .epsay{display:flex;align-items:center;gap:12px}
+  .epb{width:40px;height:40px;border-radius:12px;border:1.5px solid var(--cizgi);background:var(--kart);font-size:22px;font-weight:800;color:var(--yazi);cursor:pointer;line-height:1}
+  .epb.art{border-color:var(--ok);color:var(--ok)} .epb.eks{border-color:var(--uyari);color:var(--uyari)}
+  .epb:active{transform:scale(.9)}
+  .epnet{min-width:30px;text-align:center;font-weight:900;font-size:20px}
+  .epnot{width:100%;margin-top:9px;padding:9px 11px;border:1.5px solid var(--cizgi);border-radius:10px;background:transparent;color:var(--yazi);font-size:13px}
+  .epgec{display:flex;flex-direction:column;gap:2px;margin-top:7px}
+  .epgec span{font-size:11.5px;color:var(--soluk)}
+  .hedefg{display:flex;flex-direction:column;gap:8px}
+  .hedefl{display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:600;font-size:14px}
+  .hedefl input{width:90px;padding:8px;border:1.5px solid var(--cizgi);border-radius:10px;text-align:center;font-weight:700;background:transparent;color:var(--yazi)}
 
   /* detay tablo */
   .dkisi{margin-bottom:12px}
@@ -192,16 +208,17 @@ const n2=n=>(Math.round((n||0)*10)/10).toLocaleString("tr-TR");
 async function sha(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");}
 
 const VARAG={kar:20,kutu:20,ciro:5,servis:5,kulak:5,temizlik:5,gorev:5,devam:10,elle:25};
+const HEDEF_VAR={servis:15,kulak:15,temizlik:12,gorev:20,devam_gun:20,devam_yarim:10,elle_olcek:10};
 const AGMETA=[
-  ["kar","Kâr","Satış",'Eczane farkı / çalışılan gün'],
-  ["kutu","Kutu adedi","Satış",'Satılan kutu / çalışılan gün'],
-  ["ciro","Ciro","Satış",'Toplam tutar / çalışılan gün'],
-  ["servis","Servis","Emek",'Kendi girdiği servis sayısı'],
-  ["kulak","Kulak","Emek",'Kendi girdiği kulak sayısı'],
-  ["temizlik","Temizlik","Emek",'Kendi girdiği temizlik sayısı'],
-  ["gorev","Görev","Emek",'Çalışan işlerinden tamamlanan görev (hız dahil)'],
-  ["devam","Devam","Emek",'Gelinen gün / ayın iş günü'],
-  ["elle","Senin puanın","Emek",'Senin elle verdiğin puan']
+  ["kar","Kâr","Satış",'Eczane farkı / çalışılan gün (en iyiye göre)'],
+  ["kutu","Kutu adedi","Satış",'Satılan kutu / çalışılan gün (en iyiye göre)'],
+  ["ciro","Ciro","Satış",'Toplam tutar / çalışılan gün (en iyiye göre)'],
+  ["servis","Servis","Emek",'Kendi girdiği servis (hedefe göre)'],
+  ["kulak","Kulak","Emek",'Kendi girdiği kulak (hedefe göre)'],
+  ["temizlik","Temizlik","Emek",'Kendi girdiği temizlik (hedefe göre)'],
+  ["gorev","Görev","Emek",'Tamamlanan görev, hız dahil (hedefe göre)'],
+  ["devam","Devam","Emek",'100den; gelmeyen gün −, yarım − düşer'],
+  ["elle","Senin puanın","Emek",'+/− ile sen verirsin (0–ölçek)']
 ];
 // Ek metrik için hazır otomatik satış kaynakları
 const SEG_KAYNAK={
@@ -211,7 +228,7 @@ const SEG_KAYNAK={
 };
 const yeniId=()=>"m"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 
-let ST={ay:null, personel:[], satis:[], aktivite:[], puantaj:[], elle:[], gorev:[], ag:{...VARAG}, ekMetrik:[], ozel:{}, isgunu:{}, tab:"sira", pinOk:false};
+let ST={ay:null, personel:[], satis:[], aktivite:[], puantaj:[], elle:[], gorev:[], ag:{...VARAG}, hedef:{...HEDEF_VAR}, ekMetrik:[], ozel:{}, isgunu:{}, tab:"sira", pinOk:false};
 const ayKod=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
 (function(){const d=new Date();ST.ay=ayKod(d);})();
 const aySonu=(ay)=>{const [y,m]=ay.split("-").map(Number);return new Date(y,m,0).getDate();};
@@ -311,8 +328,10 @@ async function veriYukle(){
   ST.personel=(pe.data||[]).filter(p=>p.aktif);
   ST.satis=sa.data||[]; ST.aktivite=ak.data||[]; ST.puantaj=pu.data||[]; ST.elle=el.data||[];
   ST.ekMetrik=[];
+  ST.hedef={...HEDEF_VAR};
   (ay.data||[]).forEach(r=>{ if(r.anahtar==="agirliklar"){try{ST.ag=Object.assign({...VARAG},JSON.parse(r.deger));}catch(e){} }
     else if(r.anahtar==="ek_metrikler"){try{ST.ekMetrik=JSON.parse(r.deger)||[];}catch(e){}}
+    else if(r.anahtar==="hedefler"){try{ST.hedef=Object.assign({...HEDEF_VAR},JSON.parse(r.deger));}catch(e){}}
     else if(r.anahtar.startsWith("isgunu_")){ST.isgunu[r.anahtar.slice(7)]=Number(r.deger)||0;} });
   ST.ozel={}; (oz.data||[]).forEach(r=>{ST.ozel[r.metrik_id+"|"+r.personel]=+r.deger||0;});
   // görevler
@@ -369,17 +388,24 @@ function hesapla(){
       m.raw['ek_'+em.id]=v;
     });
   });
-  // birleşik ağırlık haritası (varsayılan 9 + ek metrikler) -> normalize (en iyi=100) + topla
+  // ağırlık haritası (varsayılan 9 + ek metrikler)
   const agMap={}; Object.keys(VARAG).forEach(k=>agMap[k]=+ST.ag[k]||0);
   ST.ekMetrik.forEach(em=>agMap['ek_'+em.id]=+em.agirlik||0);
   const anahtarlar=Object.keys(agMap);
+  const H=Object.assign({...HEDEF_VAR}, ST.hedef||{});
+  const MUTLAK={servis:1,kulak:1,temizlik:1,gorev:1,devam:1,elle:1};   // "en iyiye göre" değil, hedefe/kurala göre
   const yar=Object.values(M).filter(m=>m.yaris);
-  const maxlar={};
-  anahtarlar.forEach(k=>{maxlar[k]=Math.max(0,...yar.map(m=>m.raw[k]||0));});
+  const maxlar={};   // sadece göreli metrikler (kâr/kutu/ciro + ek) için en iyi değer
+  anahtarlar.filter(k=>!MUTLAK[k]).forEach(k=>{maxlar[k]=Math.max(0,...yar.map(m=>m.raw[k]||0));});
   Object.values(M).forEach(m=>{
     m.skor={}; let top=0;
     anahtarlar.forEach(k=>{
-      const sc=maxlar[k]>0?((m.raw[k]||0)/maxlar[k])*100:0; m.skor[k]=sc; top+=sc*(agMap[k]||0)/100;
+      let sc;
+      if(k==='devam') sc=Math.max(0, 100 - (+H.devam_gun||0)*m.gelmedi - (+H.devam_yarim||0)*m.yarim);
+      else if(k==='elle'){ const o=+H.elle_olcek||10; sc=Math.min(Math.max(+m.elle||0,0),o)/o*100; }
+      else if(MUTLAK[k]){ const hd=+H[k]||1; sc=Math.min((m.raw[k]||0)/hd,1)*100; }
+      else sc=maxlar[k]>0?((m.raw[k]||0)/maxlar[k])*100:0;
+      m.skor[k]=sc; top+=sc*(agMap[k]||0)/100;
     });
     m.toplamPuan=top;
   });
@@ -449,7 +475,7 @@ function cizSira(R){
     const lider=[...R.sirali].sort((a,b)=>b.raw[k]-a.raw[k])[0];
     if(lider&&lider.raw[k]>0)h+=`<span class="rz">${ad}: <b>${kacis(lider.ad)}</b></span>`;
   });
-  h+=`</div><div class="mini">Her metrikte en iyi 100 puan alır, diğerleri ona oranla. Ağırlıklar: ${AGMETA.map(([k,a])=>a+" %"+(ST.ag[k]||0)).join(" · ")}</div></div>`;
+  h+=`</div><div class="mini">Satış metrikleri en iyiye göre (en iyi 100); servis/kulak/temizlik/görev hedefe göre; devam ve senin puanın kurala göre. Ağırlıklar: ${AGMETA.map(([k,a])=>a+" %"+(ST.ag[k]||0)).join(" · ")}</div></div>`;
   $("#icerik").innerHTML=h;
 }
 
@@ -516,12 +542,18 @@ async function puantajDokun(b){
 }
 
 function cizElle(R){
-  let h=`<div class="kart"><div class="kbas">✍️ Senin puan tablon (%${ST.ag.elle})</div><div class="mini" style="margin-bottom:8px">Gözünle gördüğün emek/yardım/tavır için her kişiye puan ver. İstediğin ölçek (ör. 0–10). En yüksek 100 sayılır, diğerleri ona oranla.</div>`;
+  const o=+((ST.hedef||HEDEF_VAR).elle_olcek)||10;
+  let h=`<div class="kart"><div class="kbas">✍️ Senin puanın (%${ST.ag.elle})</div><div class="mini" style="margin-bottom:10px">Gözünle gördüğün emek/yardım/tavır için + ya da − ver. İstersen not düş (zorunlu değil). Net 0–${o} arası sayılır; ${o} = tam puan.</div>`;
   ST.personel.forEach(p=>{
     const rec=ST.elle.find(r=>r.personel===p.ad);
-    h+=`<div class="epsatir"><div class="av">${kacis(bh(p.ad))}</div><div class="nm">${kacis(p.ad)}</div>
-      <input class="pu" type="number" step="0.5" data-p="${kacis(p.ad)}" value="${rec?rec.puan:""}" placeholder="0">
-      <input class="nt" data-p="${kacis(p.ad)}" value="${rec&&rec.nott?kacis(rec.nott):""}" placeholder="not (opsiyonel)"></div>`;
+    const net=rec?(+rec.puan||0):0;
+    const gecmis=(rec&&rec.nott)?String(rec.nott).split("\n").map(x=>x.trim()).filter(Boolean).slice(0,6):[];
+    h+=`<div class="epkisi">
+      <div class="epust"><div class="av">${kacis(bh(p.ad))}</div><div class="nm">${kacis(p.ad)}</div>
+        <div class="epsay"><button type="button" class="epb eks" data-p="${kacis(p.ad)}">−</button><b class="epnet">${n2(net)}</b><button type="button" class="epb art" data-p="${kacis(p.ad)}">+</button></div></div>
+      <input class="epnot" data-p="${kacis(p.ad)}" placeholder="not (opsiyonel) — +/− ile kaydedilir">
+      ${gecmis.length?`<div class="epgec">${gecmis.map(x=>`<span>${kacis(x)}</span>`).join("")}</div>`:""}
+    </div>`;
   });
   h+=`</div>`;
   const yonMet=ST.ekMetrik.filter(em=>em.tip==='elle'&&em.dolduran==='yonetici');
@@ -535,8 +567,7 @@ function cizElle(R){
     h+=`</div>`;
   });
   $("#icerik").innerHTML=h;
-  $("#icerik").querySelectorAll(".pu").forEach(inp=>inp.onchange=()=>elleKaydet(inp.dataset.p));
-  $("#icerik").querySelectorAll(".nt").forEach(inp=>inp.onchange=()=>elleKaydet(inp.dataset.p));
+  $("#icerik").querySelectorAll(".epb").forEach(b=>b.onclick=()=>elleArtiEksi(b.dataset.p, b.classList.contains("art")?1:-1));
   $("#icerik").querySelectorAll(".ozpu").forEach(inp=>inp.onchange=()=>ozelKaydet(inp.dataset.m,inp.dataset.p,inp.value));
 }
 async function ozelKaydet(mid,ad,val){
@@ -544,16 +575,26 @@ async function ozelKaydet(mid,ad,val){
   try{ await db.from("prim_ozel_deger").upsert({metrik_id:mid,ay:ST.ay,personel:ad,deger,guncelleme:new Date().toISOString()},{onConflict:"metrik_id,ay,personel"});
     ST.ozel[mid+"|"+ad]=deger; }catch(e){}
 }
-async function elleKaydet(ad){
-  const pu=$(`.pu[data-p="${CSS.escape(ad)}"]`), nt=$(`.nt[data-p="${CSS.escape(ad)}"]`);
-  const puan=+pu.value||0, nott=nt.value||null;
-  try{await db.from("prim_elle_puan").upsert({ay:ST.ay,personel:ad,puan,nott,guncelleme:new Date().toISOString()},{onConflict:"ay,personel"});
-    const ex=ST.elle.find(r=>r.personel===ad);if(ex){ex.puan=puan;ex.nott=nott;}else ST.elle.push({ay:ST.ay,personel:ad,puan,nott});}catch(e){}
+async function elleArtiEksi(ad, delta){
+  const o=+((ST.hedef||HEDEF_VAR).elle_olcek)||10;
+  const rec=ST.elle.find(r=>r.personel===ad);
+  const net0=rec?(+rec.puan||0):0;
+  const net=Math.min(Math.max(net0+delta,0),o);
+  const nt=$(`.epnot[data-p="${CSS.escape(ad)}"]`); const notMetni=((nt&&nt.value)||"").trim();
+  if(net===net0 && !notMetni) return;   // sınırda ve not yok → bir şey yapma
+  const zaman=new Date().toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+  const satir=`${zaman}  ${delta>0?"+":"−"}1${notMetni?"  "+notMetni:""}`;
+  const eskiNot=(rec&&rec.nott)?rec.nott:"";
+  const yeniNot=(satir+(eskiNot?"\n"+eskiNot:"")).split("\n").slice(0,50).join("\n");
+  try{await db.from("prim_elle_puan").upsert({ay:ST.ay,personel:ad,puan:net,nott:yeniNot,guncelleme:new Date().toISOString()},{onConflict:"ay,personel"});
+    if(rec){rec.puan=net;rec.nott=yeniNot;}else ST.elle.push({ay:ST.ay,personel:ad,puan:net,nott:yeniNot});}catch(e){}
+  ciz();
 }
 
 function agToplam(){ let t=Object.keys(VARAG).reduce((a,k)=>a+(+ST.ag[k]||0),0); ST.ekMetrik.forEach(em=>t+=(+em.agirlik||0)); return t; }
 function agTopGuncelle(){ const t=agToplam(); const el=$("#agtop"); if(el){el.textContent="Toplam: %"+t+(t===100?" ✓":" (100 olmalı)");el.className="agrtop "+(t===100?"ok":"no");} }
 function cizAgirlik(R){
+  const H=Object.assign({...HEDEF_VAR}, ST.hedef||{});
   let h=`<div class="kart"><div class="kbas">⚙️ Ağırlıklar (toplam 100 olmalı)</div>`;
   let sonGrup="";
   AGMETA.forEach(([k,ad,grup,acik])=>{
@@ -572,6 +613,15 @@ function cizAgirlik(R){
   const t=agToplam();
   h+=`<div class="agrtop ${t===100?'ok':'no'}" id="agtop">Toplam: %${t}${t===100?" ✓":" (100 olmalı)"}</div>
     <div style="display:flex;gap:10px;margin-top:10px"><button class="btn" id="agsifir">Varsayılana dön</button><button class="btn ana" id="agkaydet" style="flex:1">Kaydet</button></div></div>`;
+  h+=`<div class="kart"><div class="kbas">🎯 Hedefler</div>
+    <div class="mini" style="margin-bottom:10px">Bu metrikler "en iyiye göre" değil, hedefe/kurala göre puanlanır. Tam puan için gereken:</div>
+    <div class="hedefg">
+      ${[["servis","🛵 Servis (adet)"],["kulak","👂 Kulak (adet)"],["temizlik","🧹 Temizlik (adet)"],["gorev","✅ Görev (adet)"]].map(([k,ad])=>`<label class="hedefl"><span>${ad}</span><input type="number" min="1" data-hed="${k}" value="${H[k]}"></label>`).join("")}
+      <label class="hedefl"><span>📅 Devam: gelmeyen gün −</span><input type="number" min="0" data-hed="devam_gun" value="${H.devam_gun}"></label>
+      <label class="hedefl"><span>📅 Devam: yarım gün −</span><input type="number" min="0" data-hed="devam_yarim" value="${H.devam_yarim}"></label>
+      <label class="hedefl"><span>✍️ Senin puanın ölçek (0–?)</span><input type="number" min="1" data-hed="elle_olcek" value="${H.elle_olcek}"></label>
+    </div>
+    <button type="button" class="btn ana" id="hedkaydet" style="width:100%;margin-top:10px">Hedefleri kaydet</button></div>`;
   h+=`<div class="kart"><div class="kbas">➕ Yeni metrik</div>
     <input id="em-ad" placeholder="Metrik adı (ör. Vitrin düzeni)" style="width:100%;padding:10px;border:1.5px solid var(--cizgi);border-radius:10px;background:transparent;color:var(--yazi);margin-bottom:8px">
     <select id="em-tip" style="width:100%;padding:10px;border:1.5px solid var(--cizgi);border-radius:10px;background:var(--kart);color:var(--yazi);margin-bottom:8px">
@@ -595,7 +645,9 @@ function cizAgirlik(R){
     else { if(!ad){alert("Metrik adı gir");return;} em.tip="elle"; em.dolduran="yonetici"; }
     em.ad=ad; ST.ekMetrik.push(em); cizAgirlik(R);
   };
-  $("#agsifir").onclick=()=>{ST.ag={...VARAG};ST.ekMetrik=[];cerceve();ST.tab="agirlik";cizAgirlik(R);};
+  $("#icerik").querySelectorAll("input[data-hed]").forEach(inp=>inp.onchange=()=>{ ST.hedef=Object.assign({...HEDEF_VAR},ST.hedef||{}); ST.hedef[inp.dataset.hed]=Math.max(0,+inp.value||0); });
+  if($("#hedkaydet")) $("#hedkaydet").onclick=async()=>{ ST.hedef=Object.assign({...HEDEF_VAR},ST.hedef||{}); $("#icerik").querySelectorAll("input[data-hed]").forEach(inp=>ST.hedef[inp.dataset.hed]=Math.max(0,+inp.value||0)); try{await db.from("prim_ayar").upsert({anahtar:"hedefler",deger:JSON.stringify(ST.hedef),guncelleme:new Date().toISOString()},{onConflict:"anahtar"});}catch(e){} alert("Hedefler kaydedildi"); ST.tab="sira";cerceve();ciz(); };
+  $("#agsifir").onclick=()=>{ST.ag={...VARAG};ST.hedef={...HEDEF_VAR};ST.ekMetrik=[];cerceve();ST.tab="agirlik";cizAgirlik(R);};
   $("#agkaydet").onclick=async()=>{
     const t=agToplam(); if(t!==100){alert("Toplam 100 olmalı, şu an %"+t);return;}
     await db.from("prim_ayar").upsert({anahtar:"agirliklar",deger:JSON.stringify(ST.ag),guncelleme:new Date().toISOString()},{onConflict:"anahtar"});
