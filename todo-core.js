@@ -72,6 +72,7 @@ function pushGonder(hedef, baslik, govde){
 /* ---------- veri ---------- */
 let CFGV={pin:null,sifreler:{},calisanlar:[],sablonlar:[]};
 let GOREVLER=[];
+let formAcik=false;   // düzenleme/ekleme formu açıkken oto-yenileme ekranı ezmesin
 let sonGoruldu = (()=>{ try{ return Number(localStorage.getItem("todo_songor_"+(CFG.kisiId||"x")))||0; }catch(e){ return 0; } })();
 
 async function veriOku(){
@@ -120,6 +121,74 @@ async function gorevGeriAl(id){ const g=GOREVLER.find(x=>x.id===id); if(!g) retu
 async function gorevArsivle(id){ const g=GOREVLER.find(x=>x.id===id); if(!g) return; g.durum="arsiv"; g.arsivZamani=new Date().toISOString(); await gorevYaz(g); }
 async function gorevSil(id){ GOREVLER=GOREVLER.filter(x=>x.id!==id); await gorevSilDb(id); }
 
+/* ---------- tekrarlayan görev (şablon) yönetimi ---------- */
+function sablonYonetebilir(s){ return CFG.rol==="yonetici" || (s && s.olusturan===CFG.kisiId); }
+const GUN_AD=["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];
+function tekrarEtiket(s){
+  const sa=s.saat?" "+s.saat:"";
+  if(s.tekrar==="gunluk") return "Her gün"+sa;
+  if(s.tekrar==="haftalik") return "Her hafta "+(GUN_AD[(Number(s.gun||1)-1)]||"")+sa;
+  if(s.tekrar==="aylik") return "Her ayın "+Number(s.gun||1)+"’i"+sa;
+  return "";
+}
+async function sablonDurdur(id){
+  const s=(CFGV.sablonlar||[]).find(x=>x.id===id); if(!s) return;
+  if(!sablonYonetebilir(s)){ alert("Bunu yalnızca ekleyen kişi veya yönetici durdurabilir."); return; }
+  const bekleyen=GOREVLER.filter(g=>g.sablonId===id && g.durum==="bekliyor");
+  CFGV.sablonlar=(CFGV.sablonlar||[]).filter(x=>x.id!==id);
+  GOREVLER=GOREVLER.filter(g=>!(g.sablonId===id && g.durum==="bekliyor"));
+  await cfgYaz();
+  for(const g of bekleyen){ try{ await gorevSilDb(g.id); }catch(e){} }
+}
+async function sablonGuncelle(id, patch){
+  const s=(CFGV.sablonlar||[]).find(x=>x.id===id); if(!s) return;
+  if(!sablonYonetebilir(s)) return;
+  Object.assign(s, patch);
+  await cfgYaz();
+  const yz=[];
+  for(const g of GOREVLER){ if(g.sablonId===id && g.durum==="bekliyor"){ g.baslik=s.baslik; g.aciklama=s.aciklama||""; g.kime=s.kime; g.saat=s.saat||""; yz.push(g); } }
+  for(const g of yz){ try{ await gorevYaz(g); }catch(e){} }
+}
+function sablonKart(s){
+  const yonet=sablonYonetebilir(s);
+  const ekleyen = (s.olusturan && s.olusturan!=="yonetici") ? ` · ${kacis(kisiAd(s.olusturan))} ekledi` : "";
+  return `<div class="g-kart">
+    <div class="g-orta"><div class="g-bas">🔁 ${kacis(s.baslik)}</div>
+      ${s.aciklama?`<div class="g-ack">${kacis(s.aciklama)}</div>`:""}
+      <div class="g-alt"><span class="rozet ${s.kime==='genel'?'genel':''}">${kacis(kisiAd(s.kime))}</span> · ${kacis(tekrarEtiket(s))}${ekleyen}</div></div>
+    ${yonet?`<div class="onay-btn"><button class="mini" onclick="TODO.sDuzenle('${s.id}')">düzenle</button><button class="mini kirmizi" onclick="TODO.sDurdur('${s.id}')">durdur</button></div>`:`<span class="mini" style="opacity:.45;align-self:center">görüntü</span>`}
+  </div>`;
+}
+function tekrarListe(predicate){
+  const list=(CFGV.sablonlar||[]).filter(predicate);
+  if(!list.length) return `<div class="bos">Tekrarlayan (günlük/haftalık) görev yok.</div>`;
+  const grup=(tip,ad)=>{ const l=list.filter(s=>s.tekrar===tip); return l.length?`<h2 class="sol">${ad} <span class="say">${l.length}</span></h2>${l.map(sablonKart).join("")}`:""; };
+  return grup("gunluk","Günlükler")+grup("haftalik","Haftalıklar")+grup("aylik","Aylıklar");
+}
+function sablonFormEkran(id){
+  const s=(CFGV.sablonlar||[]).find(x=>x.id===id); if(!s){ ciz(); return; }
+  formAcik=true;
+  const yonetici=CFG.rol==="yonetici";
+  const ks=(CFGV.calisanlar||[]).map(k=>`<option value="${k.id}" ${s.kime===k.id?"selected":""}>${kacis(k.ad)}</option>`).join("");
+  let gunKutu="";
+  if(s.tekrar==="haftalik") gunKutu=`<label>Haftanın günü<select id="eGun">${GUN_AD.map((g,i)=>`<option value="${i+1}" ${Number(s.gun)===i+1?"selected":""}>${g}</option>`).join("")}</select></label>`;
+  else if(s.tekrar==="aylik") gunKutu=`<label>Ayın günü<select id="eGun">${Array.from({length:28},(_,i)=>`<option value="${i+1}" ${Number(s.gun)===i+1?"selected":""}>${i+1}</option>`).join("")}</select></label>`;
+  $("#app").innerHTML=`
+  <header class="tbar"><div class="tbar-ic"><div class="tbar-ad">🔁 Düzenle</div></div><div class="tbar-alt">${kacis(CFG.eczaneAd||"")} · tekrarlayan görev · ${kacis(tekrarEtiket(s))}</div></header>
+  <main class="twrap">
+    <button class="mini" onclick="ciz()" style="margin-bottom:12px">‹ Geri</button>
+    <section class="form-kutu">
+      <label>Başlık<input id="eBas" value="${kacis(s.baslik)}"></label>
+      <label>Açıklama (ops.)<input id="eAck" value="${kacis(s.aciklama||"")}"></label>
+      ${yonetici?`<label>Kime<select id="eKime"><option value="genel" ${s.kime==="genel"?"selected":""}>Genel (herkes)</option>${ks}</select></label>`:""}
+      ${gunKutu}
+      <label>Saat<input id="eSaat" type="time" value="${kacis(s.saat||"")}"></label>
+      <button class="ana-dugme" onclick="TODO.sKaydet('${s.id}')">Kaydet</button>
+      <div id="eDurum" class="durum"></div>
+    </section>
+  </main>`;
+}
+
 function bildirimBanner(){
   let g=false; try{ g=("Notification" in window)&&Notification.permission==="granted"; }catch(e){ g=false; }
   if(g) return "";
@@ -151,6 +220,7 @@ function calisanEkran(){
     ${aktif.length?`<section><h2>Yapılacaklar <span class="say">${aktif.length}</span></h2>${aktif.map(kart).join("")}</section>`:`<div class="bos">🎉 Bekleyen görevin yok!</div>`}
     <section class="kendi"><button class="ekle-btn" onclick="TODO.kendineEkle()">+ Kendime hatırlatma ekle</button></section>
     ${yapilan.length?`<section><h2 class="sol">Yaptıklarım</h2>${yapilan.map(yKart).join("")}</section>`:""}
+    ${(()=>{ const t=(CFGV.sablonlar||[]).filter(s=> s.kime==="genel" || s.kime===CFG.kisiId || s.olusturan===CFG.kisiId); return t.length?`<section><h2 class="sol">🔁 Tekrarlayan görevler</h2>${t.map(sablonKart).join("")}</section>`:""; })()}
     <div class="dip"><button class="mini" onclick="TODO.bildirimIzin()">🔔 Bildirimleri aç</button> <button class="mini" onclick="TODO.sifreDegistir()">🔒 Şifremi değiştir</button></div>
   </main>`;
 }
@@ -186,6 +256,7 @@ function yoneticiEkran(){
   if(yTab==="ver") govde=yVerGovde();
   else if(yTab==="takip") govde=yTakipGovde(bekleyen);
   else if(yTab==="onay") govde=yOnayGovde(onayBekleyen);
+  else if(yTab==="tekrar") govde=tekrarListe(()=>true);
   else if(yTab==="calisan") govde=yCalisanGovde();
   else if(yTab==="arsiv") govde=yArsivGovde();
   $("#app").innerHTML=`
@@ -195,6 +266,7 @@ function yoneticiEkran(){
     ${say("ver")}➕ Görev ver</button>
     ${say("takip")}📋 Takip <span class="say">${bekleyen.length}</span></button>
     ${say("onay")}✅ Onay <span class="say ${onayBekleyen.length?'kirmizi':''}">${onayBekleyen.length}</span></button>
+    ${say("tekrar")}🔁 Tekrar <span class="say">${(CFGV.sablonlar||[]).length}</span></button>
     ${say("calisan")}👥 Çalışanlar</button>
     ${say("arsiv")}🗄️ Arşiv</button>
   </nav>
@@ -279,6 +351,7 @@ function calisanChooser(){
 /* ---------- render seçici ---------- */
 function ciz(){
   temaUygula();
+  formAcik=false;
   if(CFG.rol!=="yonetici" && !CFG.kisiId){ return calisanChooser(); }
   if(!kapiAcikMi()){ return kapiCiz(); }
   if(CFG.rol==="yonetici") yoneticiEkran(); else calisanEkran();
@@ -295,7 +368,7 @@ async function tazele(sesli){
   const el=document.activeElement, tag=el&&el.tagName;
   const yaziyor = (tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT");
   const formda = (CFG.rol==="yonetici" && yTab==="ver");
-  if(yaziyor || formda) return;   // kullanıcı girdi yaparken ekran yenilenmesin (yazdıkları silinmesin)
+  if(yaziyor || formda || formAcik) return;   // kullanıcı girdi yaparken ekran yenilenmesin (yazdıkları silinmesin)
   ciz();
 }
 
@@ -307,7 +380,10 @@ window.TODO={
   async geri(id){ await gorevGeriAl(id); ciz(); },
   async arsivle(id){ await gorevArsivle(id); ciz(); },
   async sil(id){ if(confirm("Görev silinsin mi?")){ await gorevSil(id); ciz(); } },
-  kendineEkle(){ calisanFormEkran(); },
+  sDurdur(id){ const s=(CFGV.sablonlar||[]).find(x=>x.id===id); if(!s) return; if(!sablonYonetebilir(s)){ alert("Bunu yalnızca ekleyen kişi veya yönetici durdurabilir."); return; } if(confirm("Bu tekrarlayan görev durdurulsun mu?\nBekleyenler silinir, yapılmış olanlar arşivde kalır. İleride yeni üretilmez.")){ sablonDurdur(id).then(ciz); } },
+  sDuzenle(id){ sablonFormEkran(id); },
+  async sKaydet(id){ const s=(CFGV.sablonlar||[]).find(x=>x.id===id); if(!s) return; const bas=$("#eBas").value.trim(); if(!bas){ $("#eDurum").textContent="Başlık gir."; return; } const patch={baslik:bas, aciklama:$("#eAck").value.trim()}; const eK=$("#eKime"); if(eK) patch.kime=eK.value; const eG=$("#eGun"); if(eG) patch.gun=Number(eG.value); const eS=$("#eSaat"); if(eS) patch.saat=eS.value; await sablonGuncelle(id, patch); ciz(); },
+  kendineEkle(){ formAcik=true; calisanFormEkran(); },
   kTekrarDegis(){
     const v=$("#kTekrar").value, sat=$("#kGunSatir"), kutu=$("#kGunKutu"), lbl=$("#kGunLbl"), tl=$("#kTarihLbl");
     if(v==="haftalik"){ sat.style.display=""; lbl.textContent="Haftanın günü"; kutu.innerHTML=`<select id="kGun">${["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"].map((g,i)=>`<option value="${i+1}">${g}</option>`).join("")}</select>`; tl.style.display="none"; }
