@@ -369,7 +369,7 @@ function hesapla(){
   // türetilenler
   Object.values(M).forEach(m=>{
     m.wd=Math.max(0, N - m.gelmedi - 0.5*m.yarim);
-    const g=m.wd>0?m.wd:1;
+    const g=N>0?N:1; // B: satış ortalaması ayın iş gününe bölünür (devam/gelmedi satışı etkilemez)
     m.toplamA=m.ilacA+m.disA; m.toplamT=m.ilacT+m.disT; m.toplamK=m.ilacK+m.disK;
     m.raw={
       kar:m.toplamK/g, kutu:m.toplamA/g, ciro:m.toplamT/g,
@@ -379,7 +379,7 @@ function hesapla(){
   });
   // ek metrik ham değerleri
   Object.values(M).forEach(m=>{
-    const g=m.wd>0?m.wd:1;
+    const g=N>0?N:1; // B: satış ortalaması ayın iş gününe bölünür (devam/gelmedi satışı etkilemez)
     ST.ekMetrik.forEach(em=>{
       let v=0;
       if(em.tip==='satis'){ const s=SEG_KAYNAK[em.kaynak]; v=s?(s.f(m)/g):0; }
