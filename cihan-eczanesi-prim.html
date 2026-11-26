@@ -182,6 +182,19 @@
   .tpin-sat{display:flex;gap:8px}
   .tpin-sat input{flex:1;padding:12px 13px;border:1.5px solid var(--cizgi);border-radius:12px;font-size:16px;background:transparent;color:var(--yazi)}
   .tpin-sat button{background:linear-gradient(135deg,var(--ana),var(--ana2));color:#fff;border:0;border-radius:12px;padding:0 18px;font-weight:800;font-size:15px;cursor:pointer}
+  /* kayıtlar */
+  .kysec{display:flex;gap:6px;overflow-x:auto;margin:0 -12px 12px;padding:0 12px;scrollbar-width:none}
+  .kysec::-webkit-scrollbar{display:none}
+  .kychip{white-space:nowrap;border:1.5px solid var(--cizgi);background:var(--kart);color:var(--soluk);border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:700}
+  .kychip.sec{background:var(--ana);color:#fff;border-color:var(--ana)}
+  .kyozet{background:var(--kart);border:1.5px solid var(--cizgi);border-radius:12px;padding:10px 13px;font-size:14px;margin-bottom:12px}
+  .kygun{margin-bottom:12px}
+  .kygunb{font-size:13px;font-weight:800;color:var(--yazi);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .kyguns{font-weight:600;color:var(--soluk);font-size:12px}
+  .kypills{display:flex;flex-wrap:wrap;gap:7px}
+  .kypill{display:inline-flex;align-items:center;gap:3px;border:1.5px solid var(--cizgi);background:var(--kart);border-radius:11px;padding:7px 10px;font-size:17px;line-height:1;cursor:pointer}
+  .kypill:active{transform:scale(.94)}
+  .kyx{font-size:13px;font-weight:800;color:var(--kulak,#D3433B)}
 </style>
 </head>
 <body>
@@ -208,7 +221,7 @@ const n2=n=>(Math.round((n||0)*10)/10).toLocaleString("tr-TR");
 async function sha(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");}
 
 const VARAG={kar:20,kutu:20,ciro:5,servis:5,kulak:5,temizlik:5,gorev:5,devam:10,elle:25};
-const HEDEF_VAR={servis:15,kulak:15,temizlik:12,gorev:20,devam_gun:20,devam_yarim:10,elle_olcek:10};
+const HEDEF_VAR={servis:15,kulak:15,temizlik:30,gorev:20,devam_gun:20,devam_yarim:10,elle_olcek:10};
 const AGMETA=[
   ["kar","Kâr","Satış",'Eczane farkı / çalışılan gün (en iyiye göre)'],
   ["kutu","Kutu adedi","Satış",'Satılan kutu / çalışılan gün (en iyiye göre)'],
@@ -318,7 +331,7 @@ async function veriYukle(){
   const [pe,sa,ak,pu,el,ay,gv,oz]=await Promise.all([
     db.from("prim_personel").select("*").order("sira"),
     db.from("prim_satis_gunluk").select("*").gte("tarih",b).lte("tarih",s),
-    db.from("prim_aktivite").select("personel,tur,adet,tarih").gte("tarih",b).lte("tarih",s),
+    db.from("prim_aktivite").select("id,personel,tur,adet,tarih,olusturma").gte("tarih",b).lte("tarih",s),
     db.from("prim_puantaj").select("*").eq("ay",ST.ay),
     db.from("prim_elle_puan").select("*").eq("ay",ST.ay),
     db.from("prim_ayar").select("anahtar,deger"),
@@ -429,7 +442,7 @@ function cerceve(){
   <div id="icerik"></div>`;
   $("#cikis").onclick=()=>{location.href="eczane-stok.html";};
   $("#ayg").onclick=()=>ayDegis(-1); $("#ayi").onclick=()=>ayDegis(1);
-  const S=[["sira","🏆 Sıralama"],["detay","📊 Detay"],["puantaj","🗓️ Puantaj"],["elle","✍️ Puanım"],["agirlik","⚙️ Ağırlık"],["kisi","👥 Kişiler"]];
+  const S=[["sira","🏆 Sıralama"],["detay","📊 Detay"],["kayit","🧹 Kayıtlar"],["puantaj","🗓️ Puantaj"],["elle","✍️ Puanım"],["agirlik","⚙️ Ağırlık"],["kisi","👥 Kişiler"]];
   $("#sekmeler").innerHTML=S.map(([k,a])=>`<button class="sekme ${ST.tab===k?'sec':''}" data-t="${k}">${a}</button>`).join("");
   $("#sekmeler").querySelectorAll(".sekme").forEach(b=>b.onclick=()=>{ST.tab=b.dataset.t;cerceve();ciz();});
   ayEtiket();
@@ -446,6 +459,41 @@ function ciz(){
   else if(ST.tab==="elle")cizElle(R);
   else if(ST.tab==="agirlik")cizAgirlik(R);
   else if(ST.tab==="kisi")cizKisi(R);
+  else if(ST.tab==="kayit")cizKayit(R);
+}
+
+/* ================= KAYITLAR (aktivite dökümü · sadece panel/PIN) ================= */
+let kayitKisi=null;
+const KY_TUR={servis:{i:"🛵",a:"Servis"},kulak:{i:"👂",a:"Kulak"},temizlik:{i:"🧹",a:"Temizlik"}};
+function kyGunAd(d){const p=String(d).split("-");if(p.length<3)return d;return (+p[2])+" "+AYLAR[(+p[1])-1];}
+function cizKayit(){
+  const C=$("#icerik");
+  const kisiler=ST.personel.map(p=>p.ad);
+  if(!kisiler.length){C.innerHTML=`<div class="msg">Kişi yok. "Kişiler" sekmesinden ekle.</div>`;return;}
+  if(kayitKisi===null||!kisiler.includes(kayitKisi))kayitKisi=kisiler[0];
+  let h=`<div class="kysec">`+kisiler.map(ad=>`<button class="kychip ${ad===kayitKisi?'sec':''}" data-k="${kacis(ad)}">${kacis(ad)}</button>`).join("")+`</div>`;
+  const rows=(ST.aktivite||[]).filter(r=>r.personel===kayitKisi&&KY_TUR[r.tur]&&r.id!=null);
+  const tp={servis:0,kulak:0,temizlik:0};rows.forEach(r=>tp[r.tur]++);
+  h+=`<div class="kyozet">Bu ay toplam — 🧹 <b>${tp.temizlik}</b> · 🛵 <b>${tp.servis}</b> · 👂 <b>${tp.kulak}</b></div>`;
+  if(!rows.length){h+=`<div class="msg">Bu ay kayıt yok.</div>`;C.innerHTML=h;kyBagla();return;}
+  const byGun={};rows.forEach(r=>{(byGun[r.tarih]=byGun[r.tarih]||[]).push(r);});
+  const gunler=Object.keys(byGun).sort().reverse();
+  gunler.forEach(g=>{
+    const es=byGun[g].slice().sort((a,b)=>(a.tur<b.tur?-1:a.tur>b.tur?1:0)||(String(a.olusturma||"")<String(b.olusturma||"")?-1:1));
+    h+=`<div class="kygun"><div class="kygunb">${kyGunAd(g)} <span class="kyguns">${es.length} giriş</span></div><div class="kypills">`+
+       es.map(r=>`<button class="kypill" data-sil="${kacis(r.id)}" title="${KY_TUR[r.tur].a} — sil">${KY_TUR[r.tur].i}<span class="kyx">×</span></button>`).join("")+
+       `</div></div>`;
+  });
+  C.innerHTML=h;kyBagla();
+}
+function kyBagla(){
+  $("#icerik").querySelectorAll(".kychip").forEach(b=>b.onclick=()=>{kayitKisi=b.dataset.k;cizKayit();});
+  $("#icerik").querySelectorAll(".kypill[data-sil]").forEach(b=>b.onclick=async()=>{
+    if(!confirm("Bu giriş silinsin mi?"))return;
+    b.disabled=true;b.style.opacity=".5";
+    try{const r=await db.from("prim_aktivite").delete().eq("id",b.dataset.sil);if(r.error)throw r.error;await veriYukle();ciz();}
+    catch(e){b.disabled=false;b.style.opacity="1";alert("Silinemedi: "+(e&&e.message?e.message:e));}
+  });
 }
 
 function cizSira(R){
